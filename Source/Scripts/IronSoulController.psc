@@ -202,9 +202,9 @@ Scriptname IronSoulController extends Quest
 ; ReenableAfterUninstall()
 
 
-; =======================================================
-; --- Gameplay Config (INI via SKSE plugin) + Logging ---
-; =======================================================
+; ====================================
+; --- Properties and Runtime State ---
+; ====================================
 
 ; Logging
 Bool _logEnabled = False
@@ -257,6 +257,19 @@ Spell Property SoulBonus3Gold Auto
 Spell Property SoulBonus4Ebon Auto
 Spell Property SoulBonus5Platinum Auto
 
+; UI SFX (Sound Descriptors)
+Sound Property SFXIronIntro Auto
+Sound Property SFXDeath Auto
+Sound Property SFXPermadeath Auto
+Sound Property SFXRespawn Auto
+Sound Property SFXDefiantTransition Auto
+Sound Property SFXDragonSoulRevive Auto
+Sound Property SFXFeatSilver Auto
+Sound Property SFXFeatGold Auto
+Sound Property SFXFeatEbon Auto
+Sound Property SFXFeatPlatinum Auto
+Sound Property SFXFeatDefiant Auto
+
 ; Boss quest latches
 Quest Property MQ305 Auto
 Quest Property DLC1VQ08 Auto
@@ -284,6 +297,11 @@ Bool _luckCooldownDirty = False
 Int Property IRON_SOUL_MAX_LIVES = 10 AutoReadOnly
 Int Property DEFIANT_SOUL_MAX_LIVES = 100 AutoReadOnly
 Int Property LUCK_REGEN_SECONDS = 3600 AutoReadOnly ; Luck 0->100 duration
+
+
+; =======================================================
+; --- Gameplay Config (INI via SKSE plugin) + Logging ---
+; =======================================================
 
 ; Read INI overrides via SKSE plugin (all optional)- 
 ; Data\SKSE\Plugins\IronSoul.ini
@@ -512,7 +530,7 @@ Function LogSystemSnapshot()
 
 	LogMsg(LOG_INFO(), "===== Iron Soul System Snapshot =====")
 
-	; SKSE / Datastore Integrity
+	; --- SKSE / Datastore Integrity ---
 	Bool skseOK = IronSoulNative.IsAvailable()
 	Bool dsOK = False
 	if skseOK
@@ -523,15 +541,54 @@ Function LogSystemSnapshot()
 		+ " DataStore=" + dsOK \
 		+ " SessionGUID=" + _sessionGuid)
 
-	; GUID sanity
 	if _sessionGuid == "" || _sessionGuid == "999999"
 		LogMsg(LOG_ERR(), "WARNING: Invalid or fallback SessionGUID detected")
 	endif
 
-	; Respawn / DSR
+	; --- Quest Wiring ---
+	LogMsg(LOG_INFO(), "--- Quest Wiring ---")
+
+	if !MQ305
+		LogMsg(LOG_ERR(), "MISSING PROPERTY: MQ305 (Quest)")
+	else
+		LogMsg(LOG_INFO(), "MQ305: Running=" + MQ305.IsRunning())
+	endif
+
+	if !DLC1VQ08
+		LogMsg(LOG_ERR(), "MISSING PROPERTY: DLC1VQ08 (Quest)")
+	else
+		LogMsg(LOG_INFO(), "DLC1VQ08: Running=" + DLC1VQ08.IsRunning())
+	endif
+
+	if !DLC2MQ06
+		LogMsg(LOG_ERR(), "MISSING PROPERTY: DLC2MQ06 (Quest)")
+	else
+		LogMsg(LOG_INFO(), "DLC2MQ06: Running=" + DLC2MQ06.IsRunning())
+	endif
+
+	Bool dsrPresent = (DSRQuest != None)
+	Bool dsrRunning = (dsrPresent && DSRQuest.IsRunning())
+
+	if !dsrPresent
+		if !_disableDragonSoulRevive
+			LogMsg(LOG_ERR(), "CONFIG MISMATCH: DragonSoulRevive enabled but DSRQuest missing")
+		else
+			LogMsg(LOG_ERR(), "MISSING PROPERTY: DSRQuest (Quest)")
+		endif
+	else
+		LogMsg(LOG_INFO(), "DSRQuest: Running=" + dsrRunning)
+	endif
+
 	Bool hasRespawn = (_respawnQuest != None)
 	Bool respawnRunning = (hasRespawn && _respawnQuest.IsRunning())
 
+	if !hasRespawn
+		LogMsg(LOG_ERR(), "MISSING PROPERTY: RespawnQuest (_respawnQuest)")
+	else
+		LogMsg(LOG_INFO(), "RespawnQuest: Running=" + respawnRunning)
+	endif
+
+	; --- Respawn / DSR Status ---
 	Float dsrEnabled = 0.0
 	if IronSoul_DSR_Enabled
 		dsrEnabled = IronSoul_DSR_Enabled.GetValue()
@@ -542,12 +599,15 @@ Function LogSystemSnapshot()
 		+ " DisableRespawn=" + _disableRespawn \
 		+ " DSR=" + dsrEnabled)
 
-	; Detect mismatch
 	if hasRespawn && !_disableRespawn && !respawnRunning
 		LogMsg(LOG_ERR(), "WARNING: Respawn quest present but NOT running")
 	endif
 
-	; Core Config
+	if !_disableDragonSoulRevive && dsrPresent && !dsrRunning
+		LogMsg(LOG_ERR(), "WARNING: DSRQuest present but NOT running while DragonSoulRevive enabled")
+	endif
+
+	; --- Core Config ---
 	LogMsg(LOG_INFO(), "Config: Logging=" + _logEnabled \
 		+ " Level=" + _logLevel \
 		+ " Notify=" + _enableLogNotifications \
@@ -555,13 +615,13 @@ Function LogSystemSnapshot()
 		+ " UninstallMode=" + _uninstallMode \
 		+ " ModDisabled=" + _modDisabled)
 
-	; Systems
+	; --- Systems ---
 	LogMsg(LOG_INFO(), "Systems: Luck=" + (!_disableLuckSystem) \
 		+ " SoulBonus=" + (!_disableSoulBonus) \
 		+ " SoulFeats=" + (!_disableSoulFeats) \
 		+ " DragonSoulReviveDisabled=" + _disableDragonSoulRevive)
 
-	; Luck Persistence
+	; --- Luck Persistence ---
 	LogMsg(LOG_INFO(), "Luck: Loaded=" + _luckCooldownLoaded \
 		+ " Dirty=" + _luckCooldownDirty \
 		+ " LastSec=" + _luckCooldownLastSec \
@@ -571,7 +631,7 @@ Function LogSystemSnapshot()
 		LogMsg(LOG_ERR(), "WARNING: Luck system enabled but cooldown not loaded")
 	endif
 
-	; Runtime Health
+	; --- Runtime Health ---
 	LogMsg(LOG_INFO(), "Runtime: PendingDeathCheck=" + _pendingDeathCheck \
 		+ " PendingDisableRespawn=" + _pendingDisableRespawn \
 		+ " UninstallStage=" + _uninstallStage)
@@ -580,7 +640,7 @@ Function LogSystemSnapshot()
 		LogMsg(LOG_ERR(), "WARNING: Death pipeline still pending")
 	endif
 
-	; Player Snapshot
+	; --- Player Snapshot ---
 	Actor p = Game.GetPlayer()
 	if p
 		Int deaths = 0
@@ -593,11 +653,10 @@ Function LogSystemSnapshot()
 			+ " InCombat=" + p.IsInCombat() \
 			+ " Deaths=" + deaths)
 
-        ; Soul Tier check (if datastore working)
-        if dsOK
-        	Int tier = PersistGetInt(p, GetKey(soulTierIndex, _sessionGuid), 0)
-        	LogMsg(LOG_INFO(), "SoulTier=" + tier)
-        endif
+		if dsOK
+			Int tier = PersistGetInt(p, GetKey(soulTierIndex, _sessionGuid), 0)
+			LogMsg(LOG_INFO(), "SoulTier=" + tier)
+		endif
 	endif
 
 	LogMsg(LOG_INFO(), "===== End Snapshot =====")
@@ -916,15 +975,12 @@ Function GameReloaded(Bool isLoadGame)
         return
     endif
 
-    ; DSR: ensure quest/spells exist when enabled (covers prior uninstall removal)
-    SyncDSROnLoad(player)
-
     ; Identity bootstrap
     String name = IronSoulNative.GetPlayerName()
     String cosaveGuid = StorageUtil.GetStringValue(player, characterGuid, "")
 
-; Attempt to restore GUID if co-save GUID looks suspicious (present, but not known to MainData),
-; using identity snapshots (only beyond level 1).
+    ; Attempt to restore GUID if co-save GUID looks suspicious (present, but not known to MainData),
+    ; using identity snapshots (only beyond level 1).
     TryRestoreGuidTamperedCosave(player, name, cosaveGuid)
 
     String guid = EnsureGuid(player)
@@ -957,7 +1013,7 @@ Function GameReloaded(Bool isLoadGame)
             SyncDeathAV(player, deathsNow)
         endif
 
-        ; Keep the global in sync (used by UI / other systems)
+        ; Update Global Variable IronSoul_DeathCount with current character death count for other mods to read.
         IronSoul_DeathCount.SetValue(deathsNow)
 
         ; Enforce essential / quest state using current identity.
@@ -987,6 +1043,9 @@ Function GameReloaded(Bool isLoadGame)
     endif
 
     LogSystemSnapshot()
+
+    ; DSR: ensure quest/spells exist when enabled (covers prior uninstall removal)
+    SyncDSROnLoad(player)
 
     ; Schedule load message (delayed UI + load-time enforcement).
     ScheduleLoadMessage(isLoadGame, player, guid)
