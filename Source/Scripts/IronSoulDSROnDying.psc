@@ -1,30 +1,30 @@
-Scriptname IronSoulDragonSoulOnDying extends ActiveMagicEffect
+Scriptname IronSoulDSROnDying extends ActiveMagicEffect
 
 Spell Property RestoreSpell Auto
 Spell Property DisSpell Auto
-Bool Property bDispel = True Auto ;Whether Dispel heal magic and potion on you when you die
+Bool Property bDispel = True Auto
 
-Float Property time1 = 6.0 Auto ;time delay of resurrect
-Float Property time2 = 3.0 Auto ;time delay of restore full health, magicka and stamina
-Float Property time3 = 1.0 Auto ;time delay of getup after resurrect spell cast
-Float Property time4 = 3.0 Auto ;time of Ghost status remains after get up
-Float Property time5 = 3.0 Auto ;time of resurrect spell remains after Ghost status is end
+Float Property time1 = 6.0 Auto ; Time delay of revive
+Float Property time2 = 3.0 Auto ; Time delay of restore full health, magicka and stamina
+Float Property time3 = 1.0 Auto ; Time delay of getup after revive spell cast
+Float Property time4 = 3.0 Auto ; Time of Ghost status remains after get up
+Float Property time5 = 3.0 Auto ; Time of revive spell remains after Ghost status has ended
 FormList Property BeastList Auto
-Globalvariable Property DRIsDead Auto
-GlobalVariable Property IronSoulDSREnabledGV Auto ; 1.0 = enabled, 0.0 = disabled (set by Iron Soul)
+Globalvariable Property IronSoul_DSR_IsDead Auto
+GlobalVariable Property IronSoul_DSR_Enabled Auto ; 1.0 = enabled, 0.0 = disabled (set by Controller)
 
-IronSoulControllerQuestScript Property IronSoulController Auto ; Iron Soul controller (for tier/Defiant menu resolution)
+IronSoulController Property Controller Auto ; Iron Soul controller (for tier/Defiant menu resolution)
 
 Bool Function _IsDSREnabled()
-	if IronSoulDSREnabledGV
-		return (IronSoulDSREnabledGV.GetValue() != 0.0)
+	if IronSoul_DSR_Enabled
+		return (IronSoul_DSR_Enabled.GetValue() != 0.0)
 	endif
 	return True ; fail-open if property not filled
 EndFunction
 
 String Function _ResolveDSRMenuName(Actor player)
-    if IronSoulController
-        String m = IronSoulController.ResolveDragonSoulReviveMenuForPlayer(player)
+    if Controller
+        String m = Controller.ResolveDragonSoulReviveMenu(player)
         if m != ""
             return m
         endif
@@ -85,7 +85,7 @@ Event OnEffectStart(Actor Target, Actor Caster)
     else
 
 
-        DRIsDead.SetValue(1)
+        IronSoul_DSR_IsDead.SetValue(1)
         Target.SetGhost(true)
         Target.PushActorAway(Target, 0.1)
         Target.SetAV("Paralysis", 1.0)
@@ -97,11 +97,11 @@ Event OnEffectStart(Actor Target, Actor Caster)
             ;Debug.Notification("Cast Spell")
 
             Target.DamageAV("DragonSouls", 1.0)
-            ; Contextual Dragon Soul Revive menu (tier/Defiant) â€“ shown for 4 seconds.
+            ; Contextual Dragon Soul Revive menu (tier/Defiant) – shown for 4 seconds.
             String menuName = _ResolveDSRMenuName(Target)
             _ShowDSRMenu(menuName)
             Target.AddSpell(RestoreSpell,false)
-            DRIsDead.SetValue(0)
+            IronSoul_DSR_IsDead.SetValue(0)
 
 
             if bPlayVisualEffect
