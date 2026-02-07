@@ -220,6 +220,7 @@ Bool _disableDragonSoulReviveMessage = False
 Bool _disableLuckSystem = False
 Bool _disableCharacterJournalLog = False
 Bool _enableCharacterSheetCompatibility = False
+Bool _disableIronSoulIntro = False
 
 Quest _respawnQuest = None
 Bool _respawnAvailable = False
@@ -297,6 +298,7 @@ Function LoadConfig()
     ; Messaging (SWF)
     _disableRespawnMessage = False
     _disableDragonSoulReviveMessage = False
+    _disableIronSoulIntro = False
 
     ; Gameplay / integration
     _disableRespawn = False
@@ -371,6 +373,13 @@ Function LoadConfig()
         _disableRespawnMessage = True
     endif
 
+    v = IronSoulNative.GetConfigInt("DisableIronSoulIntro", -1)
+    if v == 0
+        _disableIronSoulIntro = False
+    elseif v == 1
+        _disableIronSoulIntro = True
+    endif
+
     v = IronSoulNative.GetConfigInt("DisableSoulBonus", -1)
     if v == 0
         _disableSoulBonus = False
@@ -443,6 +452,12 @@ Function LoadConfig()
         _disableDragonSoulAnticheat = False
     elseif v == 1
         _disableDragonSoulAnticheat = True
+    endif
+
+    ; If intro is disabled, ensure any pending intro timer is cleared so it cannot fire after reload.
+    if _disableIronSoulIntro
+        _pendingIronIntro = False
+        _ironIntroAt = 0.0
     endif
 
     ; Publish DSR enabled state for all scripts (DSR reads this GlobalVariable; avoids config reads during death events).
@@ -1689,8 +1704,13 @@ Bool Function HandleBleedoutDetection(Actor player)
             if freeRespawn
                 Int ironIntroShown0 = PersistGetInt(player, GetKey(ironIntroShown, guid0), 0)
                 if ironIntroShown0 == 0
-                    _pendingIronIntro = True
-                    _ironIntroAt = nowRT + 6.0
+                    if _disableIronSoulIntro
+                        ; Optional enhancement: mark intro as shown so it can never schedule later.
+                        PersistSetInt(player, GetKey(ironIntroShown, guid0), 1, True)
+                    else
+                        _pendingIronIntro = True
+                        _ironIntroAt = nowRT + 6.0
+                    endif
                 endif
             endif
 
@@ -1726,8 +1746,13 @@ Bool Function HandleBleedoutDetection(Actor player)
             if IsRespawnEnabled()
                 Int ironIntroShownP = PersistGetInt(player, GetKey(ironIntroShown, guidP), 0)
                 if ironIntroShownP == 0
-                    OpenTimedMessageSWF(SwfNoBonus("1ironintro"), 15.0)
-                    PersistSetInt(player, GetKey(ironIntroShown, guidP), 1, True)
+                    if _disableIronSoulIntro
+                        ; Mark intro as shown so it can never fire later.
+                        PersistSetInt(player, GetKey(ironIntroShown, guidP), 1, True)
+                    else
+                        OpenTimedMessageSWF(SwfNoBonus("1ironintro"), 15.0)
+                        PersistSetInt(player, GetKey(ironIntroShown, guidP), 1, True)
+                    endif
                 endif
             endif
         endif
@@ -1883,8 +1908,13 @@ Function TrueDeathAndQuit(Actor player)
 	if !IsRespawnEnabled()
 		Int ironIntroShownTD = PersistGetInt(player, GetKey(ironIntroShown, guid), 0)
 		if deathsNow == 1 && ironIntroShownTD == 0
-			OpenTimedMessageSWF(SwfNoBonus("1ironintro"), 15.0)
-			PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
+			if _disableIronSoulIntro
+				; Mark intro as shown so it never triggers later.
+				PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
+			else
+				OpenTimedMessageSWF(SwfNoBonus("1ironintro"), 15.0)
+				PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
+			endif
 		endif
 	endif
 
