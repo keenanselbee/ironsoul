@@ -112,7 +112,20 @@ namespace IronSoul::Papyrus
 		return {};
 	}
 
-	static void LogJournalEntry(RE::StaticFunctionTag*, std::string a_message)
+	
+static bool IsAvailable(RE::StaticFunctionTag*)
+{
+	// Simple probe to confirm the Iron Soul SKSE plugin is loaded and Papyrus natives are registered.
+	return true;
+}
+
+static bool DataStoreReady(RE::StaticFunctionTag*)
+{
+	// True once the native datastore has been initialized.
+	return IronSoul::DataStore::IsInitialized();
+}
+
+static void LogJournalEntry(RE::StaticFunctionTag*, std::string a_message)
 	{
 		// Papyrus supplies the full event text (including punctuation).
 		// The plugin prepends the current player name and a single space.
@@ -189,6 +202,8 @@ static void DataFlushNow(RE::StaticFunctionTag*)
 		}
 
 		const bool ok = papyrus->Register([](RE::BSScript::IVirtualMachine* a_vm) {
+			a_vm->RegisterFunction("IsAvailable", kScriptName, IsAvailable);
+			a_vm->RegisterFunction("DataStoreReady", kScriptName, DataStoreReady);
 			a_vm->RegisterFunction("LogJournalEntry", kScriptName, LogJournalEntry);
 			a_vm->RegisterFunction("GetPlayerName", kScriptName, GetPlayerName);
 			a_vm->RegisterFunction("GenerateGuidUnique", kScriptName, GenerateGuidUnique);

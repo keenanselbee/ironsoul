@@ -20,6 +20,9 @@ namespace IronSoul
         static void Initialize();
         static void Shutdown();
 
+        // Returns true after Initialize() has run successfully.
+        static bool IsInitialized() { return _initialized; }
+
         static std::int32_t GetInt(const std::string& key, std::int32_t fallback);
         static bool         SetInt(const std::string& key, std::int32_t value);
         static bool         SetIntIfChanged(const std::string& key, std::int32_t value);

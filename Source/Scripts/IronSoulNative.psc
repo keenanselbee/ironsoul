@@ -95,10 +95,26 @@ Scriptname IronSoulNative Hidden
 ; =====================================================================================
 
 
-; =====================================================================================
-; JOURNAL LOGGING
-; =====================================================================================
+; ====================================
+; --- PLUGIN HEALTH / AVAILABILITY ---
+; ====================================
+
+; Lightweight probes used by the controller to verify the native plugin is loaded
+; and that its datastore has been initialized.
 ;
+; Notes:
+; - IsAvailable() is only a "native registration" check (plugin loaded + functions registered).
+; - DataStoreReady() is a stronger check that returns true only after the plugin has
+;   successfully initialized its persistent datastore layer.
+;
+Bool Function IsAvailable() Global Native
+Bool Function DataStoreReady() Global Native
+
+
+; =======================
+; --- JOURNAL LOGGING ---
+; =======================
+
 ; Appends a single journal line to the Iron Soul character journal log.
 ; The SKSE plugin prepends the player name automatically.
 ;
@@ -111,10 +127,10 @@ Scriptname IronSoulNative Hidden
 Function LogJournalEntry(String msg) Global Native
 
 
-; =====================================================================================
-; CONFIG ACCESS
-; =====================================================================================
-;
+; =====================
+; --- CONFIG ACCESS ---
+; =====================
+
 ; Reads integer configuration values from:
 ;   Data\SKSE\Plugins\IronSoul.ini
 ;
@@ -123,21 +139,17 @@ Function LogJournalEntry(String msg) Global Native
 Int Function GetConfigInt(String key, Int fallback = 0) Global Native
 
 
-; =====================================================================================
-; IDENTITY / GUID UTILITIES
-; =====================================================================================
-;
+; =================================
+; --- IDENTITY / GUID UTILITIES ---
+; =================================
+
 ; Returns the current player name.
-;
 ; Notes:
 ; - Returns "" (empty) if the name is not yet available (very early new game / pre-RaceMenu).
 ; - The controller should treat empty as "not ready" and retry later.
-;
 String Function GetPlayerName() Global Native
 
-
 ; Generates a unique character GUID with collision protection.
-;
 ; GUID format (v2):
 ;   <LETTER><####>
 ;   - LETTER: first letter of the character name (uppercase). If unavailable, falls back to 'P'.
@@ -169,42 +181,33 @@ String Function GetPlayerName() Global Native
 String Function GenerateGuidUnique(String playerName) Global Native
 
 
-; =====================================================================================
-; DATASTORE – READ ACCESS
-; =====================================================================================
-;
+; ===============================
+; --- DATASTORE – READ ACCESS ---
+; ===============================
+
 ; Reads an integer value from MainData.
 ; If the key does not exist or is not an integer, returns the fallback.
-;
 Int Function DataGetInt(String key, Int fallback = 0) Global Native
-
 
 ; Reads a string value from MainData.
 ; If the key does not exist or is not a string, returns the fallback.
-;
 String Function DataGetString(String key, String fallback = "") Global Native
 
-
 ; Returns true if the key exists in MainData.
-;
 Bool Function DataHasKey(String key) Global Native
 
 
-; =====================================================================================
-; DATASTORE – WRITE ACCESS
-; =====================================================================================
-;
+; ================================
+; --- DATASTORE – WRITE ACCESS ---
+; ================================
+
 ; Writes an integer value to MainData.
 ; This always marks the datastore dirty.
-;
 Function DataSetInt(String key, Int value) Global Native
-
 
 ; Writes a string value to MainData.
 ; This always marks the datastore dirty.
-;
 Function DataSetString(String key, String value) Global Native
-
 
 ; Writes an integer value ONLY if it differs from the existing value.
 ;
@@ -216,7 +219,6 @@ Function DataSetString(String key, String value) Global Native
 ;
 Bool Function DataSetIntIfChanged(String key, Int value) Global Native
 
-
 ; Writes a string value ONLY if it differs from the existing value.
 ;
 ; Returns:
@@ -227,17 +229,15 @@ Bool Function DataSetIntIfChanged(String key, Int value) Global Native
 ;
 Bool Function DataSetStringIfChanged(String key, String value) Global Native
 
-
 ; Deletes a key from MainData if it exists.
 Function DataDeleteKey(String key) Global Native
 
 
-; =====================================================================================
-; DATASTORE – FLUSH CONTROL
-; =====================================================================================
-;
+; =================================
+; --- DATASTORE – FLUSH CONTROL ---
+; =================================
+
 ; Forces an immediate flush of MainData and MirrorData to disk.
-;
 ; Normally unnecessary, as the plugin:
 ;   - flushes periodically
 ;   - flushes on save
