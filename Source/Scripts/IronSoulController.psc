@@ -196,6 +196,11 @@ Scriptname IronSoulController extends Quest
 ; NotifyEndlessChimLoad()
 ; PickEndlessChimLine()
 
+; --- Sound FX ---
+; CanPlaySFX()
+; PlaySFX()
+; OpenTimedMessageSWF_SFX()
+
 ; --- Uninstall / Cleanup ---
 ; ---------------------------
 ; HandleUninstallMode()
@@ -221,6 +226,7 @@ Bool _disableLuckSystem = False
 Bool _disableCharacterJournalLog = False
 Bool _enableCharacterSheetCompatibility = False
 Bool _disableIronSoulIntro = False
+Bool _disableSFX = False
 
 Quest _respawnQuest = None
 Bool _respawnAvailable = False
@@ -257,7 +263,7 @@ Spell Property SoulBonus3Gold Auto
 Spell Property SoulBonus4Ebon Auto
 Spell Property SoulBonus5Platinum Auto
 
-; UI SFX (Sound Descriptors)
+; UI SFX (Sound Markers)
 Sound Property SFXIronIntro Auto
 Sound Property SFXDeath Auto
 Sound Property SFXPermadeath Auto
@@ -470,6 +476,13 @@ Function LoadConfig()
         _disableDragonSoulAnticheat = False
     elseif v == 1
         _disableDragonSoulAnticheat = True
+    endif
+
+    v = IronSoulNative.GetConfigInt("DisableSFX", -1)
+    if v == 0
+        _disableSFX = False
+    elseif v == 1
+        _disableSFX = True
     endif
 
     ; If intro is disabled, ensure any pending intro timer is cleared so it cannot fire after reload.
@@ -1809,7 +1822,7 @@ Bool Function HandleBleedoutDetection(Actor player)
                         ; Mark intro as shown so it can never fire later.
                         PersistSetInt(player, GetKey(ironIntroShown, guidP), 1, True)
                     else
-                        OpenTimedMessageSWF(SwfNoBonus("1ironintro"), 15.0)
+                        OpenTimedMessageSWF_SFX(SwfNoBonus("1ironintro"), 15.0, SFXIronIntro, player)
                         PersistSetInt(player, GetKey(ironIntroShown, guidP), 1, True)
                     endif
                 endif
@@ -1971,7 +1984,7 @@ Function TrueDeathAndQuit(Actor player)
 				; Mark intro as shown so it never triggers later.
 				PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
 			else
-				OpenTimedMessageSWF(SwfNoBonus("1ironintro"), 15.0)
+				OpenTimedMessageSWF_SFX(SwfNoBonus("1ironintro"), 15.0, SFXIronIntro, player)
 				PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
 			endif
 		endif
@@ -2043,7 +2056,7 @@ Function TrueDeathAndQuit(Actor player)
 		; - After the cap, Endless deaths use a blocking message box and a hard quit.
 		if deathsNow == hardCap
             JournalLogEvent("No strength remains to rise. Sovngarde claims the fallen. Deaths: " + deathsNow + " / " + hardCap)
-			OpenTimedMessageSWF(ResolvePermadeathMenu(soulTierTD, isDefiantMenus), 10.0)
+			OpenTimedMessageSWF_SFX(ResolvePermadeathMenu(soulTierTD, isDefiantMenus), 10.0, SFXPermadeath, player)
 		else
 			if !_disableDeathMessage
 				Debug.MessageBox("SOVNGARDE CALLS\n\nDeaths: " + deathsNow + " / ???")
@@ -2055,11 +2068,11 @@ Function TrueDeathAndQuit(Actor player)
 			; - 10th death without Defiant
 			; - 100th death with Defiant active
 			JournalLogEvent("No strength remains to rise. Sovngarde claims the fallen. Deaths: " + deathsNow + " / " + hardCap)
-			OpenTimedMessageSWF(ResolvePermadeathMenu(soulTierTD, isDefiantMenus), 10.0)
+			OpenTimedMessageSWF_SFX(ResolvePermadeathMenu(soulTierTD, isDefiantMenus), 10.0, SFXPermadeath, player)
 			quitToMainMenu = True
 		else
 			if !_disableDeathMessage
-				OpenTimedMessageSWF(ResolveDeathMessageMenu(soulTierTD, deathsNow, isDefiantMenus), 4.0)
+				OpenTimedMessageSWF_SFX(ResolveDeathMessageMenu(soulTierTD, deathsNow, isDefiantMenus), 4.0, SFXDeath, player)
 			endif
 		endif
 	endif
@@ -3580,7 +3593,7 @@ Function HandleFeats(Actor player)
         if defiantEligible && defFeat != 1
             PersistSetInt(player, GetKey(defiantFeatUnlocked, guid), 1, True)
             JournalLogEvent("Soul Feat Unlocked: Defiant Soul")
-            OpenTimedMessageSWF(ResolveDefiantFeatUnlockMenu(), 10.0)
+            OpenTimedMessageSWF_SFX(ResolveDefiantFeatUnlockMenu(), 10.0, SFXFeatDefiant, player)
             return
         endif
     endif
@@ -3682,7 +3695,7 @@ Function HandleFeats(Actor player)
                 if platVar == 1
                     menuP = "5platinumfeatunlockmolagbal"
                 endif
-                OpenTimedMessageSWF(SwfNoBonus(menuP), 10.0)
+                OpenTimedMessageSWF_SFX(SwfNoBonus(menuP), 10.0, SFXFeatPlatinum, player)
                 return
             endif
 
@@ -3712,7 +3725,7 @@ Function HandleFeats(Actor player)
                 if ebonVar == 1
                     menuE = "4ebonfeatunlockalduin"
                 endif
-                OpenTimedMessageSWF(SwfNoBonus(menuE), 10.0)
+                OpenTimedMessageSWF_SFX(SwfNoBonus(menuE), 10.0, SFXFeatEbon, player)
                 return
             endif
 
@@ -3720,7 +3733,7 @@ Function HandleFeats(Actor player)
             Int shownG = PersistGetInt(player, GetKey(tierMsgShownGold, guid), 0)
             if shownG != 1
                 PersistSetInt(player, GetKey(tierMsgShownGold, guid), 1, True)
-                OpenTimedMessageSWF(SwfNoBonus("3goldfeatunlock"), 10.0)
+                OpenTimedMessageSWF_SFX(SwfNoBonus("3goldfeatunlock"), 10.0, SFXFeatGold, player)
                 return
             endif
 
@@ -3728,7 +3741,7 @@ Function HandleFeats(Actor player)
             Int shownS = PersistGetInt(player, GetKey(tierMsgShownSilver, guid), 0)
             if shownS != 1
                 PersistSetInt(player, GetKey(tierMsgShownSilver, guid), 1, True)
-                OpenTimedMessageSWF(SwfNoBonus("2silverfeatunlock"), 10.0)
+                OpenTimedMessageSWF_SFX(SwfNoBonus("2silverfeatunlock"), 10.0, SFXFeatSilver, player)
                 return
             endif
         endif
@@ -4031,6 +4044,10 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD)
         return
     endif
 
+    ; Play Defiant transition SFX at the start of the sequence (step 1).
+    Actor player = Game.GetPlayer()
+    PlaySFX(SFXDefiantTransition, player)
+
     ; Interrupt anything currently open once.
     UI.CloseCustomMenu()
     Utility.WaitMenuMode(0.05)
@@ -4118,7 +4135,7 @@ Function HandleLoadNotification(Actor player)
 	; Permadeath enforcement on load (CHIM disables load enforcement)
 	if _CHIM == 0
 		if deaths >= maxLives
-			OpenTimedMessageSWF(ResolvePermadeathMenu(soulTier, (defActive == 1)), 10.0)
+			OpenTimedMessageSWF_SFX(ResolvePermadeathMenu(soulTier, (defActive == 1)), 10.0, SFXPermadeath, player)
 			FinalizeAndQuitMainMenu()
 			return
 		endif
@@ -4281,7 +4298,7 @@ Function HandleRespawnMenu(Actor player)
             if _disableDefiantSoulFeat
                 defActive = 0
             endif
-            OpenTimedMessageSWF(ResolveRespawnMenu(soulTier, (defActive == 1)), 4.0)
+            OpenTimedMessageSWF_SFX(ResolveRespawnMenu(soulTier, (defActive == 1)), 4.0, SFXRespawn, player)
         endif
     endif
 EndFunction
@@ -4304,6 +4321,39 @@ String Function ResolveDefiantTransitionMenu(Int curTier)
 
     ; Fallback: Iron tier.
     return "0defiantdeathmessage10iron"
+EndFunction
+
+
+; ================
+; --- Sound FX ---
+; ================
+
+Bool Function CanPlaySFX()
+    if _disableSFX
+        return False
+    endif
+    if _uninstallMode
+        return False
+    endif
+    if _modDisabled
+        return False
+    endif
+    return True
+EndFunction
+
+Function PlaySFX(Sound sfx, Actor source)
+    if !CanPlaySFX()
+        return
+    endif
+    if !sfx || !source
+        return
+    endif
+    sfx.Play(source)
+EndFunction
+
+Function OpenTimedMessageSWF_SFX(String swfName, Float seconds, Sound sfx, Actor player)
+    PlaySFX(sfx, player)
+    OpenTimedMessageSWF(swfName, seconds)
 EndFunction
 
 
