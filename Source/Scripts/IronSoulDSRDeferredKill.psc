@@ -2,7 +2,7 @@ Scriptname IronSoulDSRDeferredKill extends ActiveMagicEffect
 
 GlobalVariable Property IronSoul_DSR_Enabled Auto ; 1.0 = enabled, 0.0 = disabled (set by Iron Soul)
 
-Bool Function _IsDSREnabled()
+Bool Function IsDSREnabled()
 	if IronSoul_DSR_Enabled
 		return (IronSoul_DSR_Enabled.GetValue() != 0.0)
 	endif
@@ -11,7 +11,7 @@ EndFunction
 
 Event OnEffectStart(Actor Target, Actor Caster)
 	;Debug.Notification("Start DeferredKill")
-	if !_IsDSREnabled()
+	if !IsDSREnabled()
 		return
 	endif
 	Target.StartDeferredKill()
