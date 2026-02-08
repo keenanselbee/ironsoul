@@ -15,33 +15,49 @@ GlobalVariable Property IronSoul_DSR_Enabled Auto ; 1.0 = enabled, 0.0 = disable
 
 IronSoulController Property Controller Auto ; Iron Soul controller (for tier/Defiant menu resolution)
 
-Bool Function _IsDSREnabled()
+Function Trace(Int level, String msg)
+	if Controller
+	    Controller.LogMsg(level, "[DSR] " + msg)
+	else
+	    ; Fallback if Controller missing (should never happen in your setup)
+	    Debug.Trace("[IronSoul] [DSR] " + msg)
+	endif
+EndFunction
+
+Bool Function IsDSREnabled()
 	if IronSoul_DSR_Enabled
 		return (IronSoul_DSR_Enabled.GetValue() != 0.0)
 	endif
 	return True ; fail-open if property not filled
 EndFunction
 
-String Function _ResolveDSRMenuName(Actor player)
-    if Controller
-        String m = Controller.ResolveDragonSoulReviveMenu(player)
-        if m != ""
-            return m
-        endif
-    endif
-    ; Fallback if controller/property isn't filled.
-    return "1irondragonsoulrevive"
+String Function ResolveDSRMenuName(Actor player)
+	; If the Controller is present, trust its resolution fully.
+	; An empty string means "do not show a DSR message" (e.g., DisableDragonSoulReviveMessage=1).
+	if Controller
+	    return Controller.ResolveDragonSoulReviveMenu(player)
+	endif
+	; Fallback only if Controller/property isn't filled.
+	return "1irondragonsoulrevive"
 EndFunction
 
-Function _ShowDSRMenu(String menuName)
-    if menuName == ""
-        return
-    endif
-    if !UI.IsMenuOpen(menuName)
-        UI.OpenCustomMenu(menuName, 0)
-        Utility.WaitMenuMode(4.0)
-        UI.CloseCustomMenu()
-    endif
+Function ShowDSRMenu(String menuName, Actor player)
+	if menuName == ""
+	    Trace(Controller.LOG_INFO(), "ShowDSRMenu: menuName empty (message suppressed).")
+	    return
+	endif
+	if !UI.IsMenuOpen(menuName)
+	    Trace(Controller.LOG_INFO(), "Opening DSR menu: " + menuName)
+	    if Controller
+	        Trace(Controller.LOG_DBG(), "Playing DSR SFX: SFXDragonSoulRevive")
+	        Controller.PlaySFX(Controller.SFXDragonSoulRevive, player)
+	    else
+	        Trace(Controller.LOG_ERR(), "Controller missing; cannot play DSR SFX.")
+	    endif
+	    UI.OpenCustomMenu(menuName, 0)
+	    Utility.WaitMenuMode(4.0)
+	    UI.CloseCustomMenu()
+	endif
 EndFunction
 
 Bool Property bPlaysound = True Auto ;Play Sound or not
@@ -62,102 +78,111 @@ Objectreference MarkerRef
 
 Event OnEffectStart(Actor Target, Actor Caster)
 
-    ;Debug.Notification("Start OnDying")
-    ; If Iron Soul disables Dragon Soul Revive, exit immediately and allow normal death.
-    if !_IsDSREnabled()
-        Target.EndDeferredKill()
-        return
-    endif
-    if bDispel
-        DisSpell.Cast(Target, Target)
-    endif
-    ;if Target.IsEssential() || (Target.GetWorldSpace() == DLC2ApocryphaWorld && !(DLC2MQ06.GetStage()>=400 && DLC2MQ06.GetStage()<500))
-    if Target.IsEssential()
+	Trace(Controller.LOG_INFO(), "OnEffectStart: Target=" + Target + " Caster=" + Caster)
 
-        ;Debug.Notification("IsEssential")
-        ;Target.DamageAV("Health", 1000)
-        Target.EndDeferredKill()
-        ;game.EnablePlayerControls()
-        Utility.Wait(time1)
-        ;Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
-        Target.StartDeferredKill()
+	;Debug.Notification("Start OnDying")
+	; If Iron Soul disables Dragon Soul Revive, exit immediately and allow normal death.
+	if !IsDSREnabled()
+	    Target.EndDeferredKill()
+	    return
+	endif
+	if bDispel
+	    DisSpell.Cast(Target, Target)
+	endif
+	;if Target.IsEssential() || (Target.GetWorldSpace() == DLC2ApocryphaWorld && !(DLC2MQ06.GetStage()>=400 && DLC2MQ06.GetStage()<500))
+	if Target.IsEssential()
 
-    else
+	    Trace(Controller.LOG_INFO(), "Target is Essential: running essential path (deferred kill cycle).")
 
+	    ;Debug.Notification("IsEssential")
+	    ;Target.DamageAV("Health", 1000)
+	    Target.EndDeferredKill()
+	    ;game.EnablePlayerControls()
+	    Utility.Wait(time1)
 
-        IronSoul_DSR_IsDead.SetValue(1)
-        Target.SetGhost(true)
-        Target.PushActorAway(Target, 0.1)
-        Target.SetAV("Paralysis", 1.0)
-        Target.RestoreAV("Health", -(Target.GetAV("Health")+100))
+	    Trace(Controller.LOG_DBG(), "Revive delay elapsed (time1=" + time1 + "). Checking dragon soul/race gates...")
+	    ;Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+	    Target.StartDeferredKill()
 
-        Utility.Wait(time1)
+	else
 
-        if  !(BeastList.hasform(Target.GetRace())) && (Target.GetAV("DragonSouls") >= 1)
-            ;Debug.Notification("Cast Spell")
+	    IronSoul_DSR_IsDead.SetValue(1)
+	    Target.SetGhost(true)
+	    Target.PushActorAway(Target, 0.1)
+	    Target.SetAV("Paralysis", 1.0)
+	    Target.RestoreAV("Health", -(Target.GetAV("Health")+100))
 
-            Target.DamageAV("DragonSouls", 1.0)
-            ; Contextual Dragon Soul Revive menu (tier/Defiant) – shown for 4 seconds.
-            String menuName = _ResolveDSRMenuName(Target)
-            _ShowDSRMenu(menuName)
-            Target.AddSpell(RestoreSpell,false)
-            IronSoul_DSR_IsDead.SetValue(0)
+	    Utility.Wait(time1)
 
+	    if  !(BeastList.hasform(Target.GetRace())) && (Target.GetAV("DragonSouls") >= 1)
+	        Trace(Controller.LOG_INFO(), "DSR eligible: consuming 1 DragonSoul and showing DSR UI (if enabled).")
+	        ;Debug.Notification("Cast Spell")
 
-            if bPlayVisualEffect
-                MarkerRef = Target.PlaceAtMe(Marker)
-                MarkerRef.MoveTo(Target)
-                AbsorbEffect.Play(MarkerRef, Playtime, Target)
-                AbsorbEffectTarget.Play(Target, Playtime, MarkerRef)
-            endif
-
-            if bPlaysound
-                NPCDragonDeathSequenceWind.play(Target)
-                NPCDragonDeathSequenceExplosion.play(Target)
-            endif
-
-            Utility.Wait(time2)
-
-            Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
-            Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
-            Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+	        Target.DamageAV("DragonSouls", 1.0)
+	        ; Contextual Dragon Soul Revive menu (tier/Defiant) â€“ shown for 4 seconds.
+	        String menuName = ResolveDSRMenuName(Target)
+	        Trace(Controller.LOG_DBG(), "Resolved DSR menuName=\"" + menuName + "\"")
+	        ShowDSRMenu(menuName, Target)
+	        Target.AddSpell(RestoreSpell,false)
+	        IronSoul_DSR_IsDead.SetValue(0)
 
 
-        else
-            ;Debug.Notification("DO not Cast")
-            Target.EndDeferredKill()
+	        if bPlayVisualEffect
+	            MarkerRef = Target.PlaceAtMe(Marker)
+	            MarkerRef.MoveTo(Target)
+	            AbsorbEffect.Play(MarkerRef, Playtime, Target)
+	            AbsorbEffectTarget.Play(Target, Playtime, MarkerRef)
+	        endif
 
-        endif
-    endif
+	        if bPlaysound
+	            NPCDragonDeathSequenceWind.play(Target)
+	            NPCDragonDeathSequenceExplosion.play(Target)
+	        endif
+
+	        Utility.Wait(time2)
+
+	        Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
+	        Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
+	        Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+
+
+	    else
+	        ;Debug.Notification("DO not Cast")
+	        Target.EndDeferredKill()
+
+	    endif
+	endif
 
 Endevent
 
 Event OnEffectFinish(Actor Target, Actor Caster)
 
-    ;Debug.Notification("Finish OnDying")
+	Trace(Controller.LOG_INFO(), "OnEffectFinish: Target=" + Target + " Caster=" + Caster)
 
-    ; If disabled, do minimal cleanup and exit (avoid long waits).
-    if !_IsDSREnabled()
-        Target.SetAV("Paralysis", 0.0)
-        Target.SetGhost(false)
-        Target.RemoveSpell(RestoreSpell)
-        if (MarkerRef != none)
-            MarkerRef.disable()
-            MarkerRef.delete()
-        endif
-        return
-    endif
+	;Debug.Notification("Finish OnDying")
 
-    Utility.Wait(time3)
-    Target.SetAV("Paralysis", 0.0)
-    Utility.Wait(time4)
-    Target.SetGhost(false)
-    Utility.Wait(time5)
-    Target.RemoveSpell(RestoreSpell)
+	; If disabled, do minimal cleanup and exit (avoid long waits).
+	if !IsDSREnabled()
+	    Target.SetAV("Paralysis", 0.0)
+	    Target.SetGhost(false)
+	    Target.RemoveSpell(RestoreSpell)
+	    if (MarkerRef != none)
+	        MarkerRef.disable()
+	        MarkerRef.delete()
+	    endif
+	    return
+	endif
 
-    if (MarkerRef != none)
-        MarkerRef.disable()
-        MarkerRef.delete()
-    endif
+	Utility.Wait(time3)
+	Target.SetAV("Paralysis", 0.0)
+	Utility.Wait(time4)
+	Target.SetGhost(false)
+	Utility.Wait(time5)
+	Target.RemoveSpell(RestoreSpell)
+
+	if (MarkerRef != none)
+	    MarkerRef.disable()
+	    MarkerRef.delete()
+	endif
 
 Endevent
