@@ -38,8 +38,9 @@ Scriptname IronSoulNative Hidden
 ;      - Optimized "set-if-changed" calls for hot paths
 ;
 ;   4) Controlled flush semantics
-;      - Plugin flushes data automatically on save, on exit, and periodically every 30s for crash protection
-;      - Papyrus may request an immediate flush for critical events
+;      - Plugin flushes data automatically on save via SKSE serialization callback
+;      - There is no background periodic or dedicated exit flush thread in the plugin
+;      - Papyrus/controller may request immediate flushes for critical events
 ;
 ; -------------------------------------------------------------------------------------
 ; STORAGE MODEL (IMPORTANT)
@@ -134,9 +135,9 @@ Function LogJournalEntry(String msg) Global Native
 ; Reads integer configuration values from:
 ;   Data\SKSE\Plugins\IronSoul.ini
 ;
-; Configuration is read-only from Papyrus.
-;
 Int Function GetConfigInt(String key, Int fallback = 0) Global Native
+Bool Function SetConfigInt(String key, Int value, Bool persistToIni = True) Global Native
+Bool Function ReloadConfig() Global Native
 
 
 ; =================================
@@ -179,6 +180,72 @@ String Function GetPlayerName() Global Native
 ; Controller maintains a GUID index string for recovery enumeration:
 ;   DataSetStringIfChanged("G.U.INDEX", "<pipe-delimited GUID list>")
 String Function GenerateGuidUnique(String playerName) Global Native
+
+
+; ==================
+; --- Dynamic UI ---
+; ==================
+;
+; Provides direct, index-based swapping of dynamic UI assets through the native plugin.
+; No tier state is stored or tracked by the plugin. The controller supplies the desired
+; index whenever a UI change is required.
+;
+; Behaviour:
+; - The plugin performs an immediate file swap when these functions are called.
+; - There is no persistence, "last seen", or automatic startup restore.
+; - The most recent call simply overwrites the UI asset currently in use.
+;
+; Index mapping:
+;   0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum
+;
+; Notes:
+; - Global (not per-character).
+; - Values are clamped internally to 0..6.
+; - Changes may not visually appear until next UI reload / game launch due to UI caching.
+;
+Function ApplyDynamicSplash(Int splashIndex) Global Native
+Function ApplyDynamicLevelWidget(Int widgetIndex) Global Native
+
+
+; =====================
+; --- Cursor Control ---
+; =====================
+;
+; Toggles in-game menu cursor suppression via SKSE plugin.
+; Implementation detail:
+; - 1st True: moves cursor to right edge
+; - 2nd True: hides cursor and moves it off-screen to the right
+; - Additional True calls re-apply hidden/off-screen-right state
+; - Restores visibility/position when unsuppressed
+; - A single False restores the initial saved state
+;
+;   suppress = True  -> advance suppression step (move-right, then hide/off-screen-right)
+;   suppress = False -> restore original state
+;
+Function SuppressCursor(Bool suppress) Global Native
+
+
+; ==================
+; --- Music Fade ---
+; ==================
+;
+; Native music fades driven by the SKSE plugin (no Papyrus Utility.Wait usage).
+; Pass the Music sound category and current menu slider value when fading out.
+;
+Function MusicFadeOut(SoundCategory musicCategory, Float seconds = 2.0, Float menuVolume = -1.0) Global Native
+Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0) Global Native
+
+
+; =========================
+; --- Health Monitoring ---
+; =========================
+;
+; Starts/stops native SKSE health polling:
+;  - 0.1s fixed interval
+; Native monitor / slow-motion only. Does not dispatch death events to the controller.
+;
+Function StartHealthMonitor() Global Native
+Function StopHealthMonitor() Global Native
 
 
 ; ===============================
@@ -237,11 +304,5 @@ Function DataDeleteKey(String key) Global Native
 ; --- DATASTORE – FLUSH CONTROL ---
 ; =================================
 
-; Forces an immediate flush of MainData and MirrorData to disk.
-; Normally unnecessary, as the plugin:
-;   - flushes periodically
-;   - flushes on save
-;
-; Intended for critical events (e.g. true death finalization).
-;
-Function DataFlushNow() Global Native
+; Flushes MainData and MirrorData to disk if (and only if) the datastore is dirty.
+Function DataFlushIfDirty() Global Native
