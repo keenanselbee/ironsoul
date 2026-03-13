@@ -1,0 +1,107 @@
+﻿[heading][color=#e69138]Description[/color][/heading]
+Iron Soul is a permadeath-lite death overhaul focused on meaningful stakes, character persistence, and long-form playthroughs.
+
+It combines [b]Dragon Soul Revive[/b], [b]True Death[/b], and [b]Optional Respawn Integration[/b] with [url=https://www.nexusmods.com/skyrimspecialedition/mods/69267]Respawn - Soulslike Edition[/url], plus per-character data tracking designed to resist tampering.
+
+[b]Important:[/b] Respawn is [b]optional[/b]. Iron Soul still functions as a complete death system without it.
+
+[heading][color=#e69138]What Works Without Respawn[/color][/heading]
+[list]
+[*]Per-character death tracking and persistent identity
+[*]Dragon Soul Revive (when you have Dragon Souls available)
+[*]True Death flow and tier-aware death/permadeath presentation
+[*]Tiered UI/audio presentation, logging, and persistence systems
+[/list]
+
+[heading][color=#e69138]Core Death Lifecycle[/color][/heading]
+On death, Iron Soul resolves outcomes in this order:
+[list]
+[*][b]Dragon Soul Revive[/b] (highest priority): if valid, consumes 1 Dragon Soul and revives you.
+[*][b]Cooldown Mode[/b] (when DisableLuckSystem=1 and Optional Respawn Integration is active): no roll, respawn is only allowed when cooldown is ready.
+[*][b]Luck Mode[/b] (when DisableLuckSystem=0 and Optional Respawn Integration is active): roll against current Luck; success respawns, failure becomes True Death.
+[*][b]True Death[/b] fallback: records death, shows tier-appropriate death/permadeath messaging, and exits the session.
+[/list]
+
+[heading][color=#e69138]Optional Respawn Integration[/color][/heading]
+[list]
+[*]Respawn support is [b]optional[/b] and controlled by config + quest availability.
+[*]If Respawn integration is missing, disabled, or not running, Iron Soul [b]fails closed[/b] and routes to True Death behavior instead of partial/inconsistent respawn behavior.
+[*]When integration is active, Iron Soul uses respawn-window protections, respawn messaging, and post-respawn state recovery.
+[/list]
+
+[heading][color=#e69138]Luck Mode vs Cooldown Mode[/color][/heading]
+Both modes are tied to [b]Optional Respawn Integration[/b].
+
+[b]Luck Mode[/b] ([b]DisableLuckSystem=0[/b])
+[list]
+[*]Each eligible death rolls against your current Luck value.
+[*]Luck resets on respawn and on True Death.
+[*]Luck regenerates from 0 to max over [b]60 minutes real time[/b].
+[*]Menu time does not advance Luck/Cooldown progression.
+[/list]
+
+[b]Cooldown Mode[/b] ([b]DisableLuckSystem=1[/b])
+[list]
+[*]No luck roll is performed.
+[*]Respawn is only available when the [b]60 minute cooldown[/b] is fully recovered.
+[*]Cooldown resets on respawn and on True Death.
+[*]Uses the same real-time/menu-safe timing model as Luck Mode.
+[/list]
+
+[heading][color=#e69138]Progression and Death Caps[/color][/heading]
+[list]
+[*]Default [b]Iron[/b] cap is 10 deaths.
+[*][b]Defiant[/b] cap is 100 deaths (when Defiant is unlocked and activated).
+[*][b]CHIM[/b] tier removes practical cap limits (optional via INI).
+[/list]
+
+[b]Feat and Tier Highlights[/b]
+[list]
+[*]Defiant unlock condition: absorb at least 1 Dragon Soul with fewer than 10 deaths.
+[*]Silver: 10 Dragon Souls obtained.
+[*]Gold: 20 Dragon Souls obtained.
+[*]Ebon: defeat Alduin or Harkon.
+[*]Platinum: defeat Miraak or Molag Bal (Vigilant-supported path).
+[/list]
+
+[heading][color=#e69138]Persistence and Integrity[/color][/heading]
+[list]
+[*]All progression is tracked [b]per character[/b] via a persistent GUID identity model.
+[*]Native datastore uses main + mirror files, integrity checks, and self-heal behavior.
+[*]Co-save backups are maintained for key per-character values.
+[*]Optional anti-cheat handling for abnormal Dragon Soul jumps.
+[/list]
+
+[heading][color=#e69138]Skyrim Character Sheet Compatibility (Optional)[/color][/heading]
+Iron Soul includes optional support for [b][url=https://www.nexusmods.com/skyrimspecialedition/mods/56069]Skyrim Character Sheet[/url][/b].
+
+When enabled, total deaths are mirrored to actor value [b]DEPRECATED05[/b] for Character Sheet display compatibility.
+
+[heading][color=#e69138]Configuration Highlights[/color][/heading]
+Config path: [b]Data/SKSE/Plugins/IronSoul.ini[/b]
+
+[list]
+[*][b]DisableRespawn[/b]: turn Optional Respawn Integration on/off.
+[*][b]DisableLuckSystem[/b]: switch between Luck Mode (0) and Cooldown Mode (1).
+[*][b]DisableDragonSoulRevive[/b]: disable Dragon Soul Revive.
+[*][b]DisableDeathMessage[/b], [b]DisableRespawnMessage[/b], [b]LoadNotificationMode[/b], [b]LuckRollMessageMode[/b]: control message/UI behavior.
+[*][b]DisableSoulFeats[/b], [b]DisableSoulBonus[/b], [b]DisableSoulFatigue[/b], [b]DisableDefiantFeat[/b]: control progression and stat-modifier behavior.
+[*][b]DisableDragonSoulAnticheat[/b]: disables anti-cheat filtering for Dragon Soul gain deltas.
+[*][b]CHIM[/b]: enables CHIM transition path.
+[*][b]EnableCharacterSheetCompatibility[/b]: mirrors death count to DEPRECATED05.
+[*][b]UninstallMode[/b]: safe disable/uninstall flow.
+[/list]
+
+[heading][color=#e69138]Uninstallation[/color][/heading]
+[list]
+[*]Set [b]UninstallMode=1[/b] in IronSoul.ini.
+[*]Load your save and wait for the uninstall confirmation.
+[*]Save, then remove the mod (or leave it installed in disabled state).
+[/list]
+
+[heading][color=#e69138]Credits[/color][/heading]
+[url=https://www.nexusmods.com/skyrimspecialedition/mods/94507]Simple Dragonsoul Resurrect[/url]
+Foundation credit for core Dragon Soul Revive concepts.
+
+[url=https://www.nexusmods.com/skyrimspecialedition/mods/136148]STB Widgets[/url]
+Credit for lvlWidget assets and framework.
