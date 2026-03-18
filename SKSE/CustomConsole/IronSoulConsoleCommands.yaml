@@ -1,0 +1,103 @@
+version: 1
+name: IronSoul
+alias: is
+script: IronSoulConsoleCommands
+help: Inspect and edit Iron Soul tier, death, luck, and soul total values for the current character. Write/set commands require CHIM=1.
+subs:
+  - name: GetState
+    alias: gs
+    func: GetIronSoulState
+    help: Prints GUID, current tier, death count, and stored soul total.
+  - name: GetTier
+    alias: gt
+    func: GetTier
+    help: Returns current soul tier (0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum).
+  - name: SetTier
+    alias: st
+    func: SetTier
+    help: Sets current soul tier. Value is clamped to 0..6.
+    args:
+      - name: tier
+        alias: -t
+        type: int
+        required: true
+        help: Target tier index.
+  - name: GetDeaths
+    alias: gd
+    func: GetDeaths
+    help: Returns current true death count.
+  - name: Luck
+    alias: l
+    func: GetLuck
+    help: Returns current luck value (0..100). Use `is luck` or `is l`.
+  - name: SetLuck
+    alias: sl
+    func: SetLuck
+    help: Sets current luck value. Value is clamped to 0..current tier max. Requires CHIM=1.
+    args:
+      - name: luck
+        alias: -l
+        type: int
+        required: true
+        help: Target luck value.
+  - name: SetDeaths
+    alias: sd
+    func: SetDeaths
+    help: Sets current true death count. Value is clamped to >= 0.
+    args:
+      - name: deaths
+        alias: -d
+        type: int
+        required: true
+        help: Target death count.
+  - name: SetDragonSoulsState
+    alias: sds
+    func: SetDragonSoulsState
+    help: Sets stored soul total and re-baselines observed souls to current live souls. Requires CHIM=1.
+    args:
+      - name: total
+        alias: -t
+        type: int
+        required: true
+        help: Target stored soul total.
+  - name: GetIni
+    alias: gini
+    func: GetIni
+    help: Reads an integer key from IronSoul.ini (native cache).
+    args:
+      - name: key
+        alias: -k
+        type: String
+        required: true
+        help: INI key name (case-insensitive).
+      - name: fallback
+        alias: -f
+        type: int
+        default: 0
+        required: false
+        help: Returned when the key is missing.
+  - name: SetIni
+    alias: sini
+    func: SetIni
+    help: Sets an integer INI key in native cache and optionally updates its existing IronSoul.ini entry.
+    args:
+      - name: key
+        alias: -k
+        type: String
+        required: true
+        help: INI key name (case-insensitive).
+      - name: value
+        alias: -v
+        type: int
+        required: true
+        help: Integer value to set.
+      - name: persistToIni
+        alias: -p
+        type: String
+        default: t
+        required: false
+        help: Persist flag, accepts t/T/f/F/true/false.
+  - name: ReloadIni
+    alias: rini
+    func: ReloadIni
+    help: Reloads IronSoul.ini into the native config cache.

@@ -19,6 +19,8 @@ Scriptname IronSoulConsoleCommands Hidden
 ;   Example: is sl 42
 ; - SetDeaths  (alias: sd)   -> SetDeaths(Int deaths)
 ;   Example: is sd 12
+; - SetDragonSoulsState (alias: sds) -> SetDragonSoulsState(Int total)
+;   Example: is sds 25
 ; - GetIni     (alias: gini) -> GetIni(String key, Int fallback = 0)
 ;   Example: is gini DisableSoulBonus
 ; - SetIni     (alias: sini) -> SetIni(String key, Int value, String persistFlag = "t")
@@ -179,7 +181,8 @@ String Function GetIronSoulState() Global
 
     Int tierValue = ClampTier(ReadScopedInt(playerRef, "IS_2204", 2))
     Int deathValue = ClampDeaths(ReadScopedInt(playerRef, "IS_8155", 0))
-    return "GUID=" + guid + " Tier=" + tierValue + " (" + TierLabel(tierValue) + ") Deaths=" + deathValue
+    Int soulsTotal = ClampDeaths(ReadScopedInt(playerRef, "IS_9646", 0))
+    return "GUID=" + guid + " Tier=" + tierValue + " (" + TierLabel(tierValue) + ") Deaths=" + deathValue + " SoulsTotal=" + soulsTotal
 EndFunction
 
 Int Function GetTier() Global
@@ -315,6 +318,33 @@ String Function SetDeaths(Int deathsValue) Global
     IronSoulNative.DataFlushIfDirty()
 
     return "Deaths set to " + clampedDeaths + "."
+EndFunction
+
+String Function SetDragonSoulsState(Int totalValue) Global
+    if !IsChimEnabled()
+        return "CHIM disabled. Set CHIM=1 in IronSoul.ini."
+    endif
+
+    Actor playerRef = Game.GetPlayer()
+    if !playerRef
+        return "Error: player reference is not available."
+    endif
+
+    String guid = ResolveGuid(playerRef)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
+
+    Int clampedTotal = ClampDeaths(totalValue)
+    Int liveSouls = playerRef.GetActorValue("DragonSouls") as Int
+    liveSouls = ClampDeaths(liveSouls)
+
+    ; Re-baseline the observed snapshot to current live souls so heartbeat sees no gain delta.
+    WriteScopedInt(playerRef, "IS_9646", clampedTotal)
+    WriteScopedInt(playerRef, "IS_7440", liveSouls)
+    IronSoulNative.DataFlushIfDirty()
+
+    return "SoulsTotal set to " + clampedTotal + "."
 EndFunction
 
 Int Function GetIni(String k, Int fallback = 0) Global
