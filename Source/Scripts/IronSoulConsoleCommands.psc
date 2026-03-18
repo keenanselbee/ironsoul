@@ -9,8 +9,11 @@ Scriptname IronSoulConsoleCommands Hidden
 ;   Example: is gs
 ; - GetTier    (alias: gt)   -> GetTier()
 ;   Example: is gt
-; - SetTier    (alias: st)   -> SetTier(Int tier)
+; - SetTier    (alias: st)   -> SetTier(Int tier, String forceMode = "")
 ;   Example: is st 4
+;   Example: is st 4 f
+; - ResetTier  (alias: rt)   -> ResetTier()
+;   Example: is rt
 ; - GetDeaths  (alias: gd)   -> GetDeaths()
 ;   Example: is gd
 ; - Luck       (alias: l)    -> GetLuck()
@@ -55,6 +58,18 @@ Int Function ParsePersistFlag(String persistFlag) Global
         return 1
     elseif persistFlag == "f" || persistFlag == "F" || persistFlag == "false" || persistFlag == "False" || persistFlag == "FALSE"
         return 0
+    endif
+
+    return -1
+EndFunction
+
+Int Function ParseForceMode(String forceMode) Global
+    if forceMode == ""
+        return 0
+    endif
+
+    if forceMode == "f" || forceMode == "F" || forceMode == "force" || forceMode == "Force" || forceMode == "FORCE"
+        return 1
     endif
 
     return -1
@@ -193,7 +208,7 @@ Int Function GetTier() Global
     return ClampTier(ReadScopedInt(playerRef, "IS_2204", 2))
 EndFunction
 
-String Function SetTier(Int tierValue) Global
+String Function SetTier(Int tierValue, String forceMode = "") Global
     if !IsChimEnabled()
         return "CHIM disabled. Set CHIM=1 in IronSoul.ini."
     endif
@@ -208,7 +223,15 @@ String Function SetTier(Int tierValue) Global
         return "Error: character GUID is not initialized yet."
     endif
 
+    Int parsedForce = ParseForceMode(forceMode)
+    if parsedForce == -1
+        return "Error: force flag must be empty, f, or force."
+    endif
+
     Int clampedTier = ClampTier(tierValue)
+    if parsedForce == 1
+        WriteScopedInt(playerRef, "IS_2719", 1)
+    endif
     WriteScopedInt(playerRef, "IS_2204", clampedTier)
 
     ; Keep dynamic UI assets aligned with the new tier.
@@ -216,7 +239,19 @@ String Function SetTier(Int tierValue) Global
     IronSoulNative.ApplyDynamicLevelWidget(clampedTier)
     IronSoulNative.DataFlushIfDirty()
 
-    return "Tier set to " + clampedTier + " (" + TierLabel(clampedTier) + ")."
+    Bool manualTierOverride = (ReadScopedInt(playerRef, "IS_2719", 0) == 1)
+    String msg = "Tier set to " + clampedTier + " (" + TierLabel(clampedTier) + ")."
+    if manualTierOverride
+        if parsedForce == 1
+            msg = msg + " Manual override is active."
+        else
+            msg = msg + " Add f or force to is st to force manual override. Use is rt or ResetTier to enable normal functionality again. Manual override remains active."
+        endif
+    elseif parsedForce == 0
+        msg = msg + " Add f or force to is st to force manual override. Use is rt or ResetTier to enable normal functionality again."
+    endif
+
+    return msg
 EndFunction
 
 Int Function GetDeaths() Global
@@ -345,6 +380,38 @@ String Function SetDragonSoulsState(Int totalValue) Global
     IronSoulNative.DataFlushIfDirty()
 
     return "SoulsTotal set to " + clampedTotal + "."
+EndFunction
+
+String Function ResetTier() Global
+    if !IsChimEnabled()
+        return "CHIM disabled. Set CHIM=1 in IronSoul.ini."
+    endif
+
+    Actor playerRef = Game.GetPlayer()
+    if !playerRef
+        return "Error: player reference is not available."
+    endif
+
+    String guid = ResolveGuid(playerRef)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
+
+    IronSoulController controller = ResolveControllerQuest()
+    if !controller
+        return "Error: IronSoulControllerQuest is not available."
+    endif
+
+    Int targetTier = ClampTier(controller.GetResetTargetTier(playerRef, guid))
+    WriteScopedInt(playerRef, "IS_2719", 0)
+    WriteScopedInt(playerRef, "IS_2204", targetTier)
+    controller.SyncLuckNotifiedTierToCurrent(playerRef, guid)
+    controller.SyncSoulBonusAbility(playerRef, guid)
+    IronSoulNative.ApplyDynamicSplash(targetTier)
+    IronSoulNative.ApplyDynamicLevelWidget(targetTier)
+    IronSoulNative.DataFlushIfDirty()
+
+    return "Tier reset to " + targetTier + " (" + TierLabel(targetTier) + "). Auto-upgrade restored."
 EndFunction
 
 Int Function GetIni(String k, Int fallback = 0) Global

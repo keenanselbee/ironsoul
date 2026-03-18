@@ -711,6 +711,7 @@ String Property tierMsgShownPlatinum       = "IS_1155" AutoReadOnly
 
 ; Soul / feats
 String Property soulTierIndex              = "IS_2204" AutoReadOnly
+String Property manualTierOverrideActive   = "IS_2719" AutoReadOnly ; Console: forced manual tier override suppresses Soul Feat auto-heal
 String Property ebonFeatVariant            = "IS_4520" AutoReadOnly
 String Property platinumFeatVariant        = "IS_4779" AutoReadOnly
 String Property dragonSoulsTotal           = "IS_9646" AutoReadOnly
@@ -770,6 +771,78 @@ Int Function GetCurrentMaxLuck(Actor player, String guid)
     endif
     Int tierNow = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
     return GetMaxLuckForTier(tierNow)
+EndFunction
+
+Bool Function IsManualTierOverrideActive(Actor player, String guid)
+    if !player || guid == ""
+        return False
+    endif
+    return PersistGetInt(player, GetKey(manualTierOverrideActive, guid), 0) == 1
+EndFunction
+
+Int Function GetHighestEligibleSoulFeatTier(Actor player, String guid, Int deaths, Int soulsObtained)
+    if !player || guid == ""
+        return TIER_IRON
+    endif
+    if _disableSoulFeats
+        return TIER_IRON
+    endif
+
+    Int desiredTier = TIER_IRON
+    if deaths < IRON_SOUL_MAX_LIVES
+        ; Tier eligibility (highest wins): Platinum > Ebon > Gold > Silver.
+        ; Platinum variant credit priority: Molag Bal (Vigilant) > Miraak (Dragonborn).
+        Int molagFlag = PersistGetInt(player, GetKey(molagBalKilled, guid), 0)
+        Int miraakFlag = PersistGetInt(player, GetKey(miraakKilled, guid), 0)
+        Bool molagKilled = (molagFlag == 1)
+        Bool miraakKilledBool = (miraakFlag == 1)
+        if molagKilled || miraakKilledBool
+            desiredTier = TIER_PLATINUM
+
+        else
+            Int alduinFlag = PersistGetInt(player, GetKey(alduinKilled, guid), 0)
+            Int harkonFlag = PersistGetInt(player, GetKey(harkonKilled, guid), 0)
+            Bool alduinKilledBool = (alduinFlag == 1)
+            Bool harkonKilledBool = (harkonFlag == 1)
+            if alduinKilledBool || harkonKilledBool
+                desiredTier = TIER_EBON
+
+            elseif soulsObtained >= 20
+                desiredTier = TIER_GOLD
+
+            elseif soulsObtained >= 10
+                desiredTier = TIER_SILVER
+            endif
+        endif
+    endif
+
+    return desiredTier
+EndFunction
+
+Int Function GetResetTargetTier(Actor player, String guid)
+    if !player || guid == ""
+        return TIER_IRON
+    endif
+
+    Int deaths = PersistGetInt(player, GetKey(deathCount, guid), 0)
+
+    ; Defiant takes priority at the Iron cap when unlocked. CHIM takes priority at the Defiant cap.
+    if !_disableDefiantFeat
+        Int defFeat = PersistGetInt(player, GetKey(defiantFeatUnlocked, guid), 0)
+        if defFeat == 1 && deaths >= IRON_SOUL_MAX_LIVES
+            if _CHIM == 1 && deaths >= DEFIANT_SOUL_MAX_LIVES
+                return TIER_CHIM
+            endif
+            return TIER_DEFIANT
+        endif
+    endif
+
+    if _CHIM == 1 && deaths >= IRON_SOUL_MAX_LIVES
+        return TIER_CHIM
+    endif
+
+    Int soulsObtained = PersistGetInt(player, GetKey(dragonSoulsTotal, guid), 0)
+    return GetHighestEligibleSoulFeatTier(player, guid, deaths, soulsObtained)
 EndFunction
 
 Int Function PercentThresholdCeil(Int maxLuck, Int pct)
@@ -3865,6 +3938,7 @@ Function TryScheduleFeats(Actor player)
     Int deaths = PersistGetInt(player, GetKey(deathCount, guid), 0)
     Int soulsObtained = PersistGetInt(player, GetKey(dragonSoulsTotal, guid), 0)
     Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+    Bool manualTierOverride = IsManualTierOverrideActive(player, guid)
 
     if curTier == TIER_CHIM || curTier == TIER_DEFIANT
         return
@@ -3888,37 +3962,9 @@ Function TryScheduleFeats(Actor player)
     ; Soul Feats (prestige tiers; do not affect death lifecycle).
     ; Option A: grant only the highest eligible tier.
     if !_disableSoulFeats
-        ; Under 10 deaths only.
-        Int desiredTier = TIER_IRON
-        if deaths < IRON_SOUL_MAX_LIVES
-            ; Determine the highest eligible tier at this moment (tiers may upgrade upward over time; Silver -> Gold allowed).
-            ; Evaluation priority: Platinum > Ebon > Gold > Silver.
-            ; Platinum variant credit priority: Molag Bal (Vigilant) > Miraak (Dragonborn).
-            Int molagFlag = PersistGetInt(player, GetKey(molagBalKilled, guid), 0)
-            Int miraakFlag = PersistGetInt(player, GetKey(miraakKilled, guid), 0)
-            Bool molagKilled = (molagFlag == 1)
-            Bool miraakKilledBool = (miraakFlag == 1)
-            if molagKilled || miraakKilledBool
-                desiredTier = TIER_PLATINUM
+        Int desiredTier = GetHighestEligibleSoulFeatTier(player, guid, deaths, soulsObtained)
 
-            else
-                Int alduinFlag = PersistGetInt(player, GetKey(alduinKilled, guid), 0)
-                Int harkonFlag = PersistGetInt(player, GetKey(harkonKilled, guid), 0)
-                Bool alduinKilledBool = (alduinFlag == 1)
-                Bool harkonKilledBool = (harkonFlag == 1)
-                if alduinKilledBool || harkonKilledBool
-                    desiredTier = TIER_EBON
-
-                elseif soulsObtained >= 20
-                    desiredTier = TIER_GOLD
-
-                elseif soulsObtained >= 10
-                    desiredTier = TIER_SILVER
-                endif
-            endif
-        endif
-
-        if desiredTier > curTier
+        if !manualTierOverride && desiredTier > curTier
             _pendingFeats = True
             if _featsAt < (nowRT + 4.0)
                 _featsAt = nowRT + 4.0
@@ -3999,6 +4045,7 @@ Function HandleFeats(Actor player)
     Int deaths = PersistGetInt(player, GetKey(deathCount, guid), 0)
     Int soulsObtained = PersistGetInt(player, GetKey(dragonSoulsTotal, guid), 0)
     Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+    Bool manualTierOverride = IsManualTierOverrideActive(player, guid)
 
     if curTier == TIER_CHIM || curTier == TIER_DEFIANT
         return
@@ -4021,35 +4068,9 @@ Function HandleFeats(Actor player)
     ; ---- Soul Feats (prestige tiers; do not affect death lifecycle) ----
     ; Option A: grant only the highest eligible tier.
     if !_disableSoulFeats
-        Int desiredTier = TIER_IRON
-        if deaths < IRON_SOUL_MAX_LIVES
-            ; Tier eligibility (highest wins): Platinum > Ebon > Gold > Silver.
-            ; Platinum variant credit priority: Molag Bal (Vigilant) > Miraak (Dragonborn).
-            Int molagFlag = PersistGetInt(player, GetKey(molagBalKilled, guid), 0)
-            Int miraakFlag = PersistGetInt(player, GetKey(miraakKilled, guid), 0)
-            Bool molagKilled = (molagFlag == 1)
-            Bool miraakKilledBool = (miraakFlag == 1)
-            if molagKilled || miraakKilledBool
-                desiredTier = TIER_PLATINUM
+        Int desiredTier = GetHighestEligibleSoulFeatTier(player, guid, deaths, soulsObtained)
 
-            else
-                Int alduinFlag = PersistGetInt(player, GetKey(alduinKilled, guid), 0)
-                Int harkonFlag = PersistGetInt(player, GetKey(harkonKilled, guid), 0)
-                Bool alduinKilledBool = (alduinFlag == 1)
-                Bool harkonKilledBool = (harkonFlag == 1)
-                if alduinKilledBool || harkonKilledBool
-                    desiredTier = TIER_EBON
-
-                elseif soulsObtained >= 20
-                    desiredTier = TIER_GOLD
-
-                elseif soulsObtained >= 10
-                    desiredTier = TIER_SILVER
-                endif
-            endif
-        endif
-
-        if desiredTier > curTier
+        if !manualTierOverride && desiredTier > curTier
             PersistSetInt(player, GetKey(soulTierIndex, guid), desiredTier, True)
             SyncLuckNotifiedTierToCurrent(player, guid)
             IronSoulNative.DataFlushIfDirty()

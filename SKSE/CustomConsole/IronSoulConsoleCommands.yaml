@@ -15,13 +15,23 @@ subs:
   - name: SetTier
     alias: st
     func: SetTier
-    help: Sets current soul tier. Value is clamped to 0..6.
+    help: Sets current soul tier. Value is clamped to 0..6. Optional `f|force` enables manual override mode.
     args:
       - name: tier
         alias: -t
         type: int
         required: true
         help: Target tier index.
+      - name: forceMode
+        alias: -f
+        type: String
+        default: ""
+        required: false
+        help: Optional force flag. Use f or force to suppress automatic tier healing for this character.
+  - name: ResetTier
+    alias: rt
+    func: ResetTier
+    help: Clears manual tier override and restores the current organic tier. Requires CHIM=1.
   - name: GetDeaths
     alias: gd
     func: GetDeaths
