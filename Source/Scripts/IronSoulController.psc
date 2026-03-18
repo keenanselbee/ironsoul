@@ -60,40 +60,42 @@ Scriptname IronSoulController extends Quest
 ;                    +++++ +++++   ++++++   ++++++++++    ++++++     +++++         ++++++++++     ++++++++++      +++++++++  +++++++++++                  
 ;
 ;
-;                                                                   A mod by semisacred.
-;
-; TODO:
-; Remove test getformfromfile                                                                                                                                                       
-                                                                                            
+;                                                                  Developed by Redaxiom.
+;                                                                                                                                       
+              
 ; =================
 ; Table of Contents
 ; =================
 
 ; --- Config (INI via SKSE plugin) + Logging ---
 ; ----------------------------------------------
+; ReadBool()
+; ReadIntRange()
 ; LoadConfig()
 ; LOG_ERR()
 ; LOG_INFO()
 ; LOG_DBG()
 ; LogMsg()
+; LogMsgSnapshot()
 ; LogSystemSnapshot()
 
 ; --- Persistence (MainData + Co-save) ---
 ; ----------------------------------------
+; GetMaxLuckForTier()
+; GetCurrentMaxLuck()
+; PercentThresholdCeil()
+; SyncLuckNotifiedTierToCurrent()
 ; MakeKey()
 ; GetKey()
 ; PersistGetInt()
 ; PersistSetInt()
-; PersistGetString()
-; PersistSetString()
 ; SyncDeathAV()
 
 ; --- Lifecycle & Runtime ---
 ; ---------------------------
 ; OnInit()
 ; StartBootstrap()
-; GameReloaded()
-; SyncDSROnLoad()
+; OnPlayerLoadGame()
 ; OnUpdate()
 ; OnUpdateHeartbeat()
 ; BootstrapTick()
@@ -101,13 +103,11 @@ Scriptname IronSoulController extends Quest
 ; QueueUpdate()
 ; RescheduleIfJobsRemain()
 ; ScheduleLoadMessage()
+; ResetTransientState()
 
 ; --- Death Handling ---
 ; ----------------------
 ; HandlePlayerDying()
-; FailSafeUnlockIfStable()
-; HandlePendingDeathCheck()
-; HandleBleedoutDetection()
 ; UpdatePlayerProtectionState()
 ; TrueDeathAndQuit()
 ; IncrementTrueDeath()
@@ -115,14 +115,27 @@ Scriptname IronSoulController extends Quest
 ; FinalizeAndQuitMainMenu()
 ; GetEffectiveMaxLives()
 
+; --- Dragon Soul Revive ---
+; --------------------------
+; HandleDragonSoulRevive()
+; ShaderParticleIntro()
+; ShaderParticleOutro()
+; SyncDSRLimitState()
+; CompactDSRLimitUses()
+; RecordDSRLimitUse()
+; IsDSRAvailable()
+
 ; --- Respawn Integration ---
 ; ---------------------------
+; HandleRespawn()
 ; ResolveRespawnQuest()
 ; IsRespawnEnabled()
 ; HandleDisableRespawn()
 
 ; --- Luck + Cooldown (Respawn Resolution) ---
 ; --------------------------------------------
+; ComputeLuckRollD20()
+; PerformLuckRoll()
 ; LuckCooldownEnsureLoaded()
 ; LuckCooldownMarkDirty()
 ; LuckCooldownPersistIfDue()
@@ -133,11 +146,9 @@ Scriptname IronSoulController extends Quest
 ; ResetCooldown()
 ; TickCooldownRegen()
 ; GetLuckValue()
+; SetLuckValue()
 ; ResetLuck()
 ; LuckTier()
-; PickLuckReminderMessage()
-; PickLuckLoadFlavour()
-; MaybeNotifyLuckThreshold()
 ; DecodePlayed()
 ; EncodePlayed()
 
@@ -145,8 +156,9 @@ Scriptname IronSoulController extends Quest
 ; -------------------------
 ; JournalEnsureOpenerLogged()
 ; JournalLogEvent()
+; JournalLogLuckOutcome()
+; JournalLuckOutcomeText()
 ; JournalEnsureStartDay()
-; JournalDayIndex()
 
 ; --- Identity & GUID ---
 ; -----------------------
@@ -154,24 +166,17 @@ Scriptname IronSoulController extends Quest
 ; GetTickGuid()
 ; EnsureGuidMarker()
 ; EnsureGuidInIndex()
-; GetCosaveGuid()
 ; WriteIdentitySnapshotStatic()
 ; WriteIdentitySnapshotLastSeen()
 ; TryRestoreGuidMissingCosave()
 ; TryRestoreGuidTamperedCosave()
-; EnsureTransientPlayerState()
-; ResetTransientJobsAndCaches()
 
 ; --- Feats & Unlocks ---
 ; -----------------------
 ; TryScheduleFeats()
 ; HandleFeats()
+; MaybePlayLuckImprovedAfterTierUnlock()
 ; TierMenuPrefix()
-; ResolveDeathMessageMenu()
-; ResolvePermadeathMenu()
-; ResolveDSRMenu()
-; ResolveRespawnMenu()
-; ResolveDefiantFeatUnlockMenu()
 ; IsMiraakDefeated()
 ; IsAlduinDefeated()
 ; IsHarkonDefeated()
@@ -179,27 +184,50 @@ Scriptname IronSoulController extends Quest
 
 ; --- Soul Bonus ---
 ; ------------------
-; SyncSoulBonusAbility()
-; RemoveSoulBonusAll()
 ; GetSoulBonusSpellByTier()
+; RemoveSoulBonusAll()
+; SyncSoulBonusAbility()
 
 ; --- UI & Messaging ---
 ; ----------------------
 ; OpenTimedMessageSWF()
+; OpenTimedMessageSWF_SFX()
+; OpenTimedMessageSWF_KeyDismiss()
+; OpenTimedMessageSWF_KeyDismiss_SFX()
+; OpenTimedMessageSWF_KeyDismissIronIntro()
+; ShowIronIntro()
 ; SwfNoBonus()
 ; HandleLoadNotification()
+; PickCHIMCHIMLine()
 ; HandleRespawnMenu()
+; ResolveDeathMessageMenu()
+; ResolvePermadeathMenu()
+; ResolveDSRMenu()
+; ResolveRespawnMenu()
+; PickLuckLoadFlavor()
+; MaybeNotifyLuckThreshold()
+; ResolveDefiantFeatUnlockMenu()
+; ResolveDefiantIntroMenu()
 ; ResolveDefiantTransitionMenu()
+; ResolveCHIMTransitionMenu()
+; PromoteToCHIMTier()
+; ShouldTriggerCHIMTransitionOnLoad()
+; PlayCHIMTransitionMessageSequenceSWF()
 ; PlayDefiantTransitionMessageSequenceSWF()
-; ResolveDragonSoulReviveMenu()
-; IsEndlessActive()
-; NotifyEndlessChimLoad()
-; PickEndlessChimLine()
+; OnKeyDown()
+; RegisterForAllKeys()
+; UnregisterForAllKeys()
 
 ; --- Sound FX ---
+; ----------------
 ; CanPlaySFX()
+; IsSFXDisabledByCategory()
 ; PlaySFX()
-; OpenTimedMessageSWF_SFX()
+; PickHeavyBreathingSFX()
+; PickDragonSoulReviveCastSFX()
+; PickDragonSoulReviveSFX()
+; RegisterMusicFadeBridge()
+; OnMusicFadeSetVolume()
 
 ; --- Uninstall / Cleanup ---
 ; ---------------------------
@@ -211,79 +239,120 @@ Scriptname IronSoulController extends Quest
 ; --- Properties and Runtime State ---
 ; ====================================
 
+; Game.GetFormFromFile(0x000B12, "Iron Soul - Permadeath Lite.esp")
+GlobalVariable Property IronSoul_DeathCount Auto 
+
+Spell Property IronSoulOnDyingSpell Auto
+
 ; Logging
 Bool _logEnabled = False
 Int  _logLevel = 2 ; 1=Errors, 2=Info, 3=Debug
 Int  _enableLogNotifications = 0
+
+; Key-dismissable custom menu support
+Bool _keyDismissActive = False
+Bool _keyDismissPressed = False
 
 ; Core toggles
 Bool _disableRespawn = False
 Bool _disableRespawnMessage = False
 Bool _disableDeathMessage = False
 Bool _disableDragonSoulRevive = False
+Int  _dragonSoulReviveLimit = 3
 Bool _disableDragonSoulReviveMessage = False
 Bool _disableLuckSystem = False
 Bool _disableCharacterJournalLog = False
+Int  _luckRollMessageMode = 0
 Bool _enableCharacterSheetCompatibility = False
 Bool _disableIronSoulIntro = False
 Bool _disableSFX = False
+Bool _disableMusicFade = False
+Bool _disableIronIntroSFX = False
+Bool _disableDeathSFX = False
+Bool _disablePermadeathSFX = False
+Bool _disableRespawnSFX = False
+Bool _disableDefiantTransitionSFX = False
+Bool _disableDragonSoulReviveSFX = False
+Bool _disableFeatUnlockSFX = False
+Bool _disableLuckRollSFX = False
+Bool _disableLuckOutcomeSFX = False
+Bool _disableRespawnHeavyBreathingSFX = False
 
+; Music fade
+SoundCategory Property AudioCategoryMUS Auto
+
+; Respawn
 Quest _respawnQuest = None
 Bool _respawnAvailable = False
 
+; Brawl exception
+Quest property brawlQuest auto
+
 ; Feats
-Bool _disableDefiantSoulFeat = False
+Bool _disableDefiantFeat = False
 Bool _disableSoulFeats = False
 Bool _disableSoulBonus = False
+Bool _disableSoulFatigue = False
 
 ; Anti-cheat: track Feats Dragon Souls via a guarded counter (blocks large console jumps).
 Bool _disableDragonSoulAnticheat = False
 
 ; Luck / notifications
-Int _luckReminderNotificationMode = 0 ; 0=flavour,1=basic,2=disabled
-Int _loadNotificationMode = 0 ; 0=default,1=no flavour,2=only flavour,3=disabled
+Bool _disableLuckCooldownReminderNotification = False
+Int _loadNotificationMode = 0 ; 0=default,1=no flavor,2=only flavor,3=disabled
 Float _luckTickAt = 0.0
+Bool _suppressLuckNotify = True ; suppress luck threshold notifications until first Heartbeat
 
 ; Uninstall / disable mode
 Bool _uninstallMode = False ; INI: UninstallMode=1 -> safe cleanup + disable
 Bool _modDisabled = False
 Bool _uninstallNotified = False
-Int  _uninstallStage = 0
-Float _uninstallAt = 0.0
-
-; Used during uninstall to remove Dragon Soul Revive components.
-Spell Property DSRAbility Auto
-Spell Property DSROnDying Auto
-Quest Property DSRQuest Auto
 
 ; Soul Bonus tier abilities (constant-effect Ability spells; applied/removed by script)
+Spell Property SoulBonus0Defiant Auto
 Spell Property SoulBonus1Iron Auto
 Spell Property SoulBonus2Silver Auto
 Spell Property SoulBonus3Gold Auto
 Spell Property SoulBonus4Ebon Auto
 Spell Property SoulBonus5Platinum Auto
 
-; UI SFX (Sound Markers)
+; UI SFX
 Sound Property SFXIronIntro Auto
 Sound Property SFXDeath Auto
 Sound Property SFXPermadeath Auto
 Sound Property SFXRespawn Auto
 Sound Property SFXDefiantTransition Auto
-Sound Property SFXDragonSoulRevive Auto
+Sound Property SFXDragonSoulReviveCast1 Auto
+Sound Property SFXDragonSoulReviveCast2 Auto
+Sound Property SFXDragonSoulReviveCast3 Auto
+Sound Property SFXDragonSoulReviveCast4 Auto
+Sound Property SFXDragonSoulRevive1 Auto
+Sound Property SFXDragonSoulRevive2 Auto
+Sound Property SFXDragonSoulRevive3 Auto
+Sound Property SFXDragonSoulRevive4 Auto
 Sound Property SFXFeatSilver Auto
 Sound Property SFXFeatGold Auto
 Sound Property SFXFeatEbon Auto
 Sound Property SFXFeatPlatinum Auto
 Sound Property SFXFeatDefiant Auto
+Sound Property SFXLuckRoll Auto
+Sound Property SFXLuckFailure Auto
+Sound Property SFXLuckSuccess Auto
+Sound Property HeavyBreathingSFX0 Auto ; MaleKhajiit
+Sound Property HeavyBreathingSFX1 Auto ; MaleOrc
+Sound Property HeavyBreathingSFX2 Auto ; MaleEvenToned
+Sound Property HeavyBreathingSFX3 Auto ; MaleElfHaughty
+Sound Property HeavyBreathingSFX4 Auto ; MaleArgonian
+Sound Property HeavyBreathingSFX5 Auto ; FemaleOrc
+Sound Property HeavyBreathingSFX6 Auto ; FemaleEvenToned
+Sound Property HeavyBreathingSFX7 Auto ; FemaleKhajiit
+Sound Property HeavyBreathingSFX8 Auto ; FemaleElfHaughty
+Sound Property HeavyBreathingSFX9 Auto ; FemaleArgonian
 
 ; Boss quest latches
 Quest Property MQ305 Auto
 Quest Property DLC1VQ08 Auto
 Quest Property DLC2MQ06 Auto
-
-; Shared globals
-GlobalVariable Property IronSoul_DeathCount Auto
-GlobalVariable Property IronSoul_DSR_Enabled Auto
 
 ; CHIM toggle (INI: 0/1)
 Int _CHIM = 0
@@ -299,10 +368,38 @@ Int _luckCooldownNextPersistAt = 0
 Bool _luckCooldownLoaded = False
 Bool _luckCooldownDirty = False
 
+; Last Luck roll inputs (for journaling on Luck-mode outcomes)
+Int _lastLuckRoll = 0
+Int _lastLuckValue = 0
+Bool _lastLuckRollValid = False
+
+; One-shot: suppress the generic "Defeated. Deaths: X / Y." journal line
+; when we've already written a Luck-specific defeat line for this death.
+Bool _suppressNextDefeatJournal = False
+
+; Dragon Soul Revive
+FormList Property BeastList Auto
+Spell Property RestoreSpell Auto
+Spell Property DisSpell Auto
+Bool Property bDispel = True Auto
+Sound property NPCDragonDeathSequenceWind Auto
+Sound property NPCDragonDeathSequenceExplosion Auto
+VisualEffect Property AbsorbEffect Auto
+VisualEffect Property AbsorbEffectTarget Auto
+Activator Property Marker Auto
+Objectreference MarkerRef
+
+; Dragon Soul Revive image-space FX
+ImageSpaceModifier Property IntroFX Auto
+ImageSpaceModifier Property StaticFX Auto
+ImageSpaceModifier Property OutroFX Auto
+ShaderParticleGeometry Property PSGD Auto
+Bool _imageSpaceIsFinishing = False
+
 ; Tunables
 Int Property IRON_SOUL_MAX_LIVES = 10 AutoReadOnly
 Int Property DEFIANT_SOUL_MAX_LIVES = 100 AutoReadOnly
-Int Property LUCK_REGEN_SECONDS = 3600 AutoReadOnly ; Luck 0->100 duration
+Int Property LUCK_REGEN_SECONDS = 3600 AutoReadOnly ; Luck 0->maxLuck duration (60 minutes)
 
 
 ; =======================================================
@@ -313,6 +410,24 @@ Int Property LUCK_REGEN_SECONDS = 3600 AutoReadOnly ; Luck 0->100 duration
 ; Data\SKSE\Plugins\IronSoul.ini
 ; File: Data\SKSE\Plugins\IronSoul.ini
 ; Sections are organizational only.
+Bool Function ReadBool(String configKey, Bool defaultValue)
+    Int v = IronSoulNative.GetConfigInt(configKey, -1)
+    if v == 0
+        return False
+    elseif v == 1
+        return True
+    endif
+    return defaultValue
+EndFunction
+
+Int Function ReadIntRange(String configKey, Int defaultValue, Int minV, Int maxV)
+    Int v = IronSoulNative.GetConfigInt(configKey, -1)
+    if v >= minV && v <= maxV
+        return v
+    endif
+    return defaultValue
+EndFunction
+
 Function LoadConfig()
     ; Defaults (script defaults)
     _logEnabled = False
@@ -329,6 +444,7 @@ Function LoadConfig()
     _disableDeathMessage = False
     _enableCharacterSheetCompatibility = False
     _disableDragonSoulRevive = False
+    _dragonSoulReviveLimit = 3
     _disableSoulBonus = False
     _disableCharacterJournalLog = False
     _uninstallMode = False
@@ -336,170 +452,72 @@ Function LoadConfig()
 
     ; Luck / load notifications
     _disableLuckSystem = False
-    _luckReminderNotificationMode = 0
+    _disableLuckCooldownReminderNotification = False
     _loadNotificationMode = 0
+    _luckRollMessageMode = 0
 
     ; Feats
-    _disableDefiantSoulFeat = False
+    _disableDefiantFeat = False
     _disableSoulFeats = False
+    _disableSoulFatigue = False
 
-    Int v = IronSoulNative.GetConfigInt("EnableLogging", -1)
-    if v == 0
-        _logEnabled = False
-    elseif v == 1
-        _logEnabled = True
-    endif
+    ; Additional toggles (ensure defaults reset on reload)
+    _disableDragonSoulAnticheat = False
+    _disableSFX = False
+    _disableMusicFade = False
+    _disableIronIntroSFX = False
+    _disableDeathSFX = False
+    _disablePermadeathSFX = False
+    _disableRespawnSFX = False
+    _disableDefiantTransitionSFX = False
+    _disableDragonSoulReviveSFX = False
+    _disableFeatUnlockSFX = False
+    _disableLuckRollSFX = False
+    _disableLuckOutcomeSFX = False
+    _disableRespawnHeavyBreathingSFX = False
 
-    v = IronSoulNative.GetConfigInt("LogLevel", -1)
-    if v >= 1 && v <= 3
-        _logLevel = v
-    endif
+    ; Reads (INI via plugin)
+    _logEnabled = ReadBool("EnableLogging", _logEnabled)
+    _logLevel = ReadIntRange("LogLevel", _logLevel, 1, 3)
+    _enableLogNotifications = ReadIntRange("EnableLogNotifications", _enableLogNotifications, 0, 1)
 
-    v = IronSoulNative.GetConfigInt("EnableLogNotifications", -1)
-    if v == 0
-        _enableLogNotifications = 0
-    elseif v == 1
-        _enableLogNotifications = 1
-    endif
+    _disableDeathMessage = ReadBool("DisableDeathMessage", _disableDeathMessage)
+    _disableDragonSoulRevive = ReadBool("DisableDragonSoulRevive", _disableDragonSoulRevive)
+    _dragonSoulReviveLimit = ReadIntRange("DragonSoulReviveLimit", _dragonSoulReviveLimit, 0, 3)
+    _disableDragonSoulReviveMessage = ReadBool("DisableDragonSoulReviveMessage", _disableDragonSoulReviveMessage)
+    _disableRespawn = ReadBool("DisableRespawn", _disableRespawn)
+    _disableRespawnMessage = ReadBool("DisableRespawnMessage", _disableRespawnMessage)
+    _disableIronSoulIntro = ReadBool("DisableIronSoulIntro", _disableIronSoulIntro)
 
-    v = IronSoulNative.GetConfigInt("DisableDeathMessage", -1)
-    if v == 0
-        _disableDeathMessage = False
-    elseif v == 1
-        _disableDeathMessage = True
-    endif
+    _disableSoulBonus = ReadBool("DisableSoulBonus", _disableSoulBonus)
+    _disableCharacterJournalLog = ReadBool("DisableCharacterJournalLog", _disableCharacterJournalLog)
+    _uninstallMode = ReadBool("UninstallMode", _uninstallMode)
+    _enableCharacterSheetCompatibility = ReadBool("EnableCharacterSheetCompatibility", _enableCharacterSheetCompatibility)
 
-    v = IronSoulNative.GetConfigInt("DisableDragonSoulRevive", -1)
-    if v == 0
-        _disableDragonSoulRevive = False
-    elseif v == 1
-        _disableDragonSoulRevive = True
-    endif
+    _CHIM = ReadIntRange("CHIM", _CHIM, 0, 1)
 
-    v = IronSoulNative.GetConfigInt("DisableDragonSoulReviveMessage", -1)
-    if v == 0
-        _disableDragonSoulReviveMessage = False
-    elseif v == 1
-        _disableDragonSoulReviveMessage = True
-    endif
+    _disableLuckSystem = ReadBool("DisableLuckSystem", _disableLuckSystem)
+    _disableLuckCooldownReminderNotification = ReadBool("DisableLuckCooldownReminderNotification", _disableLuckCooldownReminderNotification)
+    _loadNotificationMode = ReadIntRange("LoadNotificationMode", _loadNotificationMode, 0, 3)
+    _luckRollMessageMode = ReadIntRange("LuckRollMessageMode", _luckRollMessageMode, 0, 2)
 
-    v = IronSoulNative.GetConfigInt("DisableRespawn", -1)
-    if v == 0
-        _disableRespawn = False
-    elseif v == 1
-        _disableRespawn = True
-    endif
+    _disableDefiantFeat = ReadBool("DisableDefiantFeat", _disableDefiantFeat)
+    _disableSoulFeats = ReadBool("DisableSoulFeats", _disableSoulFeats)
+    _disableSoulFatigue = ReadBool("DisableSoulFatigue", _disableSoulFatigue)
 
-    v = IronSoulNative.GetConfigInt("DisableRespawnMessage", -1)
-    if v == 0
-        _disableRespawnMessage = False
-    elseif v == 1
-        _disableRespawnMessage = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("DisableIronSoulIntro", -1)
-    if v == 0
-        _disableIronSoulIntro = False
-    elseif v == 1
-        _disableIronSoulIntro = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("DisableSoulBonus", -1)
-    if v == 0
-        _disableSoulBonus = False
-    elseif v == 1
-        _disableSoulBonus = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("DisableCharacterJournalLog", -1)
-    if v == 0
-        _disableCharacterJournalLog = False
-    elseif v == 1
-        _disableCharacterJournalLog = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("UninstallMode", -1)
-    if v == 0
-        _uninstallMode = False
-    elseif v == 1
-        _uninstallMode = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("EnableCharacterSheetCompatibility", -1)
-    if v == 0
-        _enableCharacterSheetCompatibility = False
-    elseif v == 1
-        _enableCharacterSheetCompatibility = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("CHIM", -1)
-    if v == 0
-        _CHIM = 0
-    elseif v == 1
-        _CHIM = 1
-    endif
-
-    ; Luck / notifications
-    v = IronSoulNative.GetConfigInt("DisableLuckSystem", -1)
-    if v == 0
-        _disableLuckSystem = False
-    elseif v == 1
-        _disableLuckSystem = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("LuckReminderNotificationMode", -1)
-    if v >= 0 && v <= 2
-        _luckReminderNotificationMode = v
-    endif
-
-    v = IronSoulNative.GetConfigInt("LoadNotificationMode", -1)
-    if v >= 0 && v <= 3
-        _loadNotificationMode = v
-    endif
-
-    v = IronSoulNative.GetConfigInt("DisableDefiantFeat", -1)
-    if v == 0
-        _disableDefiantSoulFeat = False
-    elseif v == 1
-        _disableDefiantSoulFeat = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("DisableSoulFeats", -1)
-    if v == 0
-        _disableSoulFeats = False
-    elseif v == 1
-        _disableSoulFeats = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("DisableDragonSoulAnticheat", -1)
-    if v == 0
-        _disableDragonSoulAnticheat = False
-    elseif v == 1
-        _disableDragonSoulAnticheat = True
-    endif
-
-    v = IronSoulNative.GetConfigInt("DisableSFX", -1)
-    if v == 0
-        _disableSFX = False
-    elseif v == 1
-        _disableSFX = True
-    endif
-
-    ; If intro is disabled, ensure any pending intro timer is cleared so it cannot fire after reload.
-    if _disableIronSoulIntro
-        _pendingIronIntro = False
-        _ironIntroAt = 0.0
-    endif
-
-    ; Publish DSR enabled state for all scripts (DSR reads this GlobalVariable; avoids config reads during death events).
-    if IronSoul_DSR_Enabled
-        ; Hard disable DSR while the controller is inert (uninstall mode or mod-disabled latch).
-        if _modDisabled || _uninstallMode || _disableDragonSoulRevive
-            IronSoul_DSR_Enabled.SetValue(0.0)
-        else
-            IronSoul_DSR_Enabled.SetValue(1.0)
-        endif
-    endif
+    _disableDragonSoulAnticheat = ReadBool("DisableDragonSoulAnticheat", _disableDragonSoulAnticheat)
+    _disableSFX = ReadBool("DisableSFX", _disableSFX)
+    _disableMusicFade = ReadBool("DisableMusicFade", _disableMusicFade)
+    _disableIronIntroSFX = ReadBool("DisableIronIntroSFX", _disableIronIntroSFX)
+    _disableDeathSFX = ReadBool("DisableDeathSFX", _disableDeathSFX)
+    _disablePermadeathSFX = ReadBool("DisablePermadeathSFX", _disablePermadeathSFX)
+    _disableRespawnSFX = ReadBool("DisableRespawnSFX", _disableRespawnSFX)
+    _disableDefiantTransitionSFX = ReadBool("DisableDefiantTransitionSFX", _disableDefiantTransitionSFX)
+    _disableDragonSoulReviveSFX = ReadBool("DisableDragonSoulReviveSFX", _disableDragonSoulReviveSFX)
+    _disableFeatUnlockSFX = ReadBool("DisableFeatUnlockSFX", _disableFeatUnlockSFX)
+    _disableLuckRollSFX = ReadBool("DisableLuckRollSFX", _disableLuckRollSFX)
+    _disableLuckOutcomeSFX = ReadBool("DisableLuckOutcomeSFX", _disableLuckOutcomeSFX)
+    _disableRespawnHeavyBreathingSFX = ReadBool("DisableRespawnHeavyBreathingSFX", _disableRespawnHeavyBreathingSFX)
 
     ResolveRespawnQuest()
 EndFunction
@@ -514,7 +532,8 @@ Int Function LOG_DBG()
     return 3
 EndFunction
 
-Function LogMsg(Int level, String msg)
+
+Function LogMsg(Int level, String msg, Bool suppressNotify = False)
 	if !_logEnabled
 		return
 	endif
@@ -522,7 +541,7 @@ Function LogMsg(Int level, String msg)
 		return
 	endif
 
-	if _enableLogNotifications == 1
+	if _enableLogNotifications == 1 && !suppressNotify
 		Debug.Notification("[IS] " + msg)
 	endif
 
@@ -535,13 +554,22 @@ Function LogMsg(Int level, String msg)
     endif
 EndFunction
 
-Function LogSystemSnapshot()
-
-	if !_logEnabled || _logLevel < LOG_INFO()
+Function LogMsgSnapshot(Int level, String msg)
+	if !_logEnabled
+		return
+	endif
+	if level > _logLevel
 		return
 	endif
 
-	LogMsg(LOG_INFO(), "===== Iron Soul System Snapshot =====")
+    Debug.Trace("[IronSoul]" + " [Snapshot] " + msg)
+EndFunction
+
+Function LogSystemSnapshot()
+
+	if !_logEnabled
+		return
+	endif
 
 	; --- SKSE / Datastore Integrity ---
 	Bool skseOK = IronSoulNative.IsAvailable()
@@ -550,78 +578,39 @@ Function LogSystemSnapshot()
 		dsOK = IronSoulNative.DataStoreReady()
 	endif
 
-	LogMsg(LOG_INFO(), "SKSE: Available=" + skseOK \
-		+ " DataStore=" + dsOK \
-		+ " SessionGUID=" + _sessionGuid)
-
-	if _sessionGuid == "" || _sessionGuid == "999999"
-		LogMsg(LOG_ERR(), "WARNING: Invalid or fallback SessionGUID detected")
-	endif
+	LogMsgSnapshot(LOG_INFO(), "SKSE: Available=" + skseOK \
+		+ " DataStore=" + dsOK)
 
 	; --- Quest Wiring ---
-	LogMsg(LOG_INFO(), "--- Quest Wiring ---")
-
 	if !MQ305
-		LogMsg(LOG_ERR(), "MISSING PROPERTY: MQ305 (Quest)")
-	else
-		LogMsg(LOG_INFO(), "MQ305: Running=" + MQ305.IsRunning())
+		LogMsgSnapshot(LOG_ERR(), "MISSING PROPERTY: MQ305 (Quest)")
 	endif
 
 	if !DLC1VQ08
-		LogMsg(LOG_ERR(), "MISSING PROPERTY: DLC1VQ08 (Quest)")
-	else
-		LogMsg(LOG_INFO(), "DLC1VQ08: Running=" + DLC1VQ08.IsRunning())
+		LogMsgSnapshot(LOG_ERR(), "MISSING PROPERTY: DLC1VQ08 (Quest)")
 	endif
 
 	if !DLC2MQ06
-		LogMsg(LOG_ERR(), "MISSING PROPERTY: DLC2MQ06 (Quest)")
-	else
-		LogMsg(LOG_INFO(), "DLC2MQ06: Running=" + DLC2MQ06.IsRunning())
-	endif
-
-	Bool dsrPresent = (DSRQuest != None)
-	Bool dsrRunning = (dsrPresent && DSRQuest.IsRunning())
-
-	if !dsrPresent
-		if !_disableDragonSoulRevive
-			LogMsg(LOG_ERR(), "CONFIG MISMATCH: DragonSoulRevive enabled but DSRQuest missing")
-		else
-			LogMsg(LOG_ERR(), "MISSING PROPERTY: DSRQuest (Quest)")
-		endif
-	else
-		LogMsg(LOG_INFO(), "DSRQuest: Running=" + dsrRunning)
+		LogMsgSnapshot(LOG_ERR(), "MISSING PROPERTY: DLC2MQ06 (Quest)")
 	endif
 
 	Bool hasRespawn = (_respawnQuest != None)
 	Bool respawnRunning = (hasRespawn && _respawnQuest.IsRunning())
 
 	if !hasRespawn
-		LogMsg(LOG_ERR(), "MISSING PROPERTY: RespawnQuest (_respawnQuest)")
-	else
-		LogMsg(LOG_INFO(), "RespawnQuest: Running=" + respawnRunning)
+		LogMsgSnapshot(LOG_ERR(), "MISSING PROPERTY: RespawnQuest (_respawnQuest)")
 	endif
 
-	; --- Respawn / DSR Status ---
-	Float dsrEnabled = 0.0
-	if IronSoul_DSR_Enabled
-		dsrEnabled = IronSoul_DSR_Enabled.GetValue()
-	endif
-
-	LogMsg(LOG_INFO(), "Respawn: Present=" + hasRespawn \
+	LogMsgSnapshot(LOG_INFO(), "Respawn: Present=" + hasRespawn \
 		+ " Running=" + respawnRunning \
-		+ " DisableRespawn=" + _disableRespawn \
-		+ " DSR=" + dsrEnabled)
+		+ " DisableRespawn=" + _disableRespawn)
 
 	if hasRespawn && !_disableRespawn && !respawnRunning
-		LogMsg(LOG_ERR(), "WARNING: Respawn quest present but NOT running")
-	endif
-
-	if !_disableDragonSoulRevive && dsrPresent && !dsrRunning
-		LogMsg(LOG_ERR(), "WARNING: DSRQuest present but NOT running while DragonSoulRevive enabled")
+		LogMsgSnapshot(LOG_ERR(), "WARNING: Respawn quest present but NOT running")
 	endif
 
 	; --- Core Config ---
-	LogMsg(LOG_INFO(), "Config: Logging=" + _logEnabled \
+	LogMsgSnapshot(LOG_INFO(), "Config: Logging=" + _logEnabled \
 		+ " Level=" + _logLevel \
 		+ " Notify=" + _enableLogNotifications \
 		+ " CHIM=" + _CHIM \
@@ -629,29 +618,17 @@ Function LogSystemSnapshot()
 		+ " ModDisabled=" + _modDisabled)
 
 	; --- Systems ---
-	LogMsg(LOG_INFO(), "Systems: Luck=" + (!_disableLuckSystem) \
+	LogMsgSnapshot(LOG_INFO(), "Systems: Luck=" + (!_disableLuckSystem) \
 		+ " SoulBonus=" + (!_disableSoulBonus) \
 		+ " SoulFeats=" + (!_disableSoulFeats) \
-		+ " DragonSoulReviveDisabled=" + _disableDragonSoulRevive)
+		+ " DragonSoulRevive=" + (!_disableDragonSoulRevive) \
+		+ " DragonSoulReviveLimit=" + _dragonSoulReviveLimit)
 
 	; --- Luck Persistence ---
-	LogMsg(LOG_INFO(), "Luck: Loaded=" + _luckCooldownLoaded \
+	LogMsgSnapshot(LOG_INFO(), "Luck: Loaded=" + _luckCooldownLoaded \
 		+ " Dirty=" + _luckCooldownDirty \
 		+ " LastSec=" + _luckCooldownLastSec \
 		+ " NextPersistAt=" + _luckCooldownNextPersistAt)
-
-	if !_disableLuckSystem && !_luckCooldownLoaded
-		LogMsg(LOG_ERR(), "WARNING: Luck system enabled but cooldown not loaded")
-	endif
-
-	; --- Runtime Health ---
-	LogMsg(LOG_INFO(), "Runtime: PendingDeathCheck=" + _pendingDeathCheck \
-		+ " PendingDisableRespawn=" + _pendingDisableRespawn \
-		+ " UninstallStage=" + _uninstallStage)
-
-	if _pendingDeathCheck
-		LogMsg(LOG_ERR(), "WARNING: Death pipeline still pending")
-	endif
 
 	; --- Player Snapshot ---
 	Actor p = Game.GetPlayer()
@@ -661,18 +638,17 @@ Function LogSystemSnapshot()
 			deaths = IronSoul_DeathCount.GetValue() as Int
 		endif
 
-		LogMsg(LOG_INFO(), "Player: Level=" + p.GetLevel() \
+		LogMsgSnapshot(LOG_INFO(), "Player: Level=" + p.GetLevel() \
 			+ " Dead=" + p.IsDead() \
 			+ " InCombat=" + p.IsInCombat() \
 			+ " Deaths=" + deaths)
 
-		if dsOK
-			Int tier = PersistGetInt(p, GetKey(soulTierIndex, _sessionGuid), 0)
-			LogMsg(LOG_INFO(), "SoulTier=" + tier)
+			if dsOK
+	            String guid = GetTickGuid(p)
+				Int tier = PersistGetInt(p, GetKey(soulTierIndex, guid), TIER_IRON)
+				LogMsgSnapshot(LOG_INFO(), "SoulTier=" + tier)
+			endif
 		endif
-	endif
-
-	LogMsg(LOG_INFO(), "===== End Snapshot =====")
 
 EndFunction
 
@@ -687,8 +663,7 @@ EndFunction
 ; - Reads check MainData first; missing keys fall back to co-save and heal MainData.
 ;
 ; Scope:
-; - Controller does not manage MirrorData or periodic flushes.
-; - Controller only invokes IronSoulNative.DataFlushNow() at critical points.
+; - Controller invokes IronSoulNative.DataFlushIfDirty() at critical points and OnUpdateHeartbeat.
 ;
 ; GUID:
 ; - Raw GUID stored in player-scoped co-save slot only.
@@ -721,12 +696,11 @@ String Property deathCount                 = "IS_8155" AutoReadOnly
 ; Luck / Cooldown timing
 ; NOTE: Luck mode and cooldown mode share the same timing keys below.
 ; Interpretation depends on DisableLuckSystem:
-; - DisableLuckSystem=0: played time maps to Luck% (0..100)
+; - DisableLuckSystem=0: played time maps to Luck% (0..maxLuck)
 ; - DisableLuckSystem=1: played time maps to cooldown readiness (0..3600s)
 String Property luckLastSec                = "IS_7314" AutoReadOnly ; Luck/Cooldown: last real-time second anchor
 String Property luckPlayedToken            = "IS_7315" AutoReadOnly ; Luck/Cooldown: played-seconds token (encoded)
 String Property luckNotifiedTier           = "IS_7316" AutoReadOnly ; Luck: last notified threshold tier
-String Property luckResetKind              = "IS_7317" AutoReadOnly ; Luck: reset-kind tag (1=post-death, 2=post-respawn)
 
 ; Narrative / UI one-shots
 String Property ironIntroShown             = "IS_8597" AutoReadOnly
@@ -739,8 +713,13 @@ String Property tierMsgShownPlatinum       = "IS_1155" AutoReadOnly
 String Property soulTierIndex              = "IS_2204" AutoReadOnly
 String Property ebonFeatVariant            = "IS_4520" AutoReadOnly
 String Property platinumFeatVariant        = "IS_4779" AutoReadOnly
-String Property dragonSoulsTrusted         = "IS_9646" AutoReadOnly
+String Property dragonSoulsTotal           = "IS_9646" AutoReadOnly
 String Property dragonSoulsLastSeen        = "IS_7440" AutoReadOnly
+String Property dsrLimitLastSec            = "IS_8201" AutoReadOnly
+String Property dsrLimitPlayedSec          = "IS_8202" AutoReadOnly
+String Property dsrLimitUse1               = "IS_8203" AutoReadOnly
+String Property dsrLimitUse2               = "IS_8204" AutoReadOnly
+String Property dsrLimitUse3               = "IS_8205" AutoReadOnly
 
 ; Boss latches
 String Property miraakKilled               = "IS_4911" AutoReadOnly
@@ -750,13 +729,73 @@ String Property molagBalKilled             = "IS_1627" AutoReadOnly
 
 ; Defiant
 String Property defiantFeatUnlocked        = "IS_1989" AutoReadOnly
-String Property defiantActivated           = "IS_6139" AutoReadOnly
 
 ; Journal markers
 String Property journalStartDay            = "IS_5341" AutoReadOnly
 String Property journalOpenerLogged        = "IS_2270" AutoReadOnly
-String Property journalEndlessLogged       = "IS_1927" AutoReadOnly
-String Property journalUninstallLogged     = "IS_6086" AutoReadOnly
+String Property journalCHIMLogged          = "IS_1927" AutoReadOnly
+
+; Canonical soul tier/state:
+; 0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum
+Int TIER_CHIM = 0
+Int TIER_DEFIANT = 1
+Int TIER_IRON = 2
+Int TIER_SILVER = 3
+Int TIER_GOLD = 4
+Int TIER_EBON = 5
+Int TIER_PLATINUM = 6
+
+Int Function GetMaxLuckForTier(Int tier)
+    ; Luck cap by soul tier:
+    ; CHIM=100, Defiant=75, Iron=80, Silver=85, Gold=90, Ebon=95, Platinum=99.
+    if tier <= TIER_CHIM
+        return 100
+    elseif tier == TIER_DEFIANT
+        return 75
+    elseif tier == TIER_IRON
+        return 80
+    elseif tier == TIER_SILVER
+        return 85
+    elseif tier == TIER_GOLD
+        return 90
+    elseif tier == TIER_EBON
+        return 95
+    endif
+    return 99 ; Platinum+
+EndFunction
+
+Int Function GetCurrentMaxLuck(Actor player, String guid)
+    if !player || guid == ""
+        return 100
+    endif
+    Int tierNow = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+    return GetMaxLuckForTier(tierNow)
+EndFunction
+
+Int Function PercentThresholdCeil(Int maxLuck, Int pct)
+    ; Integer ceiling of (maxLuck * pct / 100), clamped to [0..maxLuck].
+    if maxLuck <= 0
+        maxLuck = 1
+    endif
+    if pct <= 0
+        return 0
+    elseif pct >= 100
+        return maxLuck
+    endif
+    Int scaled = maxLuck * pct
+    return (scaled + 99) / 100
+EndFunction
+
+Function SyncLuckNotifiedTierToCurrent(Actor player, String guid)
+    ; Recalibrates persisted notified-threshold tier after soul-tier changes.
+    if !player || guid == ""
+        return
+    endif
+    Int maxLuck = GetCurrentMaxLuck(player, guid)
+    Int luckNow = GetLuckValue(player, guid)
+    Int tierNow = LuckTier(luckNow, maxLuck)
+    PersistSetInt(player, GetKey(luckNotifiedTier, guid), tierNow, True)
+EndFunction
 
 ; MakeKey builds a storage key by concatenating a prefix
 ; and a GUID with a colon separator.
@@ -782,8 +821,12 @@ Int Function PersistGetInt(Actor player, String dataKey, Int fallback)
     if dataKey == ""
         return fallback
     endif
-    if IronSoulNative.DataHasKey(dataKey)
-        return IronSoulNative.DataGetInt(dataKey, fallback)
+    ; Reserved internal sentinel for DataGetInt missing-key detection.
+    ; Do not use this value as a real persisted gameplay value.
+    Int missingSentinel = -2147483647
+    Int direct = IronSoulNative.DataGetInt(dataKey, missingSentinel)
+    if direct != missingSentinel
+        return direct
     endif
     ; Only heal MainData from co-save if the value truly exists in co-save.
     if StorageUtil.HasIntValue(player, dataKey)
@@ -804,46 +847,14 @@ Function PersistSetInt(Actor player, String dataKey, Int value, Bool useIfChange
         IronSoulNative.DataSetInt(dataKey, value)
     endif
     if player
-        Int cur = StorageUtil.GetIntValue(player, dataKey)
-        if cur != value
+        ; Preserve co-save backup even for zero values: write when key is missing OR changed.
+        if !StorageUtil.HasIntValue(player, dataKey)
             StorageUtil.SetIntValue(player, dataKey, value)
-        endif
-    endif
-EndFunction
-
-String Function PersistGetString(Actor player, String dataKey, String fallback)
-    if !player
-        return fallback
-    endif
-    if dataKey == ""
-        return fallback
-    endif
-    if IronSoulNative.DataHasKey(dataKey)
-        return IronSoulNative.DataGetString(dataKey, fallback)
-    endif
-    ; Only heal MainData from co-save if the value truly exists in co-save.
-    if StorageUtil.HasStringValue(player, dataKey)
-        String v = StorageUtil.GetStringValue(player, dataKey, fallback)
-        IronSoulNative.DataSetStringIfChanged(dataKey, v)
-        return v
-    endif
-
-    return fallback
-EndFunction
-
-Function PersistSetString(Actor player, String dataKey, String value, Bool useIfChanged = True)
-    if dataKey == ""
-        return
-    endif
-    if useIfChanged
-        IronSoulNative.DataSetStringIfChanged(dataKey, value)
-    else
-        IronSoulNative.DataSetString(dataKey, value)
-    endif
-    if player
-        String cur = StorageUtil.GetStringValue(player, dataKey)
-        if cur != value
-            StorageUtil.SetStringValue(player, dataKey, value)
+        else
+            Int cur = StorageUtil.GetIntValue(player, dataKey)
+            if cur != value
+                StorageUtil.SetIntValue(player, dataKey, value)
+            endif
         endif
     endif
 EndFunction
@@ -873,82 +884,87 @@ EndFunction
 ; ===========================
 
 ; Runtime / Polling
-Float Property StandardPollSeconds = 1.00 Auto
-Float Property FastPollSeconds     = 0.20 Auto
+Float Property StandardPollSeconds = 1.00 Auto ; Best-effort scheduler. Requested 1.0s, but under real VM load typically fires ~1.5-2.0s.
+Float Property FastPollSeconds     = 0.20 Auto ; Best-effort fast mode. Requested 0.2s, but in practice usually ~0.4-0.6s.
 Float Property PendingFastLoopWatchdogSeconds = 30.0 Auto ; clears stuck fast-loop jobs
-String _sessionGuid = "999999"
+Float _nextHeartbeatAt = 0.0
+Float _dbgLastOnUpdateRealTime = 0.0
+Float _dbgLastHeartbeatRealTime = 0.0
 
-; Pending Jobs / Timers
-Int _soulBonusAppliedTier = -1
-
-Bool  _pendingDisableRespawn = False
-Bool  _pendingDeathCheck     = False
-Bool  _pendingLoadMessage    = False
-Bool  _pendingIronIntro      = False
-
-Float _deathCheckAt  = 0.0
-Float _ironIntroAt   = 0.0
-Float _loadMessageAt = 0.0
-
-Float _pendingDisableRespawnStartedAt = 0.0
-Float _pendingLoadMessageStartedAt    = 0.0
-Float _pendingDeathCheckStartedAt     = 0.0
-
-Int   _dsrSoulsAtDeath = -1
-
-; Feats / Heartbeat
-Bool  _pendingFeats = False
-Bool  _featsLastSeenInit = False
-
-Float _featsAt = 0.0
-Float _nextHeartbeatAt = 0.0        ; heartbeat cadence gate
-Float _nextFeatsSoulCheckAt = 0.0
-
-; GUID Tick State
-String _tickGuid = ""
-Bool   _tickGuidValid = False
-
-; Bleedout / Death Resolution
-Bool  _wasBleedingOut = False
-Bool  _bleedoutArmed = False
-Bool  _bleedoutDecisionMade = False
-Bool  _bleedoutDecisionIsRespawn = False
-Bool  _bleedoutForcedKill = False
-Bool  _deathEventLocked = False
-
-Float _pendingTrueDeathAt = 0.0
-Float _pendingQuitMenuAt  = 0.0
-Bool  _pendingQuitArmed   = False
-
-Bool  _updateQueued = False
-Bool  _isQuitting   = False
-
-; Respawn Messaging
-Bool  _pendingRespawnMenu = False
-Bool  _respawnMenuArmed   = False
-Float _respawnWarningAt   = 0.0
-Bool  _pendingLuckResetAfterRespawn = False
-Bool  _pendingCooldownResetAfterRespawn = False
-
-; Permanent death counter AV (unused vanilla actor value; exposed for UI mods)
-String _deathAVName = "DEPRECATED05"
-Bool  _pendingDeathResync = False
-Float _deathResyncAt      = 0.0
+Bool _updateQueued = False
+Float _updateQueuedDelay = 0.0
+Bool _isQuitting = False
 
 ; Bootstrap
 Bool _bootstrapActive = False
-Int  _bootstrapTriesLeft = 0
+Int _bootstrapTriesLeft = 0
+
+; GUID Tick State
+String _tickGuid = ""
+Bool _tickGuidValid = False
+Bool _guidTamperMintNotified = False ; one-shot per session warning when tamper fallback mints a new GUID
+Float _guidMintRetryAt = 0.0 ; transient backoff after mint failure to avoid repeated retries
+
+; Death Resolution
+Bool _deathEventLocked = False
+
+; Pending Jobs / Timers
+Bool _pendingDisableRespawn = False
+Bool _pendingLoadMessage = False
+Bool _respawnWindowArmed = False
+
+Float _loadMessageAt = 0.0
+Float _pendingDisableRespawnStartedAt = 0.0
+Float _pendingLoadMessageStartedAt = 0.0
+
+Int _soulBonusAppliedTier = -1
+
+; Feats
+Bool _pendingFeats = False
+
+Float _featsAt = 0.0
+
+; Respawn Messaging
+Bool _pendingRespawnMenu = False
+Bool _respawnMenuArmed = False
+Float _respawnWarningAt = 0.0
+
+; Permanent Death Counter AV (unused vanilla actor value; exposed for UI mods)
+String _deathAVName = "DEPRECATED05"
+
 
 Event OnInit()
-	LoadConfig()
-	; Reset Vigilant quest cache each session so Vigilant can be installed/updated between runs.
-	_vigilantMq08Cache = None
-	_vigilantMq08Tried = False
-	LogMsg(LOG_INFO(), "OnInit fired (script running).")
 
-	StartBootstrap()
+    if !IronSoulNative.IsAvailable()
+        _modDisabled = True
+        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (IronSoul.dll) is missing.")
+        return
+    endif
 
-	QueueUpdate(StandardPollSeconds)
+    ResetTransientState()
+
+    LoadConfig()
+    RegisterMusicFadeBridge()
+    IronSoulNative.StartHealthMonitor()
+
+	; Update splash/lvlWidget for next game launch.
+    IronSoulNative.ApplyDynamicSplash(TIER_IRON)
+    IronSoulNative.ApplyDynamicLevelWidget(TIER_IRON)
+
+    LogMsg(LOG_INFO(), "IronSoulController: OnInit event fired")
+
+    StartBootstrap()
+
+    Actor player = Game.GetPlayer()
+    if !player
+        LogMsg(LOG_ERR(), "OnInit: Game.GetPlayer() returned None; skipping OnDying/deferred-kill setup")
+    else
+        player.StartDeferredKill()
+        LogMsg(LOG_INFO(), "OnInit: StartDeferredKill() called")
+    endif
+
+    QueueUpdate(StandardPollSeconds)
+
 EndEvent
 
 Function StartBootstrap()
@@ -958,68 +974,65 @@ Function StartBootstrap()
     ;  - EnsureGuid() can succeed (identity ready; player name available).
 
     _bootstrapActive = True
-    _bootstrapTriesLeft = 30 
+    _bootstrapTriesLeft = 10 
     _updateQueued = False
 
     QueueUpdate(1.0)
 EndFunction
 
-Function GameReloaded(Bool isLoadGame)
-    ; Load config / log settings first.
-    LoadConfig()
+Function OnPlayerLoadGame(Bool isLoadGame)
 
-    ; Reset Vigilant quest cache on reload so Vigilant can be installed/updated between sessions.
-    _vigilantMq08Cache = None
-    _vigilantMq08Tried = False
+    if !IronSoulNative.IsAvailable()
+        _modDisabled = True
+        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (IronSoul.dll) is missing.")
+        return
+    endif
+
+    ResetTransientState()
 
     Actor player = Game.GetPlayer()
     if !player
-        LogMsg(LOG_ERR(), "OnPlayerLoadGame: player None (alias not filled yet?)")
+        LogMsg(LOG_ERR(), "OnPlayerLoadGame: Player is None (Alias not filled yet?)")
         return
     endif
 
-    ; If uninstall cleanup has already run, keep the controller inert until the user disables UninstallMode.
-    ; Also force-disable the DragonSoulRevive system via the shared global while inert.
-    if _modDisabled || _uninstallMode
-        if IronSoul_DSR_Enabled
-            IronSoul_DSR_Enabled.SetValue(0.0)
-        endif
-        QueueUpdate(30.0)
+    ; Load config / log settings first.
+    LoadConfig()
+
+    ; While uninstall mode is active, run/continue uninstall cleanup flow.
+    if _uninstallMode
+        HandleUninstallMode(player)
         return
     endif
+    ; If uninstall cleanup previously ran and uninstall mode is now OFF, re-enable runtime.
+    ; Continue normal load init below so behavior is restored immediately this load.
+    if _modDisabled
+        ReenableAfterUninstall(player)
+    endif
+
+    RegisterMusicFadeBridge()
+    IronSoulNative.StartHealthMonitor()
+    ; Re-arm bootstrap on each load so placeholder-name GUID gating remains active until identity stabilizes.
+    StartBootstrap()
 
     ; Identity bootstrap
     String name = IronSoulNative.GetPlayerName()
-    String cosaveGuid = StorageUtil.GetStringValue(player, characterGuid, "")
 
-    ; Attempt to restore GUID if co-save GUID looks suspicious (present, but not known to MainData),
-    ; using identity snapshots (only beyond level 1).
-    TryRestoreGuidTamperedCosave(player, name, cosaveGuid)
-
-    String guid = EnsureGuid(player)
-
+	String guid = EnsureGuid(player)
+	GetTickGuid(player)
+    
     LogMsg(LOG_INFO(), "OnPlayerLoadGame: Player=" + name + " GUID=" + guid)
 
-    if guid != "" && name != ""
-        WriteIdentitySnapshotStatic(guid, player, name)
-        WriteIdentitySnapshotLastSeen(guid, player)
-        EnsureGuidMarker(guid)
-    endif
+	if guid == ""
+		LogMsg(LOG_INFO(), "OnPlayerLoadGame: GUID not ready")
+    else
+        ; Initialize Dragon Soul baseline for this GUID if missing.
+        Int _curSoulsLS = player.GetActorValue("DragonSouls") as Int
+        Int _lastSoulsLS = PersistGetInt(player, GetKey(dragonSoulsLastSeen, guid), -1)
+        if _lastSoulsLS == -1
+            PersistSetInt(player, GetKey(dragonSoulsLastSeen, guid), _curSoulsLS, True)
+        endif
 
-    ; Validate player execution context (actor presence, GUID identity, and transient state)
-    if EnsureTransientPlayerState(player, guid)
-        return
-    endif
-
-    ; SoulBonus: sync on load
-    if guid != ""
-        SyncSoulBonusAbility(player, guid)
-    endif
-
-    UpdatePlayerProtectionState(player, guid)
-
-    ; One-time reconcile / enforcement
-    if guid != ""
         Int deathsNow = PersistGetInt(player, GetKey(deathCount, guid), 0)
 
         if _enableCharacterSheetCompatibility
@@ -1027,68 +1040,84 @@ Function GameReloaded(Bool isLoadGame)
         endif
 
         ; Update Global Variable IronSoul_DeathCount with current character death count for other mods to read.
-        IronSoul_DeathCount.SetValue(deathsNow)
-
-        ; Enforce essential / quest state using current identity.
-        UpdatePlayerProtectionState(player, guid)
-
-        ; Journal: Endless Mode activation (CHIM) - record once when the run becomes eligible.
-        if !_disableCharacterJournalLog
-            if _CHIM == 1
-                Int endlessStart = IRON_SOUL_MAX_LIVES
-                Int defActive = 0
-                if !_disableDefiantSoulFeat
-                    defActive = PersistGetInt(player, GetKey(defiantActivated, guid), 0)
-                endif
-                if defActive == 1
-                    endlessStart = DEFIANT_SOUL_MAX_LIVES
-                endif
-
-                if deathsNow >= endlessStart
-                    Int chimLogged = PersistGetInt(player, GetKey(journalEndlessLogged, guid), 0)
-                    if chimLogged != 1
-                        JournalLogEvent("CHIM realized: Death is merely an illusion, a cycle to be broken. Endless Mode activated.")
-                        PersistSetInt(player, GetKey(journalEndlessLogged, guid), 1, True)
-                    endif
-                endif
-            endif
+        if IronSoul_DeathCount
+            IronSoul_DeathCount.SetValue(deathsNow)
         endif
+
+        ; Determine essential state.
+        UpdatePlayerProtectionState(player)
     endif
+
+    if guid != "" && name != ""
+        WriteIdentitySnapshotStatic(guid, player, name)
+        WriteIdentitySnapshotLastSeen(guid, player)
+        EnsureGuidMarker(guid)
+    endif
+
+	player.StartDeferredKill()
+
+    ; Rare edge: identity not ready yet on this load tick.
+    ; Defer GUID-dependent load work until a later update when EnsureGuid() can succeed.
+    if guid == ""
+        LogMsg(LOG_INFO(), "OnPlayerLoadGame: GUID not ready; deferring GUID-dependent load initialization")
+        ScheduleLoadMessage(isLoadGame)
+        return
+    endif
+
+	Int deaths     = PersistGetInt(player, GetKey(deathCount, guid), 0)
+	Int soulTier   = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+
+    ; Catch-up path: CHIM may be enabled after the threshold death happened in a prior session.
+    ; This load-triggered transition does NOT quit to desktop.
+    if ShouldTriggerCHIMTransitionOnLoad(player, guid, deaths, soulTier)
+        LogMsg(LOG_INFO(), "OnPlayerLoadGame: CHIM transition triggered on load")
+        PromoteToCHIMTier(player, guid)
+        PlayCHIMTransitionMessageSequenceSWF(soulTier)
+        soulTier = TIER_CHIM
+    endif
+
+    ScheduleLoadMessage(isLoadGame)
+    SyncSoulBonusAbility(player, guid)
+
+    IronSoulNative.ApplyDynamicSplash(soulTier)
+	IronSoulNative.ApplyDynamicLevelWidget(soulTier)
+
+	; Effective cap (CHIM tier is effectively unbounded).
+	Int maxLives = GetEffectiveMaxLives(player, guid)
+	if deaths >= maxLives
+		OpenTimedMessageSWF_KeyDismiss_SFX(ResolvePermadeathMenu(soulTier), 55.0, 5.0, SFXPermadeath, player, False)
+		FinalizeAndQuitMainMenu()
+		return
+	endif
 
     LogSystemSnapshot()
 
-    ; DSR: ensure quest/spells exist when enabled (covers prior uninstall removal)
-    SyncDSROnLoad(player)
-
-    ; Schedule load message (delayed UI + load-time enforcement).
-    ScheduleLoadMessage(isLoadGame, player, guid)
 EndFunction
 
 Event OnUpdate()
+    ; DBG lightweight OnUpdate trace (with delta time)
+    if _logEnabled && _logLevel >= LOG_DBG()
+        Float nowRT = Utility.GetCurrentRealTime()
+        Float dt = 0.0
+        if _dbgLastOnUpdateRealTime > 0.0
+            dt = nowRT - _dbgLastOnUpdateRealTime
+        endif
+        _dbgLastOnUpdateRealTime = nowRT
+        LogMsg(LOG_DBG(), "OnUpdate: fired dt=" + dt \
+            + " deathLocked=" + _deathEventLocked, True)
+    endif
     _updateQueued = False
+    _updateQueuedDelay = 0.0
 
     if _isQuitting
         return
     endif
 
+    if _uninstallMode || _modDisabled
+        return
+    endif
+
     Actor player = Game.GetPlayer()
-
-    ; Soft-uninstall mode: disable all functionality and run cleanup once.
-    if _uninstallMode
-        HandleUninstallMode(player)
-        return
-    endif
-
-    ; If uninstall cleanup previously ran in this save, but UninstallMode is now off, re-enable.
-    if !_uninstallMode && _modDisabled
-        ReenableAfterUninstall(player)
-        return
-    endif
-
-    ; Validate player execution context (actor presence, GUID identity, and transient state)
-    if EnsureTransientPlayerState(player, "")
-        return
-    endif
 
     ; Luck / Cooldown regen tick (menu-safe). Run early so menu time never advances.
     if _tickGuidValid
@@ -1097,7 +1126,6 @@ Event OnUpdate()
         elseif IsCooldownModeActive()
             TickCooldownRegen(player, _tickGuid)
         endif
-        UpdatePlayerProtectionState(player, _tickGuid)
     endif
 
     ; Defer initialisation bootstrap if necessary
@@ -1105,33 +1133,19 @@ Event OnUpdate()
         return
     endif
 
-    ; Fail-safe: unlock death handling if player is stable
-    FailSafeUnlockIfStable(player)
-
     ; Timed load-notification handler
     HandleLoadNotification(player)
 
     ; Low-frequency (5s) maintenance and progression integrity checks
     OnUpdateHeartbeat(player)
 
-    ; Soul Feats evaluation (unlock messages)
-    TryScheduleFeats(player)
+    ; Soul Feats message handling (unlock jobs are scheduled on heartbeat cadence)
     HandleFeats(player)
-
-    ; Delayed true-death confirmation (no respawn branch)
-    if HandlePendingDeathCheck(player)
-        return
-    endif
 
     ; Delayed respawn message
     HandleRespawnMenu(player)
 
-    ; Bleedout detection and possible immediate actions
-    if HandleBleedoutDetection(player)
-        return
-    endif
-
-    ; Disable _respawnQuest job
+    ; Respawn window disarm/monitor job
     if HandleDisableRespawn(player)
         return
     endif
@@ -1140,6 +1154,7 @@ Event OnUpdate()
 EndEvent
 
 Function OnUpdateHeartbeat(Actor player)
+
     if !player || player.IsDead() || player.IsBleedingOut()
         return
     endif
@@ -1157,6 +1172,19 @@ Function OnUpdateHeartbeat(Actor player)
     endif
     _nextHeartbeatAt = nowRT + 5.0
 
+    ; DBG lightweight Heartbeat trace
+    if _logEnabled && _logLevel >= LOG_DBG()
+        Float dtHB = 0.0
+        if _dbgLastHeartbeatRealTime > 0.0
+            dtHB = nowRT - _dbgLastHeartbeatRealTime
+        endif
+        _dbgLastHeartbeatRealTime = nowRT
+        LogMsg(LOG_DBG(), "Heartbeat: dt=" + dtHB \
+            + " souls=" + (player.GetActorValue("DragonSouls") as Int) \
+            + " essential=" + player.IsEssential() \
+            + " deathLocked=" + _deathEventLocked, True)
+    endif
+
     ; Use per-tick GUID cache
     String guid = ""
     if _tickGuidValid
@@ -1169,6 +1197,8 @@ Function OnUpdateHeartbeat(Actor player)
         return
     endif
 
+    SyncDSRLimitState(player, guid)
+
     ; Refresh last-seen identity snapshot (I.L/I.D) on this low-frequency cadence.
     WriteIdentitySnapshotLastSeen(guid, player)
 
@@ -1177,48 +1207,67 @@ Function OnUpdateHeartbeat(Actor player)
         SyncDeathAV(player, deathsNow)
     endif
 
-    ; Dragon Soul integrity tracking (optional)
-    ;  - Sample DragonSouls once per heartbeat (~5s).
-    ;  - If the increase since last heartbeat is 1..3, we count it as "trusted" toward Feats.
-    ;  - If the increase is >3, we treat it as suspicious and do NOT credit Feats progress.
-    ; This can be disabled via disableDragonSoulAnticheat. Boss-based feat gating below still runs.
-    if !_disableDragonSoulAnticheat
-        Int curSouls = player.GetActorValue("DragonSouls") as Int
-
-        Int lastSouls = PersistGetInt(player, GetKey(dragonSoulsLastSeen, guid), curSouls)
-        Int delta = curSouls - lastSouls
-
-        ; Debug notification for suspicious jumps
-        if delta > 3
-            Debug.Notification("[Iron Soul] Unusual Dragon Soul increase detected (D=" + delta + "); Feats progress not updated. Leave bug report if legitimate.")
-        endif
-
-        if delta > 0 && delta <= 3
-            Int featsSouls = PersistGetInt(player, GetKey(dragonSoulsTrusted, guid), 0)
-            featsSouls = featsSouls + delta
-            PersistSetInt(player, GetKey(dragonSoulsTrusted, guid), featsSouls, True)
-
-            ; Trigger Feats evaluation soon (message boxes must be shown in a safe context).
-            ; If all Feats are disabled via INI, we still track the counter but do not schedule messaging.
-            if !_disableDefiantSoulFeat || !_disableSoulFeats
-                _pendingFeats = True
-                if _featsAt < (nowRT + 4.0)
-                    _featsAt = nowRT + 4.0
-                endif
-            endif
-
-            ; Journal: log Dragon Soul claims (event-driven; no periodic visible-log writes).
-            Int j = 0
-            while j < delta
-                Int claimed = featsSouls - (delta - 1 - j)
-                JournalLogEvent("Absorbed a Dragon's Soul. Dragon Souls Claimed: " + claimed)
-                j += 1
-            endwhile
-        endif
-
-        ; Always advance last-seen snapshot so we don't re-credit the same delta next tick.
+    ; Dragon Soul tracking (lifetime total; anti-cheat aware)
+    ;  - Sample DragonSouls once per heartbeat (~5s) and compute delta vs last snapshot.
+    ;  - When Dragon Soul anti-cheat is ENABLED:
+    ;       * Only accept deltas of 1..3 as legitimate gains (count + journal).
+    ;       * Ignore big jumps (>3): do not count and do not journal.
+    ;  - When Dragon Soul anti-cheat is DISABLED:
+    ;       * Accept ALL positive deltas (count + journal), including big jumps.
+    ;
+    ; dragonSoulsTotal is a lifetime "souls gained" counter (spent souls still count).
+    Int curSouls = player.GetActorValue("DragonSouls") as Int
+    Int lastSouls = PersistGetInt(player, GetKey(dragonSoulsLastSeen, guid), -1)
+    if lastSouls == -1
+        ; First observation for this GUID: establish baseline so we can detect future deltas.
         PersistSetInt(player, GetKey(dragonSoulsLastSeen, guid), curSouls, True)
+        return
     endif
+    Int delta = curSouls - lastSouls
+
+    ; Determine essential state.
+    UpdatePlayerProtectionState(player)
+    
+    ; Decide how many souls we accept this tick under the current anti-cheat mode.
+    Int accepted = 0
+    if delta > 0
+        if _disableDragonSoulAnticheat
+            accepted = delta
+        else
+            if delta > 3
+                Debug.Notification("[Iron Soul] Unusual Dragon Soul increase detected (D=" + delta + "); Dragon Soul Total not updated.")
+            endif
+            if delta <= 3
+                accepted = delta
+            endif
+        endif
+    endif
+
+    if accepted > 0
+        Int soulsTotal = PersistGetInt(player, GetKey(dragonSoulsTotal, guid), 0)
+        soulsTotal = soulsTotal + accepted
+        PersistSetInt(player, GetKey(dragonSoulsTotal, guid), soulsTotal, True)
+
+        ; Trigger Feats evaluation soon (message boxes must be shown in a safe context).
+        ; If all Feats are disabled via INI, we still track the counter but do not schedule messaging.
+        if !_disableDefiantFeat || !_disableSoulFeats
+            _pendingFeats = True
+            if _featsAt < (nowRT + 4.0)
+                _featsAt = nowRT + 4.0
+            endif
+        endif
+
+        ; Journal: log accepted Dragon Soul gains, reflecting the lifetime total.
+        Int j = 0
+        while j < accepted
+            Int totalAt = soulsTotal - (accepted - 1 - j)
+            JournalLogEvent("Absorbed a Dragon's Soul. Dragon Souls Total: " + totalAt + ".")
+            j += 1
+        endwhile
+    endif
+
+    ; Always advance last-seen snapshot so we don't re-credit/log the same delta next tick.
+    PersistSetInt(player, GetKey(dragonSoulsLastSeen, guid), curSouls, True)
 
     ; --- Boss defeat polls (Ebon / Platinum gating) ---
     ; Some boss defeats are only reliably detectable by quest stage progression (no stable actor OnDeath hook).
@@ -1228,12 +1277,12 @@ Function OnUpdateHeartbeat(Actor player)
     ; Performance notes:
     ;  - Only polls until a per-character latch flag is set, then becomes a cheap O(1) read.
     ;  - Each poll is guarded by the current Soul Feat so we don't keep checking after the tier is already earned.
-    Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
+    Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
     Int deaths  = PersistGetInt(player, GetKey(deathCount, guid), 0)
 
     if deaths < IRON_SOUL_MAX_LIVES && !_disableSoulFeats
         ; Platinum checks (Molag Bal has priority over Miraak for variant credit).
-        if curTier < 4
+        if curTier < TIER_PLATINUM
             Int molagFlag = PersistGetInt(player, GetKey(molagBalKilled, guid), 0)
             if molagFlag != 1
                 IsMolagBalDefeatedVigilant(player, guid)
@@ -1246,7 +1295,7 @@ Function OnUpdateHeartbeat(Actor player)
         endif
 
         ; Ebon checks (Alduin priority over Harkon for variant credit when both already true).
-        if curTier < 3
+        if curTier < TIER_EBON
             Int alduinFlag = PersistGetInt(player, GetKey(alduinKilled, guid), 0)
             if alduinFlag != 1
                 IsAlduinDefeated(player, guid)
@@ -1258,6 +1307,18 @@ Function OnUpdateHeartbeat(Actor player)
             endif
         endif
     endif
+    ; Allow Luck notifications after first stable heartbeat
+    if _suppressLuckNotify
+        _suppressLuckNotify = False
+    endif
+
+    TryScheduleFeats(player)
+
+    ; Datastore flush pacing (plugin no longer runs a background flush thread).
+    ; Heartbeat runs ~every 5s, and this native call will flush to disk only if the
+    ; datastore is dirty (i.e., a value actually changed via DataSet*IfChanged).
+    IronSoulNative.DataFlushIfDirty()
+
 EndFunction
 
 Bool Function BootstrapTick()
@@ -1267,16 +1328,8 @@ Bool Function BootstrapTick()
 
     Actor p = Game.GetPlayer()
     if !p
-        ; Only burn retries when the player ref truly isn't available.
-        _bootstrapTriesLeft -= 1
-
-        if _bootstrapTriesLeft <= 0
-            _bootstrapActive = False
-            LogMsg(LOG_ERR(), "Bootstrap: player still None after 60s; continuing normal polling.")
-            return False
-        endif
-
-        LogMsg(LOG_INFO(), "Bootstrap: player None; retrying (" + _bootstrapTriesLeft + "s left)")
+        ; PAUSE retry consumption while player ref isn't available.
+        LogMsg(LOG_INFO(), "BootstrapTick: Player is None; waiting for player ref")
         _updateQueued = False
         QueueUpdate(1.0)
         return True
@@ -1284,34 +1337,37 @@ Bool Function BootstrapTick()
 
     ; Do NOT consume retries while in UI/menu mode (e.g., long RaceMenu sessions).
     if Utility.IsInMenuMode()
-        ; Keep bootstrap active and retry later.
+        LogMsg(LOG_DBG(), "BootstrapTick: In menu mode; waiting")
         _updateQueued = False
         QueueUpdate(1.5)
         return True
     endif
 
     ; Acquire a GUID when identity is ready.
-    ; EnsureGuid() should return "" until IronSoulNative.GetPlayerName() is available.
     String bguid = EnsureGuid(p)
     if bguid == ""
         ; Identity not ready yet (name not available). Keep bootstrapping.
+        _bootstrapTriesLeft -= 1
+        if _bootstrapTriesLeft <= 0
+            _bootstrapActive = False
+            LogMsg(LOG_ERR(), "BootstrapTick: Identity not ready after timeout; continuing normal polling")
+            return False
+        endif
+
+        LogMsg(LOG_INFO(), "BootstrapTick: Identity not ready; retrying (" + _bootstrapTriesLeft + "s left)")
         _updateQueued = False
         QueueUpdate(1.0)
         return True
     endif
 
-    ; Bootstrap complete only after we successfully obtain a GUID.
     _bootstrapActive = False
-    LogMsg(LOG_INFO(), "Bootstrap: GUID ready; bootstrap complete (" + bguid + ")")
-
-    ; SoulBonus: initial sync once GUID becomes available (new game)
-    SyncSoulBonusAbility(p, bguid)
+    LogMsg(LOG_INFO(), "BootstrapTick: GUID ready; bootstrap complete (" + bguid + ")")
 
     return False
 EndFunction
 
 Function TickLuckRegen(Actor player, String guid)
-    ; Advances per-character Luck regeneration (0 -> 100 over LUCK_REGEN_SECONDS).
+    ; Advances per-character Luck regeneration (0 -> maxLuck over LUCK_REGEN_SECONDS).
     ; Uses real-time seconds but does NOT advance while menus are open.
     ; Updates state every second in script variables; persists at most once per 60s (unless forced).
     if !player || guid == ""
@@ -1338,13 +1394,13 @@ Function TickLuckRegen(Actor player, String guid)
     Int playedTok = _luckCooldownPlayedTok
     Int played = DecodePlayed(playedTok)
 
-    ; Initialize on first run so Luck starts at 100 on a new game.
+    ; Initialize on first run so Luck starts at tier max on a new game.
     if lastSec <= 0 || playedTok <= 0
         played = LUCK_REGEN_SECONDS
         _luckCooldownPlayedTok = EncodePlayed(nowSec, played)
         _luckCooldownLastSec = nowSec
         LuckCooldownMarkDirty()
-        ; New game: suppress threshold reminder spam by marking 100 as already notified.
+        ; New game: suppress threshold reminder spam by marking max threshold as already notified.
         PersistSetInt(player, GetKey(luckNotifiedTier, guid), 4, True)
         LuckCooldownPersistIfDue(player, guid, nowSec, True)
         return
@@ -1383,18 +1439,37 @@ Function TickLuckRegen(Actor player, String guid)
     ; Persist at most once per 60s during normal regen.
     LuckCooldownPersistIfDue(player, guid, nowSec, False)
 
+    Int maxLuck = GetCurrentMaxLuck(player, guid)
     Int luckNow = GetLuckValue(player, guid)
-    MaybeNotifyLuckThreshold(player, guid, luckNow)
-    LogMsg(LOG_DBG(), "Luck: " + luckNow + " / 100 (" + played + "/" + LUCK_REGEN_SECONDS + "s)")
+    MaybeNotifyLuckThreshold(player, guid, luckNow, maxLuck)
+    if luckNow < maxLuck
+        LogMsg(LOG_DBG(), "TickLuckRegen: Luck=" + luckNow + "/" + maxLuck + " (" + played + "/" + LUCK_REGEN_SECONDS + "s)", True)
+    endif
 EndFunction
 
 Function QueueUpdate(Float afDelay)
+	; Debounced single-update scheduler (soonest wins):
+	; - Prevents RegisterForSingleUpdate spam
+	; - Allows urgent jobs to "upgrade" a previously queued slower tick
+	if afDelay < 0.0
+		afDelay = 0.0
+	endif
 	if _updateQueued
-		LogMsg(LOG_DBG(), "QueueUpdate skipped; already queued. delay=" + afDelay)
+		; If a tick is already queued, only reschedule if the new delay is sooner.
+		if _updateQueuedDelay <= 0.0 || afDelay < _updateQueuedDelay
+			LogMsg(LOG_DBG(), "QueueUpdate: upgrading queued delay from " + _updateQueuedDelay + " -> " + afDelay, True)
+			_updateQueuedDelay = afDelay
+			; Cancel prior schedule and re-register the sooner one.
+			UnregisterForUpdate()
+			RegisterForSingleUpdate(afDelay)
+		else
+			LogMsg(LOG_DBG(), "QueueUpdate: skipped; already queued sooner/equal. queued=" + _updateQueuedDelay + " req=" + afDelay, True)
+		endif
 		return
 	endif
 	_updateQueued = True
-	LogMsg(LOG_DBG(), "QueueUpdate scheduled. delay=" + afDelay)
+	_updateQueuedDelay = afDelay
+	;LogMsg(LOG_DBG(), "QueueUpdate: scheduled. delay=" + afDelay, True)
 	RegisterForSingleUpdate(afDelay)
 EndFunction
 
@@ -1405,15 +1480,11 @@ Function RescheduleIfJobsRemain()
 
     if _pendingDisableRespawn && _pendingDisableRespawnStartedAt > 0.0 && (nowRT - _pendingDisableRespawnStartedAt) > PendingFastLoopWatchdogSeconds
         _pendingDisableRespawn = False
-        LogMsg(LOG_INFO(), "Watchdog: cleared _pendingDisableRespawn after " + (nowRT - _pendingDisableRespawnStartedAt) + "s")
+        LogMsg(LOG_INFO(), "RescheduleIfJobsRemain: cleared _pendingDisableRespawn after " + (nowRT - _pendingDisableRespawnStartedAt) + "s")
     endif
     if _pendingLoadMessage && _pendingLoadMessageStartedAt > 0.0 && (nowRT - _pendingLoadMessageStartedAt) > PendingFastLoopWatchdogSeconds
         _pendingLoadMessage = False
-        LogMsg(LOG_INFO(), "Watchdog: cleared _pendingLoadMessage after " + (nowRT - _pendingLoadMessageStartedAt) + "s")
-    endif
-    if _pendingDeathCheck && _pendingDeathCheckStartedAt > 0.0 && (nowRT - _pendingDeathCheckStartedAt) > PendingFastLoopWatchdogSeconds
-        _pendingDeathCheck = False
-        LogMsg(LOG_INFO(), "Watchdog: cleared _pendingDeathCheck after " + (nowRT - _pendingDeathCheckStartedAt) + "s")
+        LogMsg(LOG_INFO(), "RescheduleIfJobsRemain: cleared _pendingLoadMessage after " + (nowRT - _pendingLoadMessageStartedAt) + "s")
     endif
 
     ; Reset start timers when jobs complete normally.
@@ -1423,11 +1494,8 @@ Function RescheduleIfJobsRemain()
     if !_pendingLoadMessage
         _pendingLoadMessageStartedAt = 0.0
     endif
-    if !_pendingDeathCheck
-        _pendingDeathCheckStartedAt = 0.0
-    endif
 
-    if _pendingDisableRespawn || _pendingLoadMessage || _pendingDeathCheck || _wasBleedingOut
+    if _pendingDisableRespawn || _pendingLoadMessage || _deathEventLocked
         QueueUpdate(FastPollSeconds)
 
     else
@@ -1435,8 +1503,8 @@ Function RescheduleIfJobsRemain()
     endif
 EndFunction
 
-; Called from GameReloaded() and is responsible only for arming the load-message job.
-Function ScheduleLoadMessage(Bool isLoadGame, Actor player, String guid)
+; Called from OnPlayerLoadGame() and is responsible only for arming the load-message job.
+Function ScheduleLoadMessage(Bool isLoadGame)
     ; Load message: always schedule on load (not suppressed by other pending messages).
     if isLoadGame
         float nowRT = Utility.GetCurrentRealTime()
@@ -1455,502 +1523,215 @@ Function ScheduleLoadMessage(Bool isLoadGame, Actor player, String guid)
     QueueUpdate(StandardPollSeconds)
 EndFunction
 
+Function ResetTransientState()
+
+    _pendingDisableRespawn = False
+    _pendingLoadMessage = False
+    _pendingFeats = False
+    _respawnWindowArmed = False
+
+    _featsAt = 0.0
+    _loadMessageAt = 0.0
+
+    ; Heartbeat / cadence timers are transient (GetCurrentRealTime can reset across reloads).
+    _nextHeartbeatAt = 0.0
+    _updateQueuedDelay = 0.0
+    _dbgLastOnUpdateRealTime = 0.0
+    _dbgLastHeartbeatRealTime = 0.0
+
+    ; Pending job guard timers
+    _pendingDisableRespawnStartedAt = 0.0
+    _pendingLoadMessageStartedAt = 0.0
+
+    ; Runtime scheduling state
+    _updateQueued = False
+
+    ; GUID cache is transient and must be recomputed after load/init edges.
+    _tickGuid = ""
+    _tickGuidValid = False
+    _guidTamperMintNotified = False
+    _guidMintRetryAt = 0.0
+
+    ; Death state should not persist across reload/init edges.
+    _deathEventLocked = False
+
+    _pendingRespawnMenu = False
+    _respawnMenuArmed = False
+
+    ; Quit latch is transient.
+    _isQuitting = False
+
+    ; Luck/Cooldown session cache is transient; reset to avoid stale deltas across reloads.
+    _luckCooldownLoaded = False
+    _luckCooldownDirty = False
+    _luckCooldownGuid = ""
+    _luckCooldownLastSec = 0
+    _luckCooldownPlayedTok = 0
+    _luckCooldownNextPersistAt = 0
+
+    ; Luck roll telemetry
+    _lastLuckRoll = 0
+    _lastLuckValue = 0
+    _lastLuckRollValid = False
+    _suppressNextDefeatJournal = False
+
+    ; Luck tick anchor is transient (real-time based).
+    _luckTickAt = 0.0
+
+    ; Respawn warning/availability caches are transient.
+    _respawnWarningAt = 0.0
+    _respawnAvailable = False
+
+    ; Reset Vigilant quest cache so Vigilant can be installed/updated between sessions.
+    _vigilantMq08Cache = None
+    _vigilantMq08Tried = False
+
+    ; Bootstrap session flags should not persist across reload/init edges.
+    _bootstrapActive = False
+    _bootstrapTriesLeft = 0
+
+    ; SoulBonus runtime applied-tier cache is transient.
+    _soulBonusAppliedTier = -1
+
+    ; Key-dismiss state.
+    _keyDismissActive = False
+    _keyDismissPressed = False
+
+EndFunction
+
 
 ; ======================
 ; --- Death Handling ---
 ; ======================
 
-Function HandlePlayerDying(Actor akKiller)
-	; PRIMARY DEATH HANDLER (non-essential deaths / OnDying).
-	; Policy:
-	; - Respawn decisions happen in the bleedout handler.
-	; - If a dragon soul is available and DSR is enabled, we give DSR a grace window to revive.
-	; - Otherwise this is a true death (log + quit).
+; Single entry point for ALL death events (HP <= 0)
+Function HandlePlayerDying(Actor player, Actor caster)
 
-	Actor player = Game.GetPlayer()
-	if !player
-		LogMsg(LOG_ERR(), "OnDying: player None")
-		return
-	endif
-	if _uninstallMode
-		return
-	endif
-	if _modDisabled
-		return
-	endif
-
-	; Hard gate to prevent double-trigger / re-entrancy.
-	if _deathEventLocked
-		LogMsg(LOG_DBG(), "OnDying ignored; deathEventLocked")
-		return
-	endif
-	_deathEventLocked = True
-
-	String name = IronSoulNative.GetPlayerName()
-	if name == ""
-		name = "Player"
-	endif
-
-	String guid = EnsureGuid(player)
-	if guid == ""
-		LogMsg(LOG_ERR(), "OnDying: missing GUID; ignoring")
-		_deathEventLocked = False
-		return
-	endif
-
-	Float nowRT = Utility.GetCurrentRealTime()
-	LogMsg(LOG_INFO(), "OnDying: Player=" + name + " GUID=" + guid)
-
-	; Ensure respawn quest is not running here; bleedout handler owns respawn decisions.
-	if _respawnQuest && _respawnQuest.IsRunning()
-		_respawnQuest.Stop()
-	endif
-
-	; Keep player NON-essential so:
-	; - DSR can revive if souls exist, OR
-	; - True death can proceed normally.
-	player.GetActorBase().SetEssential(False)
-
-	; If we're already in another death pipeline (e.g., pending quit from bleedout),
-	; do not allow OnDying to arm a second pipeline.
-	; (These flags exist in your script already; if any are not present, remove those lines.)
-	if _pendingQuitArmed
-		LogMsg(LOG_INFO(), "OnDying: pendingQuitArmed already set; skipping DSR grace")
-		return
-	endif
-	if _pendingDisableRespawn
-		LogMsg(LOG_INFO(), "OnDying: pendingDisableRespawn already set; skipping DSR grace")
-		return
-	endif
-	if _pendingDeathCheck
-		LogMsg(LOG_DBG(), "OnDying: pendingDeathCheck already armed")
-		return
-	endif
-
-	; Snapshot souls so the delayed check can validate consumption *if it wants to*.
-	; IMPORTANT: Do NOT hard-fail into permadeath purely because the delta wasn't observed;
-	; that validation should be "best effort" (handled in your pending check function).
-	Int soulsNow = player.GetActorValue("DragonSouls") as Int
-
-	; Arm DSR grace only if DSR is enabled and a soul is available right now.
-	if !_disableDragonSoulRevive && soulsNow > 0
-		_dsrSoulsAtDeath = soulsNow
-		_pendingDeathCheck = True
-
-		; Track when the grace pipeline began (for watchdog logging / stuck protection).
-		_pendingDeathCheckStartedAt = nowRT
-
-		; Grace window (keep as constant if you have one).
-		_deathCheckAt = nowRT + 10.0
-
-		; Ensure we enter fast polling to catch the outcome promptly.
-		_updateQueued = False
-		QueueUpdate(FastPollSeconds)
-		return
-	endif
-
-	; No souls (or DSR disabled): this is a true death.
-	_dsrSoulsAtDeath = -1
-	LogMsg(LOG_INFO(), "TRUE DEATH: no dragon souls available (or DSR disabled); skipping DSR grace")
-
-	; True death resets Luck/Cooldown to 0 per design.
-	if IsLuckActive()
-		ResetLuck(player, guid)
-		PersistSetInt(player, GetKey(luckResetKind, guid), 1, True) ; post-death
-	elseif IsCooldownModeActive()
-		ResetCooldown(player, guid)
-	endif
-
-	; Small delay to allow death menu state/animations to settle (keep if you rely on it).
-	Utility.Wait(3.0)
-
-	; Lock stays true; we're committing to exit.
-	TrueDeathAndQuit(player)
-EndFunction
-
-Function FailSafeUnlockIfStable(Actor player)
-    ; If the player is stable again and no death-related jobs are pending,
-    ; unlock death handling. Prevents stuck locks suppressing future deaths.
     if _deathEventLocked
-        if player && !player.IsDead() && !player.IsBleedingOut() && !_pendingDisableRespawn && !_pendingDeathCheck
-            _deathEventLocked = False
+        return
+    endif
+
+    if !player || _modDisabled || _uninstallMode
+        return
+    endif
+
+    ; Brawl exception
+    if brawlQuest
+        if (brawlQuest.GetStage() > 0 && brawlQuest.GetStage() < 250)
+            LogMsg(LOG_INFO(), "HandlePlayerDying: Brawl detected, returning")
+            return
         endif
     endif
-EndFunction
 
-Bool Function HandlePendingDeathCheck(Actor player)
-    ; When no respawn is available, HandlePlayerDying arms a delayed check so
-    ; DragonsoulResurrect has a chance to revive (if a soul exists). If the player is
-    ; still dead after the grace window, this is a true death and we log + exit.
-
-    if !_pendingDeathCheck
-        return False
-    endif
-
-    if !player
-        LogMsg(LOG_ERR(), "HandlePendingDeathCheck: player None")
-        ; Don't keep a stuck pending state if the player pointer is lost.
-        _pendingDeathCheck = False
-        _dsrSoulsAtDeath = -1
-        _deathEventLocked = False
-        return False
-    endif
-
-    ; If DSR is disabled, do not honor any pending grace state.
-    if _disableDragonSoulRevive
-        _pendingDeathCheck = False
-        _dsrSoulsAtDeath = -1
-        _deathEventLocked = False
-        if player.IsDead()
-            LogMsg(LOG_INFO(), "TRUE DEATH: DSR disabled; resolving pending death check immediately")
-            TrueDeathAndQuit(player)
-            return True
-        endif
-        ; Player is alive; nothing to do.
-        return False
-    endif
-
-    Float nowRT = Utility.GetCurrentRealTime()
-
-    ; Still within grace window: keep fast polling alive.
-    if nowRT < _deathCheckAt
-        _updateQueued = False
-        QueueUpdate(FastPollSeconds)
-        return True
-    endif
-
-    ; Grace window ended: resolve.
-    _pendingDeathCheck = False
-
-    Int soulsBefore = _dsrSoulsAtDeath
-    _dsrSoulsAtDeath = -1
-
-    if player.IsDead()
-        LogMsg(LOG_INFO(), "TRUE DEATH: confirmed after DSR grace window; exiting")
+    String guid = GetTickGuid(player)
+    if guid == ""
+        LogMsg(LOG_INFO(), "HandlePlayerDying: GUID missing -> routing to TrueDeathAndQuit")
         TrueDeathAndQuit(player)
-        return True
+        return
     endif
 
-    ; Player is alive after grace window:
-    ; This is a "survived / revived" outcome. Do NOT force true death.
-    Int soulsAfter = player.GetActorValue("DragonSouls") as Int
+    _deathEventLocked = True
 
-    if soulsBefore > 0 && soulsAfter < soulsBefore
-        LogMsg(LOG_INFO(), "DSR: revive confirmed (souls before=" + soulsBefore + " after=" + soulsAfter + ")")
-    else
-        ; Best-effort validation failed (or no snapshot). Treat as revive anyway.
-        LogMsg(LOG_INFO(), "DSR grace: player alive but soul delta not observed (before=" + soulsBefore + " after=" + soulsAfter + "); treating as revive/survival")
+    LogMsg(LOG_INFO(), "HandlePlayerDying: Routing death event")
+
+    ; 1) Dragon Soul Revive (highest priority)
+    ; DSR path is self-contained: HandleDragonSoulRevive clears
+    ; _deathEventLocked on all terminal exits and at cleanup completion.
+    if IsDSRAvailable(player, guid)
+        LogMsg(LOG_INFO(), "HandlePlayerDying: Dragon Soul Revive")
+        HandleDragonSoulRevive(player, caster, guid)
+        return
     endif
 
-    ; Revived / survived: return to a sane non-death state.
-    _deathEventLocked = False
-    _wasBleedingOut = False
-    _bleedoutArmed = False
-    _bleedoutForcedKill = False
+    ; 2) Cooldown Mode (DisableLuckSystem != 0)
+    if IsCooldownModeActive()
+        LogMsg(LOG_INFO(), "HandlePlayerDying: Cooldown mode")
 
-    ; Respawn is not available in this branch, so keep the player non-essential.
-    player.GetActorBase().SetEssential(False)
+        if IsCooldownReady(player, guid)
+            LogMsg(LOG_INFO(), "HandlePlayerDying: Cooldown not active -> Respawn")
+            HandleRespawn(player, guid)
+        else
+            LogMsg(LOG_INFO(), "HandlePlayerDying: Cooldown active -> True Death")
 
-    return False
-EndFunction
-
-Bool Function HandleBleedoutDetection(Actor player)
-    ; Job A2: Detect bleedout-based "fake death" states (essential/protected).
-    ;
-    ; PRIMARY ROLE:
-    ; - Handle cases where the player enters bleedout but OnDying will NOT fire
-    ;   (common for essential/protected actors).
-    ; - If no respawn is actually available, resolve the state immediately by
-    ;   forcing a real death so the normal death pipeline (and DragonsoulResurrect) runs.
-    ;
-    ; FAILSAFE ROLE:
-    ; - If the player should have been non-essential but somehow entered bleedout
-    ;   anyway (state drift, mod interaction, timing issues), this prevents an
-    ;   infinite bleedout soft-lock by forcing resolution.
-    if !player
-        return False
-    endif
-
-    Bool nowBleed = player.IsBleedingOut()
-    Float nowRT = Utility.GetCurrentRealTime()
-
-    ; Entering bleedout
-    if nowBleed && !_wasBleedingOut
-        LogMsg(LOG_INFO(), "BLEEDOUT: entered bleedout")
-        _bleedoutArmed = True
-        _bleedoutDecisionMade = False
-        _bleedoutDecisionIsRespawn = False
-        _pendingTrueDeathAt = 0.0
-        String n0 = IronSoulNative.GetPlayerName()
-        String guid0 = GetTickGuid(player)
-        if guid0 != ""
-            ; Decide bleedout outcome once per bleedout episode.
-            ; - If Luck system is active (DisableLuckSystem=0), roll immediately.
-            ; - If Cooldown mode is active (DisableLuckSystem=1), respawn is only allowed when cooldown is ready.
-            ; - If neither mode is active, respawn is unavailable (force real death to avoid soft-lock).
-            Bool freeRespawn = False
-            if IsLuckActive()
-                ; Luck mode: roll once per bleedout episode.
-                if !_bleedoutDecisionMade
-                    Int luck0 = GetLuckValue(player, guid0)
-                    Int roll0 = Utility.RandomInt(1, 100)
-                    _bleedoutDecisionMade = True
-                    _bleedoutDecisionIsRespawn = (roll0 <= luck0)
-                    LogMsg(LOG_INFO(), "BLEEDOUT: luck roll=" + roll0 + " luck=" + luck0 + " => respawn=" + _bleedoutDecisionIsRespawn)
-                endif
-                freeRespawn = _bleedoutDecisionIsRespawn
-
-                if freeRespawn
-                    ; Respawn chosen: start respawn quest ASAP and let it handle the revive.
-                    if _respawnQuest && !_respawnQuest.IsRunning()
-                        _respawnQuest.Start()
-                    endif
-                    _pendingDisableRespawn = True
-                    _pendingLuckResetAfterRespawn = True
-                    _pendingRespawnMenu = True
-                    _respawnMenuArmed = False
-                else
-                    ; True death chosen: stop respawn quest immediately, then allow a short bleedout window before forcing a real death.
-                    if _respawnQuest && _respawnQuest.IsRunning()
-                        _respawnQuest.Stop()
-                    endif
-                    _pendingDisableRespawn = False
-
-                    ; True death chosen: immediately reset Luck/Cooldown to 0 per design.
-                    if _disableLuckSystem == 0
-                        ResetLuck(player, guid0)
-                        PersistSetInt(player, GetKey(luckResetKind, guid0), 1, True) ; post-death
-                    else
-                        ResetCooldown(player, guid0)
-                    endif
-
-                    if _pendingTrueDeathAt <= 0.0
-                        _pendingTrueDeathAt = nowRT + 5.0
-                    endif
-
-                    ; Arm post-death quit sequence (wait for death menu, then quit).
-                    _pendingQuitArmed = True
-                    _pendingQuitMenuAt = 0.0
-                endif
-            elseif IsCooldownModeActive()
-                ; Cooldown mode: no probability. Respawn only if cooldown is ready.
-                if !_bleedoutDecisionMade
-                    _bleedoutDecisionMade = True
-                    _bleedoutDecisionIsRespawn = IsCooldownReady(player, guid0)
-                    LogMsg(LOG_INFO(), "BLEEDOUT: cooldown ready=" + _bleedoutDecisionIsRespawn)
-                endif
-                freeRespawn = _bleedoutDecisionIsRespawn
-
-                if freeRespawn
-                    if _respawnQuest && !_respawnQuest.IsRunning()
-                        _respawnQuest.Start()
-                    endif
-                    _pendingDisableRespawn = True
-                    _pendingCooldownResetAfterRespawn = True
-                    _pendingRespawnMenu = True
-                    _respawnMenuArmed = False
-                else
-                    ; True death chosen: stop respawn quest immediately, then allow a short bleedout window before forcing a real death.
-                    if _respawnQuest && _respawnQuest.IsRunning()
-                        _respawnQuest.Stop()
-                    endif
-                    _pendingDisableRespawn = False
-
-                    ; True death chosen: immediately reset cooldown to 0 per design.
-                    ResetCooldown(player, guid0)
-
-                    if _pendingTrueDeathAt <= 0.0
-                        _pendingTrueDeathAt = nowRT + 5.0
-                    endif
-
-                    ; Arm post-death quit sequence (wait for death menu, then quit).
-                    _pendingQuitArmed = True
-                    _pendingQuitMenuAt = 0.0
-                endif
-            else
-                ; No luck/cooldown mode: respawn unavailable.
-                freeRespawn = False
-            endif
-
-            ; If a respawn path is chosen and the intro poem hasn't been shown yet, schedule it for ~6s after entering bleedout.
-            if freeRespawn
-                Int ironIntroShown0 = PersistGetInt(player, GetKey(ironIntroShown, guid0), 0)
-                if ironIntroShown0 == 0
-                    if _disableIronSoulIntro
-                        ; Optional enhancement: mark intro as shown so it can never schedule later.
-                        PersistSetInt(player, GetKey(ironIntroShown, guid0), 1, True)
-                    else
-                        _pendingIronIntro = True
-                        _ironIntroAt = nowRT + 6.0
-                    endif
-                endif
-            endif
-
-            ; If we entered bleedout but respawn is unavailable (no luck/cooldown mode), our state drifted.
-            ; Force a real death (non-essential) so Skyrim fires OnDying and DSR can handle souls.
-            if !freeRespawn && !IsLuckActive() && !IsCooldownModeActive()
-                LogMsg(LOG_INFO(), "BLEEDOUT: entered bleedout but no respawn available; forcing non-essential death to avoid soft-lock")
-                if _respawnQuest && _respawnQuest.IsRunning()
-                    _respawnQuest.Stop()
-                endif
-                player.GetActorBase().SetEssential(False)
-
-                if !_bleedoutForcedKill
-                    _bleedoutForcedKill = True
-                    LogMsg(LOG_INFO(), "BLEEDOUT: forcing player.Kill() to re-enter proper death pipeline (DSR/death)")
-                    _pendingIronIntro = False
-                    _ironIntroAt = 0.0
-                    player.Kill()
-
-                    ; Latch bleedout state before returning so we don't re-trigger "entered bleedout" every tick.
-                    _wasBleedingOut = True
-                    QueueUpdate(FastPollSeconds)
-                    return True
-                endif
-            endif
-        endif
-    endif
-
-    ; If a iron intro is scheduled, fire it only while still in bleedout and only once.
-    if nowBleed && _pendingIronIntro && nowRT >= _ironIntroAt
-        String guidP = GetTickGuid(player)
-        if guidP != ""
-            if IsRespawnEnabled()
-                Int ironIntroShownP = PersistGetInt(player, GetKey(ironIntroShown, guidP), 0)
-                if ironIntroShownP == 0
-                    if _disableIronSoulIntro
-                        ; Mark intro as shown so it can never fire later.
-                        PersistSetInt(player, GetKey(ironIntroShown, guidP), 1, True)
-                    else
-                        OpenTimedMessageSWF_SFX(SwfNoBonus("1ironintro"), 15.0, SFXIronIntro, player)
-                        PersistSetInt(player, GetKey(ironIntroShown, guidP), 1, True)
-                    endif
-                endif
-            endif
-        endif
-        _pendingIronIntro = False
-        _ironIntroAt = 0.0
-    endif
-
-    ; Pending true death (Luck loss): after a short bleedout delay, force a real death so the death menu can play.
-    if nowBleed && _pendingTrueDeathAt > 0.0 && nowRT >= _pendingTrueDeathAt
-        LogMsg(LOG_INFO(), "BLEEDOUT: luck chose true death; forcing real death after delay")
-        _pendingTrueDeathAt = 0.0
-        _pendingIronIntro = False
-        _ironIntroAt = 0.0
-
-        ; Ensure respawn quest is not running so we get the normal death pipeline/menu.
-        if _respawnQuest && _respawnQuest.IsRunning()
-            _respawnQuest.Stop()
+            TrueDeathAndQuit(player)
         endif
 
-        ; Drop essential protection and kill to enter proper death pipeline.
-        player.GetActorBase().SetEssential(False)
-
-        if !_bleedoutForcedKill
-            _bleedoutForcedKill = True
-            player.Kill()
-
-            ; Latch bleedout state before returning so we don't re-trigger "entered bleedout" every tick.
-            _wasBleedingOut = True
-            QueueUpdate(FastPollSeconds)
-            return True
-        endif
-    endif
-
-    ; After forcing a true death from bleedout, wait for the death menu and quit after ~4 seconds in-menu.
-    ; FinalizeAndQuitMainMenu() adds an additional 1s safety wait before quitting.
-    if _pendingQuitArmed
-        if Utility.IsInMenuMode()
-            if _pendingQuitMenuAt <= 0.0
-                _pendingQuitMenuAt = nowRT
-            elseif (nowRT - _pendingQuitMenuAt) >= 4.0
-                FinalizeAndQuitMainMenu()
-                return True
-            endif
-        endif
-    endif
-
-    ; Exiting bleedout
-    if !nowBleed && _wasBleedingOut && _bleedoutArmed
-        LogMsg(LOG_INFO(), "BLEEDOUT: exited bleedout (respawn completed)")
-        _bleedoutArmed = False
-
-        ; Cancel any scheduled poem if bleedout ended before it fired.
-        _pendingIronIntro = False
-        _ironIntroAt = 0.0
-
-        ; If respawn completed, ensure the Respawn quest gets stopped (if it is still running)
-        ; and restore correct protection policy.
-        if IsRespawnEnabled()
-            if _respawnQuest && _respawnQuest.IsRunning()
-                _pendingDisableRespawn = True
-            endif
-            String guidExit = GetTickGuid(player)
-            if guidExit != ""
-                UpdatePlayerProtectionState(player, guidExit)
-            endif
-        endif
-
-        ; Clear any pending true-death/quit timers (safety).
-        _pendingTrueDeathAt = 0.0
-        _pendingQuitArmed = False
-        _pendingQuitMenuAt = 0.0
-
-        ; Clear decision latch for the next bleedout episode.
-        _bleedoutDecisionMade = False
-        _bleedoutDecisionIsRespawn = False
-
-        _bleedoutForcedKill = False
         _deathEventLocked = False
+        return
     endif
 
-    _wasBleedingOut = nowBleed
-    return False
+    ; 3) Luck Mode (DisableLuckSystem == 0)
+    if IsLuckActive()
+        LogMsg(LOG_INFO(), "HandlePlayerDying: Luck mode")
+
+        Bool luckSaved = PerformLuckRoll(player, guid)
+
+        if luckSaved
+            ; Journal: luck-based survival line (tiered by luck value used for the roll)
+            JournalLogLuckOutcome(True, player, guid)
+            LogMsg(LOG_INFO(), "HandlePlayerDying: Luck SUCCESS -> Respawn")
+            HandleRespawn(player, guid)
+        else
+            ; Journal: luck-based defeat line includes roll + luck (and predicted death count)
+            JournalLogLuckOutcome(False, player, guid)
+            LogMsg(LOG_INFO(), "HandlePlayerDying: Luck FAIL -> True Death")
+
+            TrueDeathAndQuit(player)
+        endif
+
+        _deathEventLocked = False
+        return
+    endif
+
+    ; 4) Final fallback - no DSR, no luck, no cooldown
+    LogMsg(LOG_INFO(), "HandlePlayerDying: Fallback True Death")
+    TrueDeathAndQuit(player)
+
+    _deathEventLocked = False
+
 EndFunction
 
-; Ensures the player's protection state is consistent with DSR vs respawn requirements.
-; Policy (when respawn system is active):
-; - If a dragon soul is available and DSR is enabled: keep the player NON-essential so DSR OnDying can fire.
-; - If no dragon soul is available: keep the player essential so bleedout-based logic can run.
-; Outside respawn-active contexts, we keep the player non-essential (perm-death behavior).
-Function UpdatePlayerProtectionState(Actor player, String guid)
-    if !player || guid == ""
+; Ensures player protection state matches the respawn-window contract.
+; Policy:
+; - Respawn integration disabled: keep player NON-essential.
+; - Respawn integration enabled but window disarmed: keep player NON-essential.
+; - Respawn window armed: keep player essential so bleedout-based respawn can run.
+Function UpdatePlayerProtectionState(Actor player)
+    if !player
+        LogMsg(LOG_ERR(), "UpdatePlayerProtectionState: Player is None; skipping")
         return
     endif
 
     ; Don't toggle protection while dead/bleeding out (avoid edge cases during death handling).
-    if player.IsDead() || player.IsBleedingOut()
+    if player.IsDead() || player.IsBleedingOut() || _deathEventLocked == TRUE
         return
     endif
 
-    ; If respawn is not active, do not force essential protection here.
+    ; Outside Respawn integration, keep the player non-essential.
     if !IsRespawnEnabled()
         if player.IsEssential()
             player.GetActorBase().SetEssential(False)
+            LogMsg(LOG_INFO(), "UpdatePlayerProtectionState: SetEssential(FALSE) reason=respawn_disabled")
         endif
         return
     endif
 
-    ; Respawn is active: choose protection based on whether DSR can actually consume a soul.
-    if _disableDragonSoulRevive
+    ; Enter bleedout only during an explicitly armed respawn window.
+    if _respawnWindowArmed
         if !player.IsEssential()
             player.GetActorBase().SetEssential(True)
+            LogMsg(LOG_INFO(), "UpdatePlayerProtectionState: SetEssential(TRUE) reason=respawn_window_armed")
         endif
         return
     endif
 
-    Int soulsNow = player.GetActorValue("DragonSouls") as Int
-    if soulsNow > 0
-        if player.IsEssential()
-            player.GetActorBase().SetEssential(False)
-        endif
-    else
-        if !player.IsEssential()
-            player.GetActorBase().SetEssential(True)
-        endif
+    ; Respawn integration active, but not armed: remain non-essential to avoid unsolicited bleedout.
+    if player.IsEssential()
+        player.GetActorBase().SetEssential(False)
+        LogMsg(LOG_INFO(), "UpdatePlayerProtectionState: SetEssential(FALSE) reason=respawn_window_disarmed")
     endif
 EndFunction
+
 
 Function TrueDeathAndQuit(Actor player)
 	if !player
@@ -1958,10 +1739,9 @@ Function TrueDeathAndQuit(Actor player)
 	endif
 
 	; Identity (GUID required)
-	String name = IronSoulNative.GetPlayerName()
-	String guid = EnsureGuid(player)
+	String guid = GetTickGuid(player)
 	if guid == ""
-		LogMsg(LOG_ERR(), "TRUE DEATH: missing GUID; exiting without logging state")
+		LogMsg(LOG_ERR(), "TrueDeathAndQuit: Missing GUID; exiting without logging state")
 		Debug.MessageBox("Could not determine character identity. Exiting to prevent state corruption.")
 		FinalizeAndQuit()
 		return
@@ -1969,111 +1749,155 @@ Function TrueDeathAndQuit(Actor player)
 
 	; Commit: death + cycle reset
 	; Record the death in authoritative stores (MainData immediate flush with co-save backup).
-	IncrementTrueDeath(player, guid, name)
+	IncrementTrueDeath(player, guid)
 
 	; Read deaths AFTER increment so first true death is deathsNow == 1.
 	Int deathsNow = PersistGetInt(player, GetKey(deathCount, guid), 0)
 
+	; Luck/Cooldown reset: true-death milestone should consume the current cycle.
+	if IsLuckActive()
+		ResetLuck(player, guid)
+		LuckCooldownForcePersistNow(player, guid)
+		LogMsg(LOG_INFO(), "TrueDeathAndQuit: ResetLuck()")
+	elseif IsCooldownModeActive()
+		ResetCooldown(player, guid)
+		LuckCooldownForcePersistNow(player, guid)
+		LogMsg(LOG_INFO(), "TrueDeathAndQuit: ResetCooldown()")
+	endif
+
+    ; Avoid double front-loading delay when luck roll UI already consumed time.
+    if ((_luckRollMessageMode == 2) || _disableLuckSystem || !IsRespawnEnabled())
+        Utility.Wait(1.0)
+    endif
+
+    player.GetActorBase().SetEssential(False)
+    player.EndDeferredKill()
+
+    Utility.Wait(0.05)
+
+    if player.IsEssential()
+        LogMsg(LOG_INFO(), "TrueDeathAndQuit: Player is essential; calling KillEssential()")
+        player.KillEssential()
+    else
+        LogMsg(LOG_INFO(), "TrueDeathAndQuit: Calling Kill()")
+        player.Kill()
+    endif
+
+    ;player.PushActorAway(player, 0.1)
+
 	Utility.Wait(1.0)
 
-	; Optional: iron intro (first true death, respawn disabled)
-	if !IsRespawnEnabled()
-		Int ironIntroShownTD = PersistGetInt(player, GetKey(ironIntroShown, guid), 0)
-		if deathsNow == 1 && ironIntroShownTD == 0
-			if _disableIronSoulIntro
-				; Mark intro as shown so it never triggers later.
-				PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
-			else
-				OpenTimedMessageSWF_SFX(SwfNoBonus("1ironintro"), 15.0, SFXIronIntro, player)
-				PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
-			endif
-		endif
-	endif
+    ShowIronIntro(player, guid)
+
+    ;Utility.Wait(1.0)
 
 	; Ensure the player is not essential (kept as-is)
 	player.GetActorBase().SetEssential(False)
 
 	; Cached state for tier-aware menus
-	; Soul tier: 0=Iron, 1=Silver, 2=Gold, 3=Ebon, 4=Platinum
-	Int soulTierTD = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
+	; Soul tier/state: 0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum
+	Int soulTierTD = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
 
-	; Defiant gating
+	; Transition gating + CHIM/Defiant state.
 	Int defFeat = 0
-	Int defActive = 0
-	if !_disableDefiantSoulFeat
+	if !_disableDefiantFeat
 		defFeat = PersistGetInt(player, GetKey(defiantFeatUnlocked, guid), 0)
-		defActive = PersistGetInt(player, GetKey(defiantActivated, guid), 0)
 	endif
+    Bool chimActive = (soulTierTD == TIER_CHIM)
+    Bool defiantActive = (soulTierTD == TIER_DEFIANT)
 
-	; Defiant transition sequence (10th death, feat earned, not yet activated)
-	; 1) Show normal tier permadeath screen (3s)
-	; 2) Show tier-contextual Defiant transition (3s)
-	; 3) Show Defiant intro (10s)
-	; 4) Quit
-	if deathsNow == IRON_SOUL_MAX_LIVES && defFeat == 1 && defActive != 1
+	; Defiant transition sequence (10th death, feat earned, not yet activated).
+	if deathsNow == IRON_SOUL_MAX_LIVES && defFeat == 1 && !defiantActive && !chimActive
 		; Commit Defiant activation FIRST so quitting/crashing during the UI sequence cannot lose it.
-		PersistSetInt(player, GetKey(defiantActivated, guid), 1, True)
+		LogMsg(LOG_INFO(), "HandleTrueDeath: Defiant Soul ACTIVATED (one-shot latch)")
+		PersistSetInt(player, GetKey(soulTierIndex, guid), TIER_DEFIANT, True)
+        SyncLuckNotifiedTierToCurrent(player, guid)
 
-		; Defiant overrides SoulBonus: strip all SoulBonus abilities immediately
-		SyncSoulBonusAbility(player, guid)
-		IronSoulNative.DataFlushNow()
+        if AudioCategoryMUS && !_disableMusicFade
+            Float menuMusicVol = Utility.GetINIFloat("fVal3:AudioMenu")
+            if menuMusicVol < 0.0 || menuMusicVol > 1.0
+                menuMusicVol = 1.0
+            endif
+            IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol)
+        endif
 
-		; Journal: Defiant activation milestone (written/queued; no periodic writes).
+		; Update splash/lvlWidget for next game launch.
+        IronSoulNative.ApplyDynamicSplash(TIER_DEFIANT)
+        IronSoulNative.ApplyDynamicLevelWidget(TIER_DEFIANT)
+
+		IronSoulNative.DataFlushIfDirty()
+
+		; Journal: Defiant activation milestone.
 		JournalLogEvent("You refuse Sovngarde and rise again. Defiant Soul awakened. Death limit is now 100.")
 
-		; Continuous on-screen sequence: 3s permadeath tier -> 3s transition -> 10s intro.
-		PlayDefiantTransitionMessageSequenceSWF(soulTierTD)
-
+		PlayDefiantTransitionMessageSequenceSWF(soulTierTD, False)
 		FinalizeAndQuit()
 		return
 	endif
 
-	; Caps + mode flags
+    ; CHIM transition sequence (10th death without Defiant transition, or 100th death in Defiant).
+    if _CHIM == 1 && !chimActive
+        Bool chimAtIronCap = (!defiantActive && deathsNow == IRON_SOUL_MAX_LIVES)
+        Bool chimAtDefiantCap = (defiantActive && deathsNow == DEFIANT_SOUL_MAX_LIVES)
+        if chimAtIronCap || chimAtDefiantCap
+            LogMsg(LOG_INFO(), "HandleTrueDeath: CHIM Soul ACTIVATED (one-shot latch)")
+            if AudioCategoryMUS && !_disableMusicFade
+                Float menuMusicVolCHIM = Utility.GetINIFloat("fVal3:AudioMenu")
+                if menuMusicVolCHIM < 0.0 || menuMusicVolCHIM > 1.0
+                    menuMusicVolCHIM = 1.0
+                endif
+                IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVolCHIM)
+            endif
+            PromoteToCHIMTier(player, guid)
+            PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False)
+            FinalizeAndQuit()
+            return
+        endif
+    endif
+
+	; CHIM tier: every death uses the dedicated CHIM death menu and exits.
+	if chimActive
+        if !_disableCharacterJournalLog
+            if _suppressNextDefeatJournal
+                _suppressNextDefeatJournal = False
+            else
+                JournalLogEvent("Defeated. Deaths: " + deathsNow + " / ???.")
+            endif
+        endif
+        if !_disableDeathMessage
+            OpenTimedMessageSWF_SFX("0chimdeath", 6.0, SFXDeath, player, False)
+        endif
+        FinalizeAndQuit()
+        return
+	endif
+
+	; Non-CHIM caps + messaging.
 	Int hardCap = IRON_SOUL_MAX_LIVES
-	if defActive == 1 && deathsNow >= IRON_SOUL_MAX_LIVES
+	if defiantActive
 		hardCap = DEFIANT_SOUL_MAX_LIVES
 	endif
 
-	Bool isDefiantMenus = (defActive == 1)
-	Bool endlessMenus = IsEndlessActive(deathsNow, defActive)
 	Bool quitToMainMenu = False
 
-	; Journal: normal defeat (non-cap). Special cases (Defiant transition / permadeath) are handled elsewhere.
+	; Journal: normal defeat (non-cap). Special cases are handled above.
 	if !_disableCharacterJournalLog
-		if !endlessMenus && deathsNow != hardCap
-			Int capJ = IRON_SOUL_MAX_LIVES
-			if defActive == 1 && deathsNow >= IRON_SOUL_MAX_LIVES
-				capJ = DEFIANT_SOUL_MAX_LIVES
-			endif
-			JournalLogEvent("Defeated. Deaths: " + deathsNow + " / " + capJ + ".")
+		if _suppressNextDefeatJournal
+			_suppressNextDefeatJournal = False
+		elseif deathsNow != hardCap
+			JournalLogEvent("Defeated. Deaths: " + deathsNow + " / " + hardCap + ".")
 		endif
 	endif
 
-	; Messaging + enforcement
-	if endlessMenus
-		; Endless Mode (CHIM):
-		; - Show permadeath screen only at the exact cap (10 or 100).
-		; - After the cap, Endless deaths use a blocking message box and a hard quit.
-		if deathsNow == hardCap
-            JournalLogEvent("No strength remains to rise. Sovngarde claims the fallen. Deaths: " + deathsNow + " / " + hardCap)
-			OpenTimedMessageSWF_SFX(ResolvePermadeathMenu(soulTierTD, isDefiantMenus), 10.0, SFXPermadeath, player)
-		else
-			if !_disableDeathMessage
-				Debug.MessageBox("SOVNGARDE CALLS\n\nDeaths: " + deathsNow + " / ???")
-			endif
-		endif
+	if deathsNow == hardCap
+		; True permadeath scenario:
+		; - 10th death without Defiant/CHIM transition
+		; - 100th death with Defiant active when CHIM transition is not taken
+		JournalLogEvent("No strength remains to rise. Sovngarde claims the fallen. Deaths: " + deathsNow + " / " + hardCap + ".")
+        OpenTimedMessageSWF_KeyDismiss_SFX(ResolvePermadeathMenu(soulTierTD), 55.0, 27.0, SFXPermadeath, player, False)
+		quitToMainMenu = True
 	else
-		if deathsNow == hardCap
-			; True permadeath scenario:
-			; - 10th death without Defiant
-			; - 100th death with Defiant active
-			JournalLogEvent("No strength remains to rise. Sovngarde claims the fallen. Deaths: " + deathsNow + " / " + hardCap)
-			OpenTimedMessageSWF_SFX(ResolvePermadeathMenu(soulTierTD, isDefiantMenus), 10.0, SFXPermadeath, player)
-			quitToMainMenu = True
-		else
-			if !_disableDeathMessage
-				OpenTimedMessageSWF_SFX(ResolveDeathMessageMenu(soulTierTD, deathsNow, isDefiantMenus), 4.0, SFXDeath, player)
-			endif
+		if !_disableDeathMessage
+			OpenTimedMessageSWF_SFX(ResolveDeathMessageMenu(soulTierTD, deathsNow), 6.0, SFXDeath, player, False)
 		endif
 	endif
 
@@ -2084,8 +1908,9 @@ Function TrueDeathAndQuit(Actor player)
 	endif
 EndFunction
 
-Function IncrementTrueDeath(Actor player, String guid, String displayName)
+Function IncrementTrueDeath(Actor player, String guid)
 	if !player || guid == ""
+		LogMsg(LOG_ERR(), "IncrementTrueDeath: Invalid args (player None or GUID empty); death count not incremented")
 		return
 	endif
 
@@ -2093,7 +1918,7 @@ Function IncrementTrueDeath(Actor player, String guid, String displayName)
 	PersistSetInt(player, GetKey(deathCount, guid), deaths, True)
 
 	LogMsg(LOG_INFO(), "IncrementTrueDeath: GUID=" + guid + " deaths=" + deaths)
-    IronSoulNative.DataFlushNow()
+    IronSoulNative.DataFlushIfDirty()
 EndFunction
 
 Function FinalizeAndQuit()
@@ -2106,6 +1931,7 @@ Function FinalizeAndQuit()
 
     _isQuitting = True
     _updateQueued = False
+    IronSoulNative.StopHealthMonitor()
     ; Flush luck/cooldown timing cache (write-gated) before quitting.
     Actor p = Game.GetPlayer()
     if p && _luckCooldownLoaded && _luckCooldownDirty && _luckCooldownGuid != ""
@@ -2129,6 +1955,13 @@ Function FinalizeAndQuitMainMenu()
 
     _isQuitting = True
     _updateQueued = False
+    IronSoulNative.StopHealthMonitor()
+    ; Flush luck/cooldown timing cache (write-gated) before quitting.
+    Actor p = Game.GetPlayer()
+    if p && _luckCooldownLoaded && _luckCooldownDirty && _luckCooldownGuid != ""
+        Int nowSec = Utility.GetCurrentRealTime() as Int
+        LuckCooldownPersistIfDue(p, _luckCooldownGuid, nowSec, True)
+    endif
     UnregisterForUpdate()
 
     Utility.Wait(1.0)
@@ -2137,37 +1970,399 @@ EndFunction
 
 ; Returns the death cap used for load enforcement and notifications:
 ;  - Iron Soul: 10
-;  - Defiant Soul (activated or pending activation): 100
-;  - Endless: effectively unbounded (only if CHIM opt-in is enabled and deaths have reached the Endless threshold)
-Int Function GetEffectiveMaxLives(Actor player, String guid, Int deathsNow)
+;  - Defiant Soul: 100
+;  - CHIM Soul: effectively unbounded
+Int Function GetEffectiveMaxLives(Actor player, String guid)
     if !player || guid == ""
         return IRON_SOUL_MAX_LIVES
     endif
-    Int defActive  = PersistGetInt(player, GetKey(defiantActivated, guid), 0)
+    Int tierNow = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
 
-    if _disableDefiantSoulFeat
-        defActive = 0
-    endif
-
-    ; Endless opt-in is controlled by Endless.CHIM (see LoadConfig()).
-    ; If Defiant is not enabled, Endless begins once deaths reach the Iron cap.
-    ; If Defiant is active, Endless begins once deaths reach the Defiant cap.
-    Int endlessStart = IRON_SOUL_MAX_LIVES
-    if defActive == 1
-        endlessStart = DEFIANT_SOUL_MAX_LIVES
-    endif
-
-    ; Endless is an explicit opt-in via IronSoul.ini (plugin-based config) (Endless.CHIM = 1 or "1").
-    ; With CHIM enabled, once the relevant cap is reached, max lives becomes effectively unbounded.
-    if IsEndlessActive(deathsNow, defActive)
+    if tierNow == TIER_CHIM
         return 2147483647
     endif
 
-    if defActive == 1
+    if tierNow == TIER_DEFIANT
         return DEFIANT_SOUL_MAX_LIVES
     endif
 
     return IRON_SOUL_MAX_LIVES
+EndFunction
+
+
+; ==========================
+; --- Dragon Soul Revive ---
+; ==========================
+
+Function HandleDragonSoulRevive(Actor target, Actor caster, String guid)
+
+    if !target
+        _deathEventLocked = False
+        return
+    endif
+
+    if _disableDragonSoulRevive
+        LogMsg(LOG_DBG(), "HandleDragonSoulRevive: Skipped - Dragon Soul Revive is DISABLED")
+        _deathEventLocked = False
+        return
+    endif
+
+    LogMsg(LOG_INFO(), "HandleDragonSoulRevive: Target=" + Target + " Caster=" + Caster + " GUID=" + guid)
+
+    Target.DamageAV("DragonSouls", 1.0)
+
+    if _dragonSoulReviveLimit > 0 && guid != ""
+        Int soulTierDSR = PersistGetInt(target, GetKey(soulTierIndex, guid), TIER_IRON)
+        if soulTierDSR != TIER_CHIM
+            SyncDSRLimitState(target, guid)
+            Int dsrPlayedNow = PersistGetInt(target, GetKey(dsrLimitPlayedSec, guid), 0)
+            Int recentUsesBeforeRecord = CompactDSRLimitUses(target, guid, dsrPlayedNow)
+            if recentUsesBeforeRecord == (_dragonSoulReviveLimit - 1)
+                LogMsg(LOG_DBG(), "HandleDragonSoulRevive: revive reached rolling cap limit=" + _dragonSoulReviveLimit, True)
+            endif
+            RecordDSRLimitUse(target, guid, dsrPlayedNow)
+            IronSoulNative.DataFlushIfDirty()
+        endif
+    endif
+    
+    ;Utility.Wait(1.0)
+
+	; Heal Spell
+	if bDispel
+        if DisSpell
+	        DisSpell.Cast(Target, Target)
+        else
+            LogMsg(LOG_ERR(), "HandleDragonSoulRevive: bDispel enabled but DisSpell is None; skipping dispel cast")
+        endif
+	endif
+
+    ;Target.GetActorBase().SetEssential(False)
+
+	;Target.SetGhost(true)
+	;Target.PushActorAway(Target, 0.1)
+	;Target.SetAV("Paralysis", 1.0)
+	;Target.RestoreAV("Health", -(Target.GetAV("Health")+100))
+
+	;Utility.Wait(1.0)
+
+    ;Target.SetAV("Paralysis", 0.0)
+
+    Bool introShown = ShowIronIntro(target, guid)
+
+    if Marker
+	    MarkerRef = Target.PlaceAtMe(Marker)
+        if MarkerRef
+	        MarkerRef.MoveTo(Target)
+        endif
+        Utility.Wait(0.1)
+    else
+        MarkerRef = None
+        LogMsg(LOG_ERR(), "HandleDragonSoulRevive: Marker property is None; skipping absorb VFX anchor")
+    endif
+
+    if MarkerRef && MarkerRef.Is3DLoaded()
+        if AbsorbEffect
+            AbsorbEffect.Play(MarkerRef, 8.0, Target)
+        else
+            LogMsg(LOG_ERR(), "HandleDragonSoulRevive: AbsorbEffect is None; skipping source VFX")
+        endif
+        if AbsorbEffectTarget
+	        AbsorbEffectTarget.Play(Target, 8.0, MarkerRef)
+        else
+            LogMsg(LOG_ERR(), "HandleDragonSoulRevive: AbsorbEffectTarget is None; skipping target VFX")
+        endif
+    else
+        LogMsg(LOG_DBG(), "HandleDragonSoulRevive: MarkerRef has no 3D; skipping AbsorbEffect.Play")
+    endif
+
+    if NPCDragonDeathSequenceWind
+	    NPCDragonDeathSequenceWind.play(Target)
+    else
+        LogMsg(LOG_ERR(), "HandleDragonSoulRevive: NPCDragonDeathSequenceWind is None; skipping wind SFX")
+    endif
+    if NPCDragonDeathSequenceExplosion
+	    NPCDragonDeathSequenceExplosion.play(Target)
+    else
+        LogMsg(LOG_ERR(), "HandleDragonSoulRevive: NPCDragonDeathSequenceExplosion is None; skipping explosion SFX")
+    endif
+
+    Utility.Wait(1)
+
+    ShaderParticleIntro()
+
+    ; Dragon Soul Revive message
+    if !_disableDragonSoulReviveMessage
+        OpenTimedMessageSWF_SFX(SwfNoBonus(ResolveDSRMenu(Target, guid)), 3.0, PickDragonSoulReviveCastSFX(), Target)
+    elseif introShown && AudioCategoryMUS && !_disableMusicFade
+        ; Intro variant intentionally leaves music faded; restore when no follow-up menu will do it.
+        IronSoulNative.MusicFadeIn(AudioCategoryMUS, 2.0)
+    endif
+
+    PlaySFX(PickDragonSoulReviveSFX(), Target)
+
+    ShaderParticleOutro()
+
+    ;Utility.Wait(0.5)
+
+    if RestoreSpell
+	    Target.AddSpell(RestoreSpell, false)
+    else
+        LogMsg(LOG_ERR(), "HandleDragonSoulRevive: RestoreSpell is None; skipping restore spell apply")
+    endif
+
+	;Utility.Wait(3.0)
+
+	Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
+	Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
+	Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+
+    LogMsg(LOG_INFO(), "HandleDragonSoulRevive: Cleanup started")
+
+	;Utility.Wait(1.0)
+	;Target.SetAV("Paralysis", 0.0)
+	;Utility.Wait(3.0)
+	;Target.SetGhost(false)
+    Utility.Wait(1)
+
+	Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
+	Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
+	Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+
+    Utility.Wait(1)
+
+	Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
+	Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
+	Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+
+    Utility.Wait(1)
+
+	Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
+	Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
+	Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+
+    Utility.Wait(1)
+
+	Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
+	Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
+	Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+
+    Utility.Wait(1)
+
+	Target.RestoreAV("Stamina", Target.GetAVMax("Stamina"))
+	Target.RestoreAV("Magicka", Target.GetAVMax("Magicka"))
+	Target.RestoreAV("Health", Target.GetAVMax("Health")-Target.GetAV("Health"))
+
+    if RestoreSpell
+	    Target.RemoveSpell(RestoreSpell)
+    endif
+
+	if (MarkerRef != none)
+	    MarkerRef.disable()
+	    MarkerRef.delete()
+	endif
+
+    _deathEventLocked = False
+    LogMsg(LOG_DBG(), "HandleDragonSoulRevive: Cleanup finished")
+
+EndFunction
+
+Function ShaderParticleIntro()
+    _imageSpaceIsFinishing = False
+
+    if IntroFX
+        IntroFX.Apply()
+    endif
+
+    Utility.Wait(0.15)
+
+    if !_imageSpaceIsFinishing && StaticFX
+        StaticFX.Apply()
+    endif
+
+    if PSGD
+        PSGD.Remove(0.1)
+        PSGD.Apply(0.1)
+    endif
+EndFunction
+
+Function ShaderParticleOutro()
+    _imageSpaceIsFinishing = True
+
+    if OutroFX
+        OutroFX.Apply()
+    endif
+
+    if StaticFX
+        StaticFX.Remove()
+    endif
+
+    if PSGD
+        PSGD.Remove(0.1)
+    endif
+EndFunction
+
+Function SyncDSRLimitState(Actor player, String guid)
+    if !player || guid == "" || _dragonSoulReviveLimit == 0
+        return
+    endif
+
+    Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+    if soulTier == TIER_CHIM
+        return
+    endif
+
+    Int nowSec = Utility.GetCurrentRealTime() as Int
+    Int lastSec = PersistGetInt(player, GetKey(dsrLimitLastSec, guid), 0)
+    Int playedSec = PersistGetInt(player, GetKey(dsrLimitPlayedSec, guid), 0)
+
+    if lastSec <= 0
+        PersistSetInt(player, GetKey(dsrLimitLastSec, guid), nowSec, True)
+        return
+    endif
+
+    Int delta = nowSec - lastSec
+    if delta < 0
+        delta = 0
+    elseif delta > 60
+        delta = 60
+    endif
+
+    if delta > 0
+        playedSec += delta
+        PersistSetInt(player, GetKey(dsrLimitPlayedSec, guid), playedSec, True)
+    endif
+
+    if nowSec != lastSec
+        PersistSetInt(player, GetKey(dsrLimitLastSec, guid), nowSec, True)
+    endif
+EndFunction
+
+Int Function CompactDSRLimitUses(Actor player, String guid, Int playedNow)
+    if !player || guid == ""
+        return 0
+    endif
+
+    Int use1 = PersistGetInt(player, GetKey(dsrLimitUse1, guid), -1)
+    Int use2 = PersistGetInt(player, GetKey(dsrLimitUse2, guid), -1)
+    Int use3 = PersistGetInt(player, GetKey(dsrLimitUse3, guid), -1)
+
+    Int next1 = -1
+    Int next2 = -1
+    Int next3 = -1
+    Int kept = 0
+
+    if use1 >= 0
+        Int age1 = playedNow - use1
+        if age1 >= 0 && age1 < 600
+            kept += 1
+            next1 = use1
+        endif
+    endif
+
+    if use2 >= 0
+        Int age2 = playedNow - use2
+        if age2 >= 0 && age2 < 600
+            kept += 1
+            if kept == 1
+                next1 = use2
+            else
+                next2 = use2
+            endif
+        endif
+    endif
+
+    if use3 >= 0
+        Int age3 = playedNow - use3
+        if age3 >= 0 && age3 < 600
+            kept += 1
+            if kept == 1
+                next1 = use3
+            elseif kept == 2
+                next2 = use3
+            else
+                next3 = use3
+            endif
+        endif
+    endif
+
+    if use1 != next1
+        PersistSetInt(player, GetKey(dsrLimitUse1, guid), next1, True)
+    endif
+    if use2 != next2
+        PersistSetInt(player, GetKey(dsrLimitUse2, guid), next2, True)
+    endif
+    if use3 != next3
+        PersistSetInt(player, GetKey(dsrLimitUse3, guid), next3, True)
+    endif
+
+    return kept
+EndFunction
+
+Function RecordDSRLimitUse(Actor player, String guid, Int playedNow)
+    if !player || guid == ""
+        return
+    endif
+
+    Int use1 = PersistGetInt(player, GetKey(dsrLimitUse1, guid), -1)
+    Int use2 = PersistGetInt(player, GetKey(dsrLimitUse2, guid), -1)
+    Int use3 = PersistGetInt(player, GetKey(dsrLimitUse3, guid), -1)
+
+    if use1 < 0
+        use1 = playedNow
+    elseif use2 < 0
+        use2 = playedNow
+    elseif use3 < 0
+        use3 = playedNow
+    else
+        use1 = use2
+        use2 = use3
+        use3 = playedNow
+    endif
+
+    PersistSetInt(player, GetKey(dsrLimitUse1, guid), use1, True)
+    PersistSetInt(player, GetKey(dsrLimitUse2, guid), use2, True)
+    PersistSetInt(player, GetKey(dsrLimitUse3, guid), use3, True)
+EndFunction
+
+Bool Function IsDSRAvailable(Actor player, String guid)
+    if !player
+        return False
+    endif
+    if _disableDragonSoulRevive
+        return False
+    endif
+    if BeastList && BeastList.HasForm(player.GetRace())
+        return False
+    endif
+    if player.IsBleedingOut()
+        return False
+    endif
+    if player.IsEssential()
+        return False
+    endif
+    Float souls = player.GetAV("DragonSouls")
+    if souls < 1.0
+        return False
+    endif
+
+    if _dragonSoulReviveLimit == 0 || guid == ""
+        return True
+    endif
+
+    Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+    if soulTier == TIER_CHIM
+        return True
+    endif
+
+    SyncDSRLimitState(player, guid)
+    Int playedNow = PersistGetInt(player, GetKey(dsrLimitPlayedSec, guid), 0)
+    Int recentUses = CompactDSRLimitUses(player, guid, playedNow)
+    if recentUses >= _dragonSoulReviveLimit
+        LogMsg(LOG_DBG(), "IsDSRAvailable: blocked by rolling limit", True)
+        return False
+    endif
+
+    return True
 EndFunction
 
 
@@ -2179,6 +2374,93 @@ EndFunction
 ; If Config.DisableRespawn=1 or the quest cannot be resolved via GetFormFromFile,
 ; Respawn integration is treated as disabled (fail-closed).
 ;
+
+Function HandleRespawn(Actor player, String guid)
+
+    if !player || guid == ""
+        LogMsg(LOG_ERR(), "HandleRespawn: Invalid args (player None or GUID empty); aborting respawn handler")
+        return
+    endif
+    if !IsRespawnEnabled()
+        LogMsg(LOG_INFO(), "HandleRespawn: Respawn integration unavailable; routing to TrueDeathAndQuit")
+        TrueDeathAndQuit(player)
+        return
+    endif
+
+    ; Luck / Cooldown reset
+    if IsLuckActive()
+        ResetLuck(player, guid)
+        LuckCooldownForcePersistNow(player, guid)
+        LogMsg(LOG_INFO(), "HandleRespawn: Resetting luck")
+    elseif IsCooldownModeActive()
+        ResetCooldown(player, guid)
+        LuckCooldownForcePersistNow(player, guid)
+        LogMsg(LOG_INFO(), "HandleRespawn: Resetting cooldown")
+    endif
+
+    LogMsg(LOG_INFO(), "HandleRespawn: Begin respawn")
+
+    ; Arm respawn window, then allow bleedout route.
+    _respawnWindowArmed = True
+    LogMsg(LOG_INFO(), "HandleRespawn: Armed respawn window")
+    player.GetActorBase().SetEssential(True)
+    player.EndDeferredKill()
+    LogMsg(LOG_INFO(), "HandleRespawn: Armed respawn window + SetEssential(TRUE) + EndDeferredKill()")
+
+    if AudioCategoryMUS && !_disableMusicFade && !_disableRespawnMessage
+        Float menuMusicVol = Utility.GetINIFloat("fVal3:AudioMenu")
+        if menuMusicVol < 0.0 || menuMusicVol > 1.0
+            menuMusicVol = 1.0
+        endif
+        IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol)
+    endif
+
+    Bool introShown = ShowIronIntro(player, guid)
+
+    if introShown && AudioCategoryMUS && !_disableMusicFade && _disableRespawnMessage
+        ; Respawn warning menu is disabled, so restore music here.
+        IronSoulNative.MusicFadeIn(AudioCategoryMUS, 2.0)
+    endif
+
+    ; Arm Respawn Menu
+    _pendingRespawnMenu = True
+    _respawnMenuArmed = False
+
+    ; Allow bleedout/respawn transition time to complete before post-check
+    ; Heavy breathing SFX
+    Sound heavyBreathingSFX = PickHeavyBreathingSFX(player)
+    Int heavyBreathingRace = 0
+    Int heavyBreathingSex = 0
+    Race heavyBreathingRaceRef = player.GetRace()
+    ActorBase heavyBreathingBase = player.GetActorBase()
+    if heavyBreathingRaceRef
+        heavyBreathingRace = heavyBreathingRaceRef.GetFormID()
+    endif
+    if heavyBreathingBase
+        heavyBreathingSex = heavyBreathingBase.GetSex()
+    endif
+    LogMsg(LOG_INFO(), "HandleRespawn: HeavyBreathing race=" + heavyBreathingRace + " sex=" + heavyBreathingSex + " sfx=" + heavyBreathingSFX)
+    Utility.Wait(1.0)
+    PlaySFX(heavyBreathingSFX, player)
+    Utility.Wait(8.0)
+
+    ; Clear death lock
+    _deathEventLocked = False
+
+    ; Determine essential state.
+    UpdatePlayerProtectionState(player)
+
+    ; Re-latch deferred-kill if you want it always-on during gameplay.
+    player.StartDeferredKill()
+    LogMsg(LOG_INFO(), "HandleRespawn: StartDeferredKill()")
+
+    LogMsg(LOG_INFO(), "HandleRespawn: Respawn finished")
+
+    _pendingDisableRespawnStartedAt = Utility.GetCurrentRealTime()
+    _pendingDisableRespawn = True
+
+EndFunction
+
 Function ResolveRespawnQuest()
     _respawnQuest = None
     _respawnAvailable = False
@@ -2192,70 +2474,68 @@ Function ResolveRespawnQuest()
     if q
         _respawnQuest = q
         _respawnAvailable = True
-        LogMsg(LOG_INFO(), "Respawn quest resolved: running=" + q.IsRunning())
+        LogMsg(LOG_INFO(), "ResolveRespawnQuest: Respawn quest resolved: running=" + q.IsRunning())
 
     else
         ; Fail-closed: if we cannot resolve the quest, do not attempt integration.
         _respawnAvailable = False
-        _disableRespawn = True
-        LogMsg(LOG_INFO(), "Respawn quest not found; treating Respawn integration as disabled")
+        LogMsg(LOG_INFO(), "ResolveRespawnQuest: Respawn quest not found; treating Respawn integration as disabled")
     endif
 EndFunction
 
 Bool Function IsRespawnEnabled()
-    return (!_disableRespawn) && _respawnAvailable && (_respawnQuest != None)
+    return (!_disableRespawn) && _respawnAvailable && (_respawnQuest != None) && _respawnQuest.IsRunning()
 EndFunction
 
 Bool Function HandleDisableRespawn(Actor player)
-    ; Job B: stop _respawnQuest after respawn finishes
-    if !IsRespawnEnabled()
-        _pendingDisableRespawn = False
-        return False
-    endif
     if _pendingDisableRespawn
-        LogMsg(LOG_DBG(), "JOB B: pending disable respawn. dead=" + player.IsDead() + " bleed=" + player.IsBleedingOut())
-        ; If the player is truly dead (death screen / reload), respawn did not complete; stop polling.
-        if player.IsDead() && !player.IsBleedingOut()
-            LogMsg(LOG_INFO(), "JOB B: player truly dead; clearing pending disable-respawn state")
+        Float nowRT = Utility.GetCurrentRealTime()
+        if _pendingDisableRespawnStartedAt <= 0.0
+            _pendingDisableRespawnStartedAt = nowRT
+        elseif (nowRT - _pendingDisableRespawnStartedAt) > PendingFastLoopWatchdogSeconds
+            LogMsg(LOG_INFO(), "HandleDisableRespawn: watchdog cleared pending disable-respawn after " + (nowRT - _pendingDisableRespawnStartedAt) + "s")
+            LogMsg(LOG_INFO(), "HandleDisableRespawn: Calling TrueDeathAndQuit")
             _pendingDisableRespawn = False
             _pendingRespawnMenu = False
             _respawnMenuArmed = False
+            _respawnWindowArmed = False
+            LogMsg(LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=watchdog_timeout")
+            TrueDeathAndQuit(player)
+            return False
+        endif
+    endif
+
+    if !IsRespawnEnabled()
+        _pendingDisableRespawn = False
+        _respawnWindowArmed = False
+        LogMsg(LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=respawn_disabled")
+        return False
+    endif
+    if _pendingDisableRespawn
+        LogMsg(LOG_DBG(), "HandleDisableRespawn: pending disable respawn. dead=" + player.IsDead() + " bleed=" + player.IsBleedingOut())
+        ; If the player is truly dead (death screen / reload), respawn did not complete; stop polling.
+        if player.IsDead() && !player.IsBleedingOut()
+            LogMsg(LOG_INFO(), "HandleDisableRespawn: Player is dead; clearing pending disable-respawn state")
+            _pendingDisableRespawn = False
+            _pendingRespawnMenu = False
+            _respawnMenuArmed = False
+            _respawnWindowArmed = False
             _deathEventLocked = False
-            _bleedoutForcedKill = False
+            LogMsg(LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=player_dead_before_recovery")
             return False
         endif
         if !player.IsBleedingOut() && !player.IsDead()
-            if _respawnQuest && _respawnQuest.IsRunning()
-                LogMsg(LOG_INFO(), "JOB B: stopping _respawnQuest")
-                _respawnQuest.Stop()
-            else
-                LogMsg(LOG_INFO(), "JOB B: _respawnQuest not running/None")
-            endif
-
-            ; Apply post-respawn resets (Luck -> 0 or Cooldown -> 0), then restore correct protection policy.
-            String guidB = GetTickGuid(player)
-            if guidB != ""
-                if _pendingLuckResetAfterRespawn
-                    _pendingLuckResetAfterRespawn = False
-                    ResetLuck(player, guidB)
-                    PersistSetInt(player, GetKey(luckResetKind, guidB), 2, True) ; post-respawn
-                endif
-                if _pendingCooldownResetAfterRespawn
-                    _pendingCooldownResetAfterRespawn = False
-                    ResetCooldown(player, guidB)
-                endif
-                UpdatePlayerProtectionState(player, guidB)
-            endif
-
             ; arm delayed warning AFTER respawn completes
             if _pendingRespawnMenu && !_respawnMenuArmed
                 _respawnMenuArmed = True
-                _respawnWarningAt = Utility.GetCurrentRealTime() + 4.0
+                _respawnWarningAt = Utility.GetCurrentRealTime() + 1.0
             endif
 
             _pendingDisableRespawn = False
+            _respawnWindowArmed = False
             _deathEventLocked = False
-            _bleedoutForcedKill = False
+            LogMsg(LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=recovered_from_bleedout")
+            UpdatePlayerProtectionState(player)
             return False
 
         else
@@ -2276,6 +2556,138 @@ EndFunction
 ; Luck mode (DisableLuckSystem=0): roll vs Luck%, then Luck resets to 0 on respawn/true death and regenerates over 60 minutes.
 ; Cooldown mode (DisableLuckSystem=1): no roll; respawn only when the 60-minute cooldown is ready.
 
+Int Function ComputeLuckRollD20(Int luck, Int roll100)
+    ; Maps luck (0..100, tier-capped at runtime) and roll100 (1..100) into a D20 display roll (1..20).
+    ; Formula: roll20 = ((luck - roll100 + 100) / 10) + 1, clamped to [1..20].
+    if luck < 0
+        luck = 0
+    elseif luck > 100
+        luck = 100
+    endif
+
+    if roll100 < 1
+        roll100 = 1
+    elseif roll100 > 100
+        roll100 = 100
+    endif
+
+    Int delta = luck - roll100 ; -100..99
+    Int roll20 = ((delta + 100) / 10) + 1
+    if roll20 < 1
+        roll20 = 1
+    elseif roll20 > 20
+        roll20 = 20
+    endif
+    return roll20
+EndFunction
+
+Bool Function PerformLuckRoll(Actor player, String guid)
+    ; PerformLuckRoll
+    ; Luck mode: roll vs derived Luck% (0..maxLuck)
+    ; Cooldown mode: no roll (returns False)
+    ;
+    ; Returns:
+    ;   True  -> Luck success (router should respawn)
+    ;   False -> Luck failed OR luck inactive OR cooldown mode
+
+    if !player || guid == ""
+        LogMsg(LOG_ERR(), "PerformLuckRoll: Invalid args (player None or GUID empty) -> FAIL")
+        return False
+    endif
+
+    ; Luck is tied to Respawn integration.
+    if !IsLuckActive()
+        LogMsg(LOG_INFO(), "PerformLuckRoll: Inactive (Luck tied to Respawn; Respawn disabled/unavailable) -> FAIL")
+        return False
+    endif
+
+    ; Cooldown mode: no roll.
+    if IsCooldownModeActive()
+        LogMsg(LOG_INFO(), "PerformLuckRoll: Cooldown mode active (DisableLuckSystem!=0) -> No roll")
+        return False
+    endif
+
+    Utility.Wait(1.0)
+
+    ; Ensure cached timing state is loaded so GetLuckValue uses accurate session values.
+    Int nowSec = Utility.GetCurrentRealTime() as Int
+    LuckCooldownEnsureLoaded(player, guid, nowSec)
+
+    Int luck = GetLuckValue(player, guid) ; derived [0..maxLuck]
+    if luck < 0
+        luck = 0
+    elseif luck > 100
+        luck = 100
+    endif
+
+    ; Always roll for journaling/telemetry consistency (even when luck is 0).
+    Int roll100 = Utility.RandomInt(1, 100)
+    Bool success = (roll100 <= luck)
+    Int roll20 = ComputeLuckRollD20(luck, roll100)
+
+    ; If luck failed (including luck==0), consume/reset the current chance.
+    if !success
+        ResetLuck(player, guid)
+        LuckCooldownForcePersistNow(player, guid)
+    endif
+
+    if _luckRollMessageMode == 0
+        String rollMenu = "luckroll" + roll20
+        String resultMenu = "luckdefeat" + roll20
+        Sound resultSFX = SFXLuckFailure
+        if roll20 >= 11
+            resultMenu = "lucksurvival" + roll20
+            resultSFX = SFXLuckSuccess
+        endif
+
+        UI.CloseCustomMenu()
+        IronSoulNative.SuppressCursor(True)
+        Utility.Wait(0.05)
+
+        PlaySFX(SFXLuckRoll, player)
+
+        ; Full roll animation menu (luckroll1..luckroll20) plays for 2.35s.
+        UI.OpenCustomMenu(rollMenu, 0)
+        ;IronSoulNative.SuppressCursor(True)
+        Utility.WaitMenuMode(2.5)
+
+        PlaySFX(resultSFX, player)
+        UI.CloseCustomMenu()
+
+        UI.OpenCustomMenu(resultMenu, 0)
+        ;IronSoulNative.SuppressCursor(True)
+        Utility.WaitMenuMode(1.5)
+        UI.CloseCustomMenu()
+        IronSoulNative.SuppressCursor(False)
+    elseif _luckRollMessageMode == 1
+        String resultMenuOnly = "luckdefeat" + roll20
+        Sound resultSFXOnly = SFXLuckFailure
+        if roll20 >= 11
+            resultMenuOnly = "lucksurvival" + roll20
+            resultSFXOnly = SFXLuckSuccess
+        endif
+
+        PlaySFX(resultSFXOnly, player)
+        ;IronSoulNative.SuppressCursor(True)
+        ;Utility.Wait(0.05)
+        UI.OpenCustomMenu(resultMenuOnly, 0)
+        ;IronSoulNative.SuppressCursor(True)
+        Utility.WaitMenuMode(1.0)
+        UI.CloseCustomMenu()
+        ;IronSoulNative.SuppressCursor(False)
+    endif
+
+    ; Stash the last roll inputs for the death router (journal output).
+    _lastLuckRollValid = True
+    _lastLuckRoll = roll100
+    _lastLuckValue = luck
+
+    LogMsg(LOG_INFO(), "PerformLuckRoll: LuckRoll: roll100=" + roll100 + " vs luck=" + luck + " -> " + success)
+
+    return success
+
+EndFunction
+
 Function LuckCooldownEnsureLoaded(Actor player, String guid, Int nowSec)
     ; Loads Luck/Cooldown state into script variables once per GUID per session.
     ; IMPORTANT: Regen ticks must use cached _luckCooldownLastSec/_luckCooldownPlayedTok so delta math remains correct while writes are gated.
@@ -2289,6 +2701,7 @@ Function LuckCooldownEnsureLoaded(Actor player, String guid, Int nowSec)
         _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
         _luckCooldownLoaded = True
         _luckCooldownDirty = False
+        LogMsg(LOG_DBG(), "LuckCooldownEnsureLoaded: Loaded state for GUID=" + guid + " (lastSec=" + _luckCooldownLastSec + ", playedTok=" + _luckCooldownPlayedTok + ")")
     endif
 EndFunction
 
@@ -2321,6 +2734,7 @@ EndFunction
 Function LuckCooldownForcePersistNow(Actor player, String guid)
     Int nowSec = Utility.GetCurrentRealTime() as Int
     LuckCooldownPersistIfDue(player, guid, nowSec, True)
+    IronSoulNative.DataFlushIfDirty()
 EndFunction
 
 Bool Function IsLuckActive()
@@ -2381,6 +2795,9 @@ Function ResetCooldown(Actor player, String guid)
     _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
 
     LuckCooldownPersistIfDue(player, guid, nowSec, True)
+
+    ; Match Luck mode behavior: new cooldown cycle should re-emit recovery threshold notifications.
+    PersistSetInt(player, GetKey(luckNotifiedTier, guid), 0, True)
 EndFunction
 
 Function TickCooldownRegen(Actor player, String guid)
@@ -2417,6 +2834,8 @@ Function TickCooldownRegen(Actor player, String guid)
         _luckCooldownPlayedTok = EncodePlayed(nowSec, played)
         _luckCooldownLastSec = nowSec
         LuckCooldownMarkDirty()
+        ; New game: suppress threshold reminder spam by marking max threshold as already notified.
+        PersistSetInt(player, GetKey(luckNotifiedTier, guid), 4, True)
         LuckCooldownPersistIfDue(player, guid, nowSec, True)
         return
     endif
@@ -2452,17 +2871,21 @@ Function TickCooldownRegen(Actor player, String guid)
     endif
 
     LuckCooldownPersistIfDue(player, guid, nowSec, False)
-    LogMsg(LOG_DBG(), "Cooldown: " + played + " / " + LUCK_REGEN_SECONDS)
+    Int maxLuck = GetCurrentMaxLuck(player, guid)
+    Int luckNow = GetLuckValue(player, guid)
+    MaybeNotifyLuckThreshold(player, guid, luckNow, maxLuck)
+    LogMsg(LOG_DBG(), "TickCooldownRegen: Cooldown: " + played + " / " + LUCK_REGEN_SECONDS)
 EndFunction
 
 Int Function GetLuckValue(Actor player, String guid)
-    ; Returns the current luck value in [0..100].
+    ; Returns the current luck value in [0..maxLuck] for the active soul tier.
     ; NOTE: Timing keys may be write-gated; prefer cached state when available for accurate rolls/notifications.
     if !player || guid == ""
         return 100
     endif
-    if !IsLuckActive()
-        return 100
+    Int maxLuck = GetCurrentMaxLuck(player, guid)
+    if !IsLuckActive() && !IsCooldownModeActive()
+        return maxLuck
     endif
 
     Int playedTok = 0
@@ -2474,25 +2897,77 @@ Int Function GetLuckValue(Actor player, String guid)
     endif
 
     if playedTok == 0
-        return 100
+        return maxLuck
     endif
 
     Int playedSec = DecodePlayed(playedTok)
     ; playedSec==0 means freshly reset -> luck 0. Negative is treated as invalid/uninitialized.
     if playedSec < 0
-        return 100
+        return maxLuck
     endif
     if playedSec == 0
         return 0
     endif
 
-    Int luck = (playedSec * 100) / LUCK_REGEN_SECONDS
+    if LUCK_REGEN_SECONDS <= 0
+        return maxLuck
+    endif
+
+    Int luck = (playedSec * maxLuck) / LUCK_REGEN_SECONDS
     if luck < 0
         luck = 0
-    elseif luck > 100
-        luck = 100
+    elseif luck > maxLuck
+        luck = maxLuck
     endif
     return luck
+EndFunction
+
+Int Function SetLuckValue(Actor player, String guid, Int targetLuck)
+    ; Sets luck to an explicit value [0..maxLuck] by updating shared Luck/Cooldown timing state.
+    ; Uses a deterministic ceil mapping so GetLuckValue reads back the requested integer value.
+    if !player || guid == ""
+        return -1
+    endif
+
+    Int nowSec = Utility.GetCurrentRealTime() as Int
+    LuckCooldownEnsureLoaded(player, guid, nowSec)
+
+    Int maxLuck = GetCurrentMaxLuck(player, guid)
+    if maxLuck < 1
+        maxLuck = 1
+    endif
+
+    Int clampedLuck = targetLuck
+    if clampedLuck < 0
+        clampedLuck = 0
+    elseif clampedLuck > maxLuck
+        clampedLuck = maxLuck
+    endif
+
+    Int playedSec = 0
+    if clampedLuck > 0
+        playedSec = ((clampedLuck * LUCK_REGEN_SECONDS) + maxLuck - 1) / maxLuck
+    endif
+    if playedSec < 0
+        playedSec = 0
+    elseif playedSec > LUCK_REGEN_SECONDS
+        playedSec = LUCK_REGEN_SECONDS
+    endif
+
+    _luckCooldownGuid = guid
+    _luckCooldownLastSec = nowSec
+    _luckCooldownPlayedTok = EncodePlayed(nowSec, playedSec)
+    _luckCooldownLoaded = True
+    _luckCooldownDirty = True
+    _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
+
+    LuckCooldownPersistIfDue(player, guid, nowSec, True)
+
+    ; Match threshold-notification state to the newly applied luck value.
+    Int tierNow = LuckTier(clampedLuck, maxLuck)
+    PersistSetInt(player, GetKey(luckNotifiedTier, guid), tierNow, True)
+
+    return clampedLuck
 EndFunction
 
 Function ResetLuck(Actor player, String guid)
@@ -2516,187 +2991,32 @@ Function ResetLuck(Actor player, String guid)
 
     LuckCooldownPersistIfDue(player, guid, nowSec, True)
 
+    LogMsg(LOG_INFO(), "ResetLuck: Luck set to 0; regen timer armed (played=0/" + LUCK_REGEN_SECONDS + "s)")
+
     ; Reset threshold notifications for this regen cycle.
-    ; Default to "post-respawn" for very-low flavour until a specific reset kind is set.
-    PersistSetInt(player, GetKey(luckResetKind, guid), 2, True)
     PersistSetInt(player, GetKey(luckNotifiedTier, guid), 0, True)
 EndFunction
 
-Int Function LuckTier(Int luck)
-    ; 0: 0-24, 1:25-49, 2:50-74, 3:75-99, 4:100
-    if luck >= 100
+Int Function LuckTier(Int luck, Int maxLuck)
+    ; 0:<25%, 1:>=25%, 2:>=50%, 3:>=75%, 4:maxLuck
+    if maxLuck <= 0
+        maxLuck = 1
+    endif
+    if luck < 0
+        luck = 0
+    elseif luck > maxLuck
+        luck = maxLuck
+    endif
+    if luck >= maxLuck
         return 4
-    elseif luck >= 75
+    elseif luck >= PercentThresholdCeil(maxLuck, 75)
         return 3
-    elseif luck >= 50
+    elseif luck >= PercentThresholdCeil(maxLuck, 50)
         return 2
-    elseif luck >= 25
+    elseif luck >= PercentThresholdCeil(maxLuck, 25)
         return 1
     endif
     return 0
-EndFunction
-
-String Function PickLuckReminderMessage(Int tier)
-    ; Returns a reminder message for the given tier (1..4) based on LuckReminderNotificationMode.
-    if tier <= 0
-        return ""
-    endif
-
-    if _luckReminderNotificationMode == 1
-        if tier == 1
-            return "Your luck is returning."
-        elseif tier == 2
-            return "Your luck has improved."
-        elseif tier == 3
-            return "The odds favor you."
-        endif
-        return "You're feeling lucky."
-    endif
-
-    ; Flavour (mode 0)
-    if tier == 4
-        return "You're feeling lucky."
-    endif
-
-    Int r = Utility.RandomInt(1, 5)
-    if tier == 1
-        if r == 1
-            return "You remain unsettled."
-        elseif r == 2
-            return "Unease lingers."
-        elseif r == 3
-            return "Caution tempers your steps."
-        elseif r == 4
-            return "You feel on edge."
-        endif
-        return "Doubt has not fully left you."
-    elseif tier == 2
-        if r == 1
-            return "You feel steady again."
-        elseif r == 2
-            return "Your thoughts are clear."
-        elseif r == 3
-            return "You feel grounded."
-        elseif r == 4
-            return "Your footing is firm."
-        endif
-        return "You feel balanced once more."
-    elseif tier == 3
-        if r == 1
-            return "Your confidence holds."
-        elseif r == 2
-            return "Your resolve carries you forward."
-        elseif r == 3
-            return "Your steps feel true."
-        elseif r == 4
-            return "The path ahead is clear."
-        endif
-        return "You move with purpose."
-    endif
-
-    return ""
-EndFunction
-
-String Function PickLuckLoadFlavour(Int luck, Int resetKind)
-    ; Returns a flavour line for the 2nd load notification based on Luck.
-    ; resetKind: 1=post-death, 2=post-respawn (used only for Luck 0-24).
-    Int r = Utility.RandomInt(0, 4)
-
-    if luck >= 75
-        ; 75-99 (High)
-        if r == 0
-            return "Your confidence holds."
-        elseif r == 1
-            return "Your resolve carries you forward."
-        elseif r == 2
-            return "Your steps feel true."
-        elseif r == 3
-            return "The path ahead is clear."
-        endif
-        return "You move with purpose."
-
-    elseif luck >= 50
-        ; 50-74 (Stable)
-        if r == 0
-            return "You feel steady again."
-        elseif r == 1
-            return "Your thoughts are clear."
-        elseif r == 2
-            return "You feel grounded."
-        elseif r == 3
-            return "Your footing is firm."
-        endif
-        return "You feel balanced once more."
-
-    elseif luck >= 25
-        ; 25-49 (Low)
-        if r == 0
-            return "You remain unsettled."
-        elseif r == 1
-            return "Unease lingers."
-        elseif r == 2
-            return "Caution tempers your steps."
-        elseif r == 3
-            return "You feel on edge."
-        endif
-        return "Doubt has not fully left you."
-    endif
-
-    ; 0-24 (Very Low) - choose pool by resetKind
-    if resetKind == 1
-        if r == 0
-            return "The premonition of your death grips your soul."
-        elseif r == 1
-            return "You return shaken from a waking nightmare."
-        elseif r == 2
-            return "You see the fatal moment just before the blow lands."
-        elseif r == 3
-            return "The vision lingers, warning of what could be."
-        endif
-        return "You stand with foreknowledge you never wanted."
-    endif
-
-    ; Default: post-respawn
-    if r == 0
-        return "You are still shaken from your recent trial."
-    elseif r == 1
-        return "The ordeal still weighs heavily on you."
-    elseif r == 2
-        return "Your breath has steadied, but not your thoughts."
-    elseif r == 3
-        return "You have not yet recovered from what nearly ended you."
-    endif
-    return "Your nerves have not fully settled."
-EndFunction
-
-Function MaybeNotifyLuckThreshold(Actor player, String guid, Int luck)
-    ; Fires a one-time notification when luck reaches a new threshold: 25, 50, 75, 100.
-    if !player || guid == ""
-        return
-    endif
-    if !IsLuckActive()
-        return
-    endif
-    if _luckReminderNotificationMode == 2
-        return
-    endif
-
-    Int tierNow = LuckTier(luck)
-    if tierNow <= 0
-        return
-    endif
-
-    Int tierPrev = PersistGetInt(player, GetKey(luckNotifiedTier, guid), 0)
-    if tierNow <= tierPrev
-        return
-    endif
-
-    PersistSetInt(player, GetKey(luckNotifiedTier, guid), tierNow, True)
-
-    String msg = PickLuckReminderMessage(tierNow)
-    if msg != ""
-        Debug.Notification(msg)
-    endif
 EndFunction
 
 Int Function DecodePlayed(Int token)
@@ -2758,50 +3078,106 @@ Function JournalEnsureOpenerLogged(Actor player, String guid)
 		return
 	endif
 	IronSoulNative.LogJournalEntry("Day 1: Iron Soul awakens.")
+	LogMsg(LOG_INFO(), "JournalEnsureOpenerLogged: Logged journal opener (one-shot)")
 	PersistSetInt(player, GetKey(journalOpenerLogged, guid), 1, True)
 EndFunction
 
-Function JournalLogEvent(String eventText, Bool urgent = False)
+Function JournalLogEvent(String eventText)
 	; Primary journal entry writer (SKSE-backed).
 	; - Computes Day X from the persisted journal start day (stored once per GUID).
 	; - Ensures the opener prints once per GUID before the first event line.
 	; - Sends only: "Day X: <Event text...>" to IronSoulNative.LogJournalEntry().
 	; - The SKSE plugin prepends "<CharacterName> " automatically.
-	if _disableCharacterJournalLog
-		return
-	endif
-	if eventText == ""
-		return
-	endif
 
-	Actor player = Game.GetPlayer()
-	if !player
-		return
-	endif
+    if _disableCharacterJournalLog
+        LogMsg(LOG_DBG(), "JournalLogEvent: Skipped (DisableCharacterJournalLog=1)")
+        return
+    endif
+    if eventText == ""
+        LogMsg(LOG_DBG(), "JournalLogEvent: Skipped (Empty eventText)")
+        return
+    endif
 
-	String guid = GetTickGuid(player)
-	if guid == ""
-		return
-	endif
+    Actor player = Game.GetPlayer()
+    if !player
+        LogMsg(LOG_ERR(), "JournalLogEvent: Skipped (Player is None)")
+        return
+    endif
 
-	Int startDay = JournalEnsureStartDay(player, guid)
-	JournalEnsureOpenerLogged(player, guid)
+    String guid = GetTickGuid(player)
+    if guid == ""
+        String pn = ""
+        pn = IronSoulNative.GetPlayerName()
+        LogMsg(LOG_DBG(), "JournalLogEvent: skipped (GUID empty). Name='" + pn + "' MenuMode=" + Utility.IsInMenuMode())
+        return
+    endif
 
-	Int dayIdx = 1
-	if startDay != -1
-		Int nowDay = Utility.GetCurrentGameTime() as Int
-		dayIdx = (nowDay - startDay) + 1
-	endif
-	; Day 1 minimum (no Day 0)
-	if dayIdx < 1
-		dayIdx = 1
-	endif
+    Int startDay = JournalEnsureStartDay(player, guid)
+    JournalEnsureOpenerLogged(player, guid)
 
-	String line = "Day " + dayIdx + ": " + eventText
-	IronSoulNative.LogJournalEntry(line)
+    Int dayIdx = 1
+    if startDay != -1
+        Int nowDay = Utility.GetCurrentGameTime() as Int
+        dayIdx = (nowDay - startDay) + 1
+    endif
+    if dayIdx < 1
+        dayIdx = 1
+    endif
 
-	; urgent preserved for call-site intent (e.g., permadeath lines).
-	; If you later want "urgent" to force an auth store flush, implement it here.
+    String line = "Day " + dayIdx + ": " + eventText
+    LogMsg(LOG_DBG(), "JournalLogEvent: WRITE -> " + line)
+    IronSoulNative.LogJournalEntry(line)
+EndFunction
+
+; Luck outcome journaling (Luck-mode only)
+Function JournalLogLuckOutcome(Bool survived, Actor player, String guid)
+    if _disableCharacterJournalLog
+        return
+    endif
+    if !player || guid == ""
+        return
+    endif
+    if !_lastLuckRollValid
+        return
+    endif
+
+    Int roll = _lastLuckRoll
+    Int luck = _lastLuckValue
+    Int maxLuck = GetCurrentMaxLuck(player, guid)
+
+    ; Consume the cached roll inputs (one-shot).
+    _lastLuckRollValid = False
+
+    if survived
+        JournalLogEvent(JournalLuckOutcomeText(luck, roll, maxLuck))
+        return
+    endif
+
+    ; Defeat line includes predicted death count (TrueDeathAndQuit increments after this).
+    Int deathsPred = PersistGetInt(player, GetKey(deathCount, guid), 0) + 1
+    Int cap = GetEffectiveMaxLives(player, guid)
+    String capText = "" + cap
+    if cap >= 2000000000
+        capText = "???"
+    endif
+
+    JournalLogEvent("Defeated. Deaths: " + deathsPred + " / " + capText + ". Roll: " + roll + ". Luck: " + luck + ".")
+    _suppressNextDefeatJournal = True
+EndFunction
+
+String Function JournalLuckOutcomeText(Int luck, Int roll, Int maxLuck)
+    ; Luck tier text based on percentage of current max luck.
+    Int tier = LuckTier(luck, maxLuck)
+    if tier >= 4
+        return "Fate cheated. Roll: " + roll + ". Luck: " + luck + "."
+    elseif tier == 3
+        return "Death denied. Roll: " + roll + ". Luck: " + luck + "."
+    elseif tier == 2
+        return "Fortune favors the bold. Roll: " + roll + ". Luck: " + luck + "."
+    elseif tier == 1
+        return "Narrowly escaped death. Roll: " + roll + ". Luck: " + luck + "."
+    endif
+    return "Barely clung to life. Roll: " + roll + ". Luck: " + luck + "."
 EndFunction
 
 Int Function JournalEnsureStartDay(Actor player, String guid)
@@ -2823,23 +3199,6 @@ Int Function JournalEnsureStartDay(Actor player, String guid)
 	return startDay
 EndFunction
 
-Int Function JournalDayIndex(Actor player, String guid)
-	if _disableCharacterJournalLog
-		return 1
-	endif
-	Int startDay = JournalEnsureStartDay(player, guid)
-	if startDay == -1
-		return 1
-	endif
-	Int nowDay = Utility.GetCurrentGameTime() as Int
-	Int idx = (nowDay - startDay) + 1
-	if idx < 1
-		idx = 1
-	endif
-	return idx
-EndFunction
-
-
 ; ======================
 ; -- Identity & GUID ---
 ; ======================
@@ -2855,7 +3214,7 @@ String Property _guidIndexKey = "G.U.INDEX" Auto Hidden
 ; ---------------------------------
 ; Plugin provides:
 ;   - GenerateGuidUnique(playerName) -> collision-safe GUID minting + marker claim
-;   - Binary DataStore (MainData + MirrorData) with self-heal + periodic/on-save flush
+;   - Binary DataStore (MainData + MirrorData) with self-heal + save-callback/explicit flush behavior
 ;
 ; Controller responsibilities:
 ;   - Write GUID once to co-save when identity is ready
@@ -2879,13 +3238,80 @@ String Function EnsureGuid(Actor player)
     ; 1) Co-save authoritative fast path.
     String guid = StorageUtil.GetStringValue(player, characterGuid, "")
     if guid != ""
-        EnsureGuidMarker(guid) ; ensure collision marker + global index
-        return guid
+        Int lvlNow = player.GetLevel()
+        if lvlNow <= 1
+            ; New game exception: trust co-save identity directly.
+            EnsureGuidMarker(guid)
+            return guid
+        endif
+
+        if !IronSoulNative.DataStoreReady()
+            ; Avoid trust decisions from potentially uninitialized MainData.
+            LogMsg(LOG_INFO(), "EnsureGuid: co-save GUID present but MainData not ready; deferring trust decision")
+            return ""
+        endif
+
+        String idx = IronSoulNative.DataGetString(_guidIndexKey, "")
+        if idx == ""
+            ; Empty index exception: cannot prove co-save is wrong.
+            EnsureGuidMarker(guid)
+            return guid
+        endif
+
+        ; Known GUID in marker/index: trust and heal marker/index.
+        if IronSoulNative.DataGetInt("G.U." + guid, 0) != 0
+            EnsureGuidInIndex(guid)
+            return guid
+        endif
+
+        String hay = "|" + idx + "|"
+        String needle = "|" + guid + "|"
+        if StringUtil.Find(hay, needle) != -1
+            EnsureGuidMarker(guid)
+            return guid
+        endif
+
+        ; Unknown co-save GUID at level > 1 with non-empty index is suspicious.
+        ; Do not bless here. Attempt tamper recovery/mint once identity is ready (works for load and bootstrap retries).
+        String tamperName = IronSoulNative.GetPlayerName()
+        if tamperName == ""
+            LogMsg(LOG_INFO(), "EnsureGuid: co-save GUID not trusted; identity name not ready yet")
+            return ""
+        endif
+
+        String tamperResolved = TryRestoreGuidTamperedCosave(player, tamperName, guid)
+        if tamperResolved != ""
+            return tamperResolved
+        endif
+
+        LogMsg(LOG_INFO(), "EnsureGuid: co-save GUID is not trusted by MainData; recovery unresolved")
+        return ""
     endif
 
     ; 2) Identity must be ready (RaceMenu / very early loads can return empty).
     String pn = IronSoulNative.GetPlayerName()
     if pn == ""
+        return ""
+    endif
+
+    ; Don't mint identity while still in chargen.
+    if Utility.IsInMenuMode()
+        return ""
+    endif
+
+    ; Delay placeholder-name minting until bootstrap has progressed a bit.
+    if pn == "Prisoner" || pn == "Player"
+        if _bootstrapActive && _bootstrapTriesLeft > 5
+            LogMsg(LOG_INFO(), "EnsureGuid: delaying placeholder name (" + pn + "), bootstrapTriesLeft=" + _bootstrapTriesLeft)
+            return ""
+        elseif _bootstrapActive
+            LogMsg(LOG_INFO(), "EnsureGuid: placeholder name now allowed (" + pn + ")")
+        endif
+    endif
+
+    if !IronSoulNative.DataStoreReady()
+        ; Do not run MainData-based restore/mint while datastore is still initializing.
+        LogMsg(LOG_INFO(), "EnsureGuid: MainData not ready; deferring GUID restore/mint")
         return ""
     endif
 
@@ -2905,7 +3331,11 @@ String Function EnsureGuid(Actor player)
     EnsureGuidMarker(guid)
 
     ; Flush ASAP to avoid re-minting on crash.
-    IronSoulNative.DataFlushNow()
+    IronSoulNative.DataFlushIfDirty()
+
+    LogMsg(LOG_INFO(), "EnsureGuid: GUID FINALIZED (" + guid + ", name=" + pn + ")")
+
+    SyncSoulBonusAbility(player, guid)
 
     return guid
 EndFunction
@@ -2937,7 +3367,7 @@ Function EnsureGuidMarker(String guid)
 		return
 	endif
 
-	IronSoulNative.DataSetInt("G.U." + guid, 1)
+	IronSoulNative.DataSetIntIfChanged("G.U." + guid, 1)
 	EnsureGuidInIndex(guid)
 EndFunction
 
@@ -2963,13 +3393,6 @@ Function EnsureGuidInIndex(String guid)
 	endif
 
 	IronSoulNative.DataSetStringIfChanged(_guidIndexKey, idx + "|" + guid)
-EndFunction
-
-String Function GetCosaveGuid(Actor player)
-	if !player
-		return ""
-	endif
-	return StorageUtil.GetStringValue(player, characterGuid, "")
 EndFunction
 
 Function WriteIdentitySnapshotStatic(String guid, Actor player, String pn)
@@ -3022,12 +3445,17 @@ String Function TryRestoreGuidMissingCosave(Actor player, String pn)
 	; NEVER restore unless the player is beyond level 1 (new games naturally start at level 1).
 	; Requires identity-ready (pn != "").
 	;
-	; Recovery rule:
-	;  - Require >= 3 / 4 matches across:
+	; Recovery signals (4 total):
 	;      1) Name match (I.N:<guid>)
 	;      2) RaceFormID match (I.R:<guid>)
 	;      3) Level within +/- _idLevelTolerance of last-seen level (I.L:<guid>)
 	;      4) Game day within +/- _idDayTolerance of last-seen day (I.D:<guid>)
+	;
+	; Auto-restore policy (hardened to avoid cross-profile mis-association):
+	;  - Candidate must be UNIQUE best (best score must be strictly above runner-up).
+	;  - Accept 4/4 directly.
+	;  - Accept 3/4 only when both strong anchors match (Name + Race) AND
+	;    runner-up score is <= 1 (clear separation from other historical GUIDs).
 	if !player || pn == ""
 		return ""
 	endif
@@ -3055,6 +3483,9 @@ String Function TryRestoreGuidMissingCosave(Actor player, String pn)
 	Int bestMatches = 0
 	Int bestDayDelta = 999999
 	Int bestLvlDelta = 999999
+	Int secondBestMatches = 0
+	Bool bestNameMatch = False
+	Bool bestRaceMatch = False
 
 	Int i = 0
 	Int len = StringUtil.GetLength(idx)
@@ -3080,15 +3511,19 @@ String Function TryRestoreGuidMissingCosave(Actor player, String pn)
 		Int tSaved = IronSoulNative.DataGetInt(MakeKey("I.D", cand), -1)
 
 		Int matches = 0
+		Bool nameMatch = False
+		Bool raceMatch = False
 
 		; 1) Name
 		if nSaved != "" && pn == nSaved
 			matches += 1
+			nameMatch = True
 		endif
 
 		; 2) Race
 		if rSaved >= 0 && ridNow == rSaved
 			matches += 1
+			raceMatch = True
 		endif
 
 		; 3) Level proximity
@@ -3116,29 +3551,50 @@ String Function TryRestoreGuidMissingCosave(Actor player, String pn)
 		endif
 
 		; Keep the best candidate. Ties: prefer closer day, then closer level.
+		Bool takesBest = False
 		if matches > bestMatches
+			takesBest = True
+		elseif matches == bestMatches && matches > 0
+			if dT < bestDayDelta || (dT == bestDayDelta && dL < bestLvlDelta)
+				takesBest = True
+			endif
+		endif
+
+		if takesBest
+			if bestMatches > secondBestMatches
+				secondBestMatches = bestMatches
+			endif
 			bestGuid = cand
 			bestMatches = matches
 			bestDayDelta = dT
 			bestLvlDelta = dL
-		elseif matches == bestMatches && matches > 0
-			if dT < bestDayDelta || (dT == bestDayDelta && dL < bestLvlDelta)
-				bestGuid = cand
-				bestMatches = matches
-				bestDayDelta = dT
-				bestLvlDelta = dL
+			bestNameMatch = nameMatch
+			bestRaceMatch = raceMatch
+		else
+			if matches > secondBestMatches
+				secondBestMatches = matches
 			endif
 		endif
 		endif
 	EndWhile
 
-	if bestMatches < 3 || bestGuid == ""
+	Bool strongUnique = False
+	if bestGuid != "" && bestMatches > secondBestMatches
+		if bestMatches >= 4
+			strongUnique = True
+		elseif bestMatches == 3 && bestNameMatch && bestRaceMatch && secondBestMatches <= 1
+			strongUnique = True
+		endif
+	endif
+
+	if !strongUnique
 		return ""
 	endif
 
 	; Restore authoritative GUID back to co-save directly (do NOT use Persist helpers).
 	StorageUtil.SetStringValue(player, characterGuid, bestGuid)
 	EnsureGuidMarker(bestGuid)
+	IronSoulNative.DataFlushIfDirty()
 	return bestGuid
 EndFunction
 
@@ -3152,12 +3608,14 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 	; Policy:
 	;  - Prefer co-save if MainData index is empty (MainData likely wiped / fresh install).
 	;  - Never attempt restore at level 1 (new games).
-	;  - Only overwrite co-save if we find a >= 3/4 identity snapshot match (same rule as missing co-save recovery).
+	;  - Only overwrite co-save when recovery returns a strong, unique winner
+	;    (same hardened rule used by missing co-save recovery).
 	;
 	; Returns:
-	;  - The GUID you should treat as authoritative for this session (may equal cosaveGuid).
+	;  - The GUID you should treat as authoritative for this session.
 	; Side effects:
 	;  - If a strong match is found, overwrites co-save to the recovered GUID and ensures marker/index.
+	;  - If strict recovery is inconclusive, mints a new GUID to keep gameplay non-blocking.
 
 	if !player
 		return ""
@@ -3172,11 +3630,24 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 		return cosaveGuid
 	endif
 
+	; Keep placeholder-name mint policy consistent with EnsureGuid().
+	if pn == "Prisoner" || pn == "Player"
+		if _bootstrapActive && _bootstrapTriesLeft > 5
+			LogMsg(LOG_INFO(), "TryRestoreGuidTamperedCosave: delaying suspicious GUID resolution for placeholder name (" + pn + "), bootstrapTriesLeft=" + _bootstrapTriesLeft)
+			return ""
+		endif
+	endif
+
 	Int lvlNow = player.GetLevel()
 	if lvlNow <= 1
 		; New games naturally start at level 1. Do not "recover".
 		EnsureGuidMarker(cosaveGuid)
 		return cosaveGuid
+	endif
+
+	if !IronSoulNative.DataStoreReady()
+		LogMsg(LOG_INFO(), "TryRestoreGuidTamperedCosave: MainData not ready; deferring suspicious GUID resolution")
+		return ""
 	endif
 
 	; If MainData has no index, we cannot prove co-save is wrong. Prefer co-save and heal MainData.
@@ -3215,6 +3686,9 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 	Int bestMatches = 0
 	Int bestDayDelta = 999999
 	Int bestLvlDelta = 999999
+	Int secondBestMatches = 0
+	Bool bestNameMatch = False
+	Bool bestRaceMatch = False
 
 	Int i = 0
 	Int len = StringUtil.GetLength(idx)
@@ -3241,15 +3715,19 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 			Int tSaved = IronSoulNative.DataGetInt(MakeKey("I.D", cand), -1)
 
 			Int matches = 0
+			Bool nameMatch = False
+			Bool raceMatch = False
 
 			; 1) Name
 			if nSaved != "" && pn == nSaved
 				matches += 1
+				nameMatch = True
 			endif
 
 			; 2) Race
 			if rSaved >= 0 && ridNow == rSaved
 				matches += 1
+				raceMatch = True
 			endif
 
 			; 3) Level proximity
@@ -3277,27 +3755,69 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 			endif
 
 			; Keep the best candidate. Ties: prefer closer day, then closer level.
+			Bool takesBest = False
 			if matches > bestMatches
+				takesBest = True
+			elseif matches == bestMatches && matches > 0
+				if dT < bestDayDelta || (dT == bestDayDelta && dL < bestLvlDelta)
+					takesBest = True
+				endif
+			endif
+
+			if takesBest
+				if bestMatches > secondBestMatches
+					secondBestMatches = bestMatches
+				endif
 				bestGuid = cand
 				bestMatches = matches
 				bestDayDelta = dT
 				bestLvlDelta = dL
-			elseif matches == bestMatches && matches > 0
-				if dT < bestDayDelta || (dT == bestDayDelta && dL < bestLvlDelta)
-					bestGuid = cand
-					bestMatches = matches
-					bestDayDelta = dT
-					bestLvlDelta = dL
+				bestNameMatch = nameMatch
+				bestRaceMatch = raceMatch
+			else
+				if matches > secondBestMatches
+					secondBestMatches = matches
 				endif
 			endif
 		endif
 	EndWhile
 
-	; Require strong match to overwrite co-save.
-	if bestMatches < 3 || bestGuid == ""
-		; Inconclusive: keep co-save as-is (do NOT bless it here).
-		; Caller can decide whether to accept-and-heal or to log / prompt.
-		return cosaveGuid
+	; Require a strong, unambiguous winner to overwrite co-save.
+	Bool strongUnique = False
+	if bestGuid != "" && bestMatches > secondBestMatches
+		if bestMatches >= 4
+			strongUnique = True
+		elseif bestMatches == 3 && bestNameMatch && bestRaceMatch && secondBestMatches <= 1
+			strongUnique = True
+		endif
+	endif
+
+	if !strongUnique
+		; Inconclusive: do not trust suspicious co-save GUID. Mint a new GUID to keep runtime non-blocking.
+		Float nowRT = Utility.GetCurrentRealTime()
+		if nowRT < _guidMintRetryAt
+			return ""
+		endif
+
+		String newGuid = IronSoulNative.GenerateGuidUnique(pn)
+		if newGuid == ""
+			_guidMintRetryAt = nowRT + 10.0
+			LogMsg(LOG_ERR(), "TryRestoreGuidTamperedCosave: suspicious co-save GUID '" + cosaveGuid + "' had no strong unique match and mint failed; backoff 10s before retry")
+			return ""
+		endif
+
+		_guidMintRetryAt = 0.0
+		StorageUtil.SetStringValue(player, characterGuid, newGuid)
+		EnsureGuidMarker(newGuid)
+		IronSoulNative.DataFlushIfDirty()
+
+		LogMsg(LOG_ERR(), "TryRestoreGuidTamperedCosave: suspicious co-save GUID '" + cosaveGuid + "' had no strong unique match; minted new GUID '" + newGuid + "'")
+		if !_guidTamperMintNotified
+			_guidTamperMintNotified = True
+			Debug.Notification("[Iron Soul] Character identity could not be safely verified. A new identity was created.")
+		endif
+
+		return newGuid
 	endif
 
 	; Restore authoritative GUID back to co-save directly (do NOT use Persist helpers).
@@ -3305,117 +3825,11 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 	EnsureGuidMarker(bestGuid)
 
 	; Flush ASAP so we don't bounce between GUIDs on crash / early exit.
-	IronSoulNative.DataFlushNow()
+	IronSoulNative.DataFlushIfDirty()
 
-	LogMsg(LOG_INFO(), "GUID tamper recovery: co-save '" + cosaveGuid + "' -> restored '" + bestGuid + "' (" + bestMatches + "/4 match)")
+	LogMsg(LOG_INFO(), "TryRestoreGuidTamperedCosave: GUID tamper recovery: co-save '" + cosaveGuid + "' -> restored '" + bestGuid + "' (" + bestMatches + "/4, runnerUp=" + secondBestMatches + ")")
 
 	return bestGuid
-EndFunction
-
-; Validate player execution context (actor presence, GUID identity, and transient state)
-Bool Function EnsureTransientPlayerState(Actor player, String guid)
-    ; Player missing: defensive reset, no identity changes.
-    if !player
-        LogMsg(LOG_ERR(), "OnUpdate: player None; clearing transient state")
-
-        ResetTransientJobsAndCaches()
-
-        ; Also invalidate tick guid cache (no actor)
-        _tickGuid = ""
-        _tickGuidValid = False
-
-        QueueUpdate(StandardPollSeconds)
-        return True
-    endif
-
-    ; Hot-path: if we already know the session guid and tick guid is valid + matches, do nothing.
-    if _sessionGuid != "" && _tickGuidValid && _tickGuid == _sessionGuid
-        return False
-    endif
-
-    ; Acquire guid if caller didn't provide one.
-    String g = guid
-    if g == ""
-        if _tickGuidValid
-            g = _tickGuid
-        else
-            g = EnsureGuid(player)
-            _tickGuid = g
-            _tickGuidValid = (g != "")
-        endif
-    else
-        ; Caller provided guid: update per-tick cache.
-        _tickGuid = g
-        _tickGuidValid = (g != "")
-    endif
-
-    ; GUID boundary: new character detected.
-    if g != "" && g != _sessionGuid
-        _sessionGuid = g
-
-        ResetTransientJobsAndCaches()
-
-        ; NOTE: keep _tickGuid cache set to g (already done above)
-        QueueUpdate(StandardPollSeconds)
-        return False
-    endif
-
-    return False
-EndFunction
-
-Function ResetTransientJobsAndCaches()
-    _featsLastSeenInit = False
-
-    _pendingDisableRespawn = False
-    _pendingDeathCheck = False
-    _pendingLoadMessage = False
-    _pendingIronIntro = False
-    _pendingFeats = False
-    _pendingDeathResync = False
-
-    _ironIntroAt = 0.0
-    _deathCheckAt = 0.0
-    _deathResyncAt = 0.0
-    _featsAt = 0.0
-    _loadMessageAt = 0.0
-
-    ; Heartbeat / cadence timers are transient (GetCurrentRealTime can reset across reloads).
-    _nextHeartbeatAt = 0.0
-    _nextFeatsSoulCheckAt = 0.0
-
-    ; Pending job guard timers
-    _pendingDeathCheckStartedAt = 0.0
-    _pendingDisableRespawnStartedAt = 0.0
-    _pendingLoadMessageStartedAt = 0.0
-
-    _bleedoutForcedKill = False
-    _pendingTrueDeathAt = 0.0
-    _pendingQuitMenuAt = 0.0
-    _pendingQuitArmed = False
-    _bleedoutDecisionMade = False
-    _bleedoutDecisionIsRespawn = False
-    _pendingLuckResetAfterRespawn = False
-    _pendingCooldownResetAfterRespawn = False
-    _wasBleedingOut = False
-    _bleedoutArmed = False
-
-    _pendingTrueDeathAt = 0.0
-    _bleedoutDecisionMade = False
-    _bleedoutDecisionIsRespawn = False
-    _deathEventLocked = False
-
-    _pendingRespawnMenu = False
-    _respawnMenuArmed = False
-
-    ; Luck/Cooldown session cache is transient; reset to avoid stale deltas across reloads.
-    _luckCooldownLoaded = False
-    _luckCooldownDirty = False
-    _luckCooldownGuid = ""
-    _luckCooldownLastSec = 0
-    _luckCooldownPlayedTok = 0
-    _luckCooldownNextPersistAt = 0
-
-    _soulBonusAppliedTier = -1
 EndFunction
 
 
@@ -3423,11 +3837,11 @@ EndFunction
 ; --- Soul Feats ---
 ; ==================
 ;
-; Tier state: 0=Iron, 1=Silver, 2=Gold, 3=Ebon, 4=Platinum. Highest eligible tier always takes priority.
+; Tier state: 0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum. Highest eligible tier always takes priority.
 ; This value is stored in MainData (authoritative) and backed up to co-save via an obfuscated key.
 ; Per-character unlocks based on confirmed Dragon Souls obtained or boss kills, and death count. Display one-time messages on unlock.
 ; Future: Soul Bonus tiers (Iron 5% / Silver 10% / Gold 15% / Ebon 20% / Platinum 30%) will be applied via a separate ability/effect system.
-; All Soul Bonuses are lost once Defiant activates (at the end of the 10th-death Defiant transition sequence).
+; Defiant activation is represented by tier 1.
 
 Function TryScheduleFeats(Actor player)
     ; Schedules Feats evaluation when an unlock may be available.
@@ -3444,21 +3858,22 @@ Function TryScheduleFeats(Actor player)
         return
     endif
 
-    if !IsRespawnEnabled()
-        return
-    endif
-
     if Utility.IsInMenuMode() || player.IsDead() || player.IsBleedingOut()
         return
     endif
 
     Int deaths = PersistGetInt(player, GetKey(deathCount, guid), 0)
-    Int soulsObtained = PersistGetInt(player, GetKey(dragonSoulsTrusted, guid), 0)
+    Int soulsObtained = PersistGetInt(player, GetKey(dragonSoulsTotal, guid), 0)
+    Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+
+    if curTier == TIER_CHIM || curTier == TIER_DEFIANT
+        return
+    endif
 
     Float nowRT = Utility.GetCurrentRealTime()
 
     ; Defiant Feat: 1 Dragon Soul obtained with under 10 deaths.
-    if !_disableDefiantSoulFeat
+    if !_disableDefiantFeat
         Bool defiantEligible = (soulsObtained >= 1 && deaths < IRON_SOUL_MAX_LIVES)
         Int defFeat = PersistGetInt(player, GetKey(defiantFeatUnlocked, guid), 0)
         if defiantEligible && defFeat != 1
@@ -3474,7 +3889,7 @@ Function TryScheduleFeats(Actor player)
     ; Option A: grant only the highest eligible tier.
     if !_disableSoulFeats
         ; Under 10 deaths only.
-        Int desiredTier = 0
+        Int desiredTier = TIER_IRON
         if deaths < IRON_SOUL_MAX_LIVES
             ; Determine the highest eligible tier at this moment (tiers may upgrade upward over time; Silver -> Gold allowed).
             ; Evaluation priority: Platinum > Ebon > Gold > Silver.
@@ -3484,7 +3899,7 @@ Function TryScheduleFeats(Actor player)
             Bool molagKilled = (molagFlag == 1)
             Bool miraakKilledBool = (miraakFlag == 1)
             if molagKilled || miraakKilledBool
-                desiredTier = 4 ; Platinum
+                desiredTier = TIER_PLATINUM
 
             else
                 Int alduinFlag = PersistGetInt(player, GetKey(alduinKilled, guid), 0)
@@ -3492,18 +3907,16 @@ Function TryScheduleFeats(Actor player)
                 Bool alduinKilledBool = (alduinFlag == 1)
                 Bool harkonKilledBool = (harkonFlag == 1)
                 if alduinKilledBool || harkonKilledBool
-                    desiredTier = 3 ; Ebon
+                    desiredTier = TIER_EBON
 
                 elseif soulsObtained >= 20
-                    desiredTier = 2 ; Gold
+                    desiredTier = TIER_GOLD
 
                 elseif soulsObtained >= 10
-                    desiredTier = 1 ; Silver
+                    desiredTier = TIER_SILVER
                 endif
             endif
         endif
-
-        Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
 
         if desiredTier > curTier
             _pendingFeats = True
@@ -3514,7 +3927,7 @@ Function TryScheduleFeats(Actor player)
         endif
 
         ; Also schedule one-time tier messages if a tier was previously earned but its message wasn't shown yet.
-        if curTier == 4
+        if curTier == TIER_PLATINUM
             Int shownA = PersistGetInt(player, GetKey(tierMsgShownPlatinum, guid), 0)
             if shownA != 1
                 _pendingFeats = True
@@ -3524,7 +3937,7 @@ Function TryScheduleFeats(Actor player)
                 return
             endif
 
-        elseif curTier == 3
+        elseif curTier == TIER_EBON
             Int shownP = PersistGetInt(player, GetKey(tierMsgShownEbon, guid), 0)
             if shownP != 1
                 _pendingFeats = True
@@ -3534,7 +3947,7 @@ Function TryScheduleFeats(Actor player)
                 return
             endif
 
-        elseif curTier == 2
+        elseif curTier == TIER_GOLD
             Int shownG = PersistGetInt(player, GetKey(tierMsgShownGold, guid), 0)
             if shownG != 1
                 _pendingFeats = True
@@ -3544,7 +3957,7 @@ Function TryScheduleFeats(Actor player)
                 return
             endif
 
-        elseif curTier == 1
+        elseif curTier == TIER_SILVER
             Int shownS = PersistGetInt(player, GetKey(tierMsgShownSilver, guid), 0)
             if shownS != 1
                 _pendingFeats = True
@@ -3584,16 +3997,23 @@ Function HandleFeats(Actor player)
     _pendingFeats = False
 
     Int deaths = PersistGetInt(player, GetKey(deathCount, guid), 0)
-    Int soulsObtained = PersistGetInt(player, GetKey(dragonSoulsTrusted, guid), 0)
+    Int soulsObtained = PersistGetInt(player, GetKey(dragonSoulsTotal, guid), 0)
+    Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+
+    if curTier == TIER_CHIM || curTier == TIER_DEFIANT
+        return
+    endif
 
     ; ---- Defiant Feat (eligibility only; activation occurs at the end of the 10th-death transition sequence) ----
-    if !_disableDefiantSoulFeat
+    if !_disableDefiantFeat
         Bool defiantEligible = (soulsObtained >= 1 && deaths < IRON_SOUL_MAX_LIVES)
         Int defFeat = PersistGetInt(player, GetKey(defiantFeatUnlocked, guid), 0)
         if defiantEligible && defFeat != 1
+            LogMsg(LOG_INFO(), "HandleFeats: Defiant Soul feat unlocked (eligibility met); showing unlock message")
             PersistSetInt(player, GetKey(defiantFeatUnlocked, guid), 1, True)
-            JournalLogEvent("Soul Feat Unlocked: Defiant Soul")
-            OpenTimedMessageSWF_SFX(ResolveDefiantFeatUnlockMenu(), 10.0, SFXFeatDefiant, player)
+            IronSoulNative.DataFlushIfDirty()
+            JournalLogEvent("Soul Feat Unlocked: Defiant Soul.")
+            OpenTimedMessageSWF_KeyDismiss_SFX(ResolveDefiantFeatUnlockMenu(), 30.0, 8.0, SFXFeatDefiant, player)
             return
         endif
     endif
@@ -3601,7 +4021,7 @@ Function HandleFeats(Actor player)
     ; ---- Soul Feats (prestige tiers; do not affect death lifecycle) ----
     ; Option A: grant only the highest eligible tier.
     if !_disableSoulFeats
-        Int desiredTier = 0
+        Int desiredTier = TIER_IRON
         if deaths < IRON_SOUL_MAX_LIVES
             ; Tier eligibility (highest wins): Platinum > Ebon > Gold > Silver.
             ; Platinum variant credit priority: Molag Bal (Vigilant) > Miraak (Dragonborn).
@@ -3610,7 +4030,7 @@ Function HandleFeats(Actor player)
             Bool molagKilled = (molagFlag == 1)
             Bool miraakKilledBool = (miraakFlag == 1)
             if molagKilled || miraakKilledBool
-                desiredTier = 4 ; Platinum
+                desiredTier = TIER_PLATINUM
 
             else
                 Int alduinFlag = PersistGetInt(player, GetKey(alduinKilled, guid), 0)
@@ -3618,49 +4038,53 @@ Function HandleFeats(Actor player)
                 Bool alduinKilledBool = (alduinFlag == 1)
                 Bool harkonKilledBool = (harkonFlag == 1)
                 if alduinKilledBool || harkonKilledBool
-                    desiredTier = 3 ; Ebon
+                    desiredTier = TIER_EBON
 
                 elseif soulsObtained >= 20
-                    desiredTier = 2 ; Gold
+                    desiredTier = TIER_GOLD
 
                 elseif soulsObtained >= 10
-                    desiredTier = 1 ; Silver
+                    desiredTier = TIER_SILVER
                 endif
             endif
         endif
 
-        Int curTier = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
-
         if desiredTier > curTier
             PersistSetInt(player, GetKey(soulTierIndex, guid), desiredTier, True)
+            SyncLuckNotifiedTierToCurrent(player, guid)
+            IronSoulNative.DataFlushIfDirty()
 
-        if desiredTier == 4
+		    ; Update splash/lvlWidget for next game launch.
+            IronSoulNative.ApplyDynamicSplash(desiredTier)
+            IronSoulNative.ApplyDynamicLevelWidget(desiredTier)
+
+        if desiredTier == TIER_PLATINUM
             Int molagFlagJ = PersistGetInt(player, GetKey(molagBalKilled, guid), 0)
             Int miraakFlagJ = PersistGetInt(player, GetKey(miraakKilled, guid), 0)
             if molagFlagJ == 1
-                JournalLogEvent("Molag Bal Defeated: Soul Feat Unlocked: Platinum Soul")
+                JournalLogEvent("Molag Bal Defeated: Soul Feat Unlocked: Platinum Soul.")
             elseif miraakFlagJ == 1
-                JournalLogEvent("Miraak Defeated: Soul Feat Unlocked: Platinum Soul")
+                JournalLogEvent("Miraak Defeated: Soul Feat Unlocked: Platinum Soul.")
             else
-                JournalLogEvent("Soul Feat Unlocked: Platinum Soul")
+                JournalLogEvent("Soul Feat Unlocked: Platinum Soul.")
             endif
         
-        elseif desiredTier == 3
+        elseif desiredTier == TIER_EBON
             Int alduinFlagJ = PersistGetInt(player, GetKey(alduinKilled, guid), 0)
             Int harkonFlagJ = PersistGetInt(player, GetKey(harkonKilled, guid), 0)
             if alduinFlagJ == 1
-                JournalLogEvent("Alduin Defeated: Soul Feat Unlocked: Ebon Soul")
+                JournalLogEvent("Alduin Defeated: Soul Feat Unlocked: Ebon Soul.")
             elseif harkonFlagJ == 1
-                JournalLogEvent("Harkon Defeated: Soul Feat Unlocked: Ebon Soul")
+                JournalLogEvent("Harkon Defeated: Soul Feat Unlocked: Ebon Soul.")
             else
-                JournalLogEvent("Soul Feat Unlocked: Ebon Soul")
+                JournalLogEvent("Soul Feat Unlocked: Ebon Soul.")
             endif
         
-        elseif desiredTier == 2
-            JournalLogEvent("Soul Feat Unlocked: Gilded Soul")
-        
-        elseif desiredTier == 1
-            JournalLogEvent("Soul Feat Unlocked: Silver Soul")
+        elseif desiredTier == TIER_GOLD
+            JournalLogEvent("Soul Feat Unlocked: Gilded Soul.")
+
+        elseif desiredTier == TIER_SILVER
+            JournalLogEvent("Soul Feat Unlocked: Silver Soul.")
         endif
             curTier = desiredTier
             ; SoulBonus sync only when tier changes
@@ -3668,9 +4092,10 @@ Function HandleFeats(Actor player)
         endif
 
         ; One-time tier messages (separate from tier int so we never spam messages on load).
-        if curTier == 4
+        if curTier == TIER_PLATINUM
             Int shownA = PersistGetInt(player, GetKey(tierMsgShownPlatinum, guid), 0)
             if shownA != 1
+                LogMsg(LOG_INFO(), "HandleFeats: Showing Platinum Soul feat unlock message (one-shot); locking out lower-tier messages")
                 ; Platinum locks out any lower-tier unlock messages that were never obtained.
                 PersistSetInt(player, GetKey(tierMsgShownEbon, guid), 1, True)
                 PersistSetInt(player, GetKey(tierMsgShownGold, guid), 1, True)
@@ -3691,17 +4116,20 @@ Function HandleFeats(Actor player)
                     PersistSetInt(player, GetKey(platinumFeatVariant, guid), platVar, True)
                 endif
 
-                String menuP = "5platinumfeatunlockmiraak"
+                String menuP = "6platinumfeatunlockmiraak"
                 if platVar == 1
-                    menuP = "5platinumfeatunlockmolagbal"
+                    menuP = "6platinumfeatunlockmolagbal"
                 endif
-                OpenTimedMessageSWF_SFX(SwfNoBonus(menuP), 10.0, SFXFeatPlatinum, player)
+                LogMsg(LOG_INFO(), "HandleFeats: Platinum variant=" + platVar + " menu=" + menuP)
+                OpenTimedMessageSWF_KeyDismiss_SFX(SwfNoBonus(menuP), 30.0, 8.0, SFXFeatPlatinum, player)
+                MaybePlayLuckImprovedAfterTierUnlock(player)
                 return
             endif
 
-        elseif curTier == 3
+        elseif curTier == TIER_EBON
             Int shownP = PersistGetInt(player, GetKey(tierMsgShownEbon, guid), 0)
             if shownP != 1
+                LogMsg(LOG_INFO(), "HandleFeats: Showing Ebon Soul feat unlock message (one-shot); locking out Silver/Gold messages")
                 ; Ebon locks out Silver/Gold unlock messages that were never obtained.
                 PersistSetInt(player, GetKey(tierMsgShownGold, guid), 1, True)
                 PersistSetInt(player, GetKey(tierMsgShownSilver, guid), 1, True)
@@ -3721,80 +4149,88 @@ Function HandleFeats(Actor player)
                     PersistSetInt(player, GetKey(ebonFeatVariant, guid), ebonVar, True)
                 endif
 
-                String menuE = "4ebonfeatunlockharkon"
+                String menuE = "5ebonfeatunlockharkon"
                 if ebonVar == 1
-                    menuE = "4ebonfeatunlockalduin"
+                    menuE = "5ebonfeatunlockalduin"
                 endif
-                OpenTimedMessageSWF_SFX(SwfNoBonus(menuE), 10.0, SFXFeatEbon, player)
+                LogMsg(LOG_INFO(), "HandleFeats: Ebon variant=" + ebonVar + " menu=" + menuE)
+                OpenTimedMessageSWF_KeyDismiss_SFX(SwfNoBonus(menuE), 30.0, 8.0, SFXFeatEbon, player)
+                MaybePlayLuckImprovedAfterTierUnlock(player)
                 return
             endif
 
-        elseif curTier == 2
+        elseif curTier == TIER_GOLD
             Int shownG = PersistGetInt(player, GetKey(tierMsgShownGold, guid), 0)
             if shownG != 1
+                LogMsg(LOG_INFO(), "HandleFeats: Showing Gold Soul feat unlock message (one-shot)")
                 PersistSetInt(player, GetKey(tierMsgShownGold, guid), 1, True)
-                OpenTimedMessageSWF_SFX(SwfNoBonus("3goldfeatunlock"), 10.0, SFXFeatGold, player)
+                OpenTimedMessageSWF_KeyDismiss_SFX(SwfNoBonus("4goldfeatunlock"), 30.0, 8.0, SFXFeatGold, player)
+                MaybePlayLuckImprovedAfterTierUnlock(player)
                 return
             endif
 
-        elseif curTier == 1
+        elseif curTier == TIER_SILVER
             Int shownS = PersistGetInt(player, GetKey(tierMsgShownSilver, guid), 0)
             if shownS != 1
+                LogMsg(LOG_INFO(), "HandleFeats: Showing Silver Soul feat unlock message (one-shot)")
                 PersistSetInt(player, GetKey(tierMsgShownSilver, guid), 1, True)
-                OpenTimedMessageSWF_SFX(SwfNoBonus("2silverfeatunlock"), 10.0, SFXFeatSilver, player)
+                OpenTimedMessageSWF_KeyDismiss_SFX(SwfNoBonus("3silverfeatunlock"), 30.0, 8.0, SFXFeatSilver, player)
+                MaybePlayLuckImprovedAfterTierUnlock(player)
                 return
             endif
         endif
     endif
 EndFunction
 
+Function MaybePlayLuckImprovedAfterTierUnlock(Actor player)
+    ; Show luckimproved.swf only when feats + respawn + luck systems are active.
+    if !player
+        return
+    endif
+    if _disableSoulFeats
+        return
+    endif
+    if !IsRespawnEnabled()
+        return
+    endif
+    if !IsLuckActive()
+        return
+    endif
+
+    ; Timing: after unlock menu closes -> wait 1s -> show for 3s.
+    Utility.Wait(1.0)
+    UI.CloseCustomMenu()
+    UI.OpenCustomMenu("luckimproved", 0)
+    PlaySFX(SFXLuckSuccess, player)
+    Utility.WaitMenuMode(3.0)
+    UI.CloseCustomMenu()
+EndFunction
+
 String Function TierMenuPrefix(Int soulTier)
-    ; Tier state: 0=Iron, 1=Silver, 2=Gold, 3=Ebon, 4=Platinum
-    if soulTier == 0
-        return "1iron"
+    ; Tier state: 0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum
+    if soulTier == TIER_CHIM
+        return "0chim"
 
-    elseif soulTier == 1
-        return "2silver"
+    elseif soulTier == TIER_DEFIANT
+        return "1defiant"
 
-    elseif soulTier == 2
-        return "3gold"
+    elseif soulTier == TIER_IRON
+        return "2iron"
 
-    elseif soulTier == 3
-        return "4ebon"
+    elseif soulTier == TIER_SILVER
+        return "3silver"
 
-    elseif soulTier == 4
-        return "5platinum"
+    elseif soulTier == TIER_GOLD
+        return "4gold"
+
+    elseif soulTier == TIER_EBON
+        return "5ebon"
+
+    elseif soulTier >= TIER_PLATINUM
+        return "6platinum"
     endif
     ; Fallback
-    return "1iron"
-EndFunction
-
-String Function ResolveDeathMessageMenu(Int soulTier, Int deathsNow, Bool isDefiant)
-    if isDefiant
-        return "0defiantdeath" + deathsNow
-    endif
-    return TierMenuPrefix(soulTier) + "death" + deathsNow
-EndFunction
-
-String Function ResolvePermadeathMenu(Int soulTier, Bool isDefiant)
-    if isDefiant
-        return "0defiantpermadeath"
-    endif
-    return TierMenuPrefix(soulTier) + "permadeath"
-EndFunction
-
-String Function ResolveDSRMenu(Int soulTier, Bool isDefiant)
-    if isDefiant
-        return "0defiantdragonsoulrevive"
-    endif
-    return TierMenuPrefix(soulTier) + "dragonsoulrevive"
-EndFunction
-
-String Function ResolveRespawnMenu(Int soulTier, Bool isDefiant)
-    if isDefiant
-        return "0defiantrespawn"
-    endif
-    return TierMenuPrefix(soulTier) + "respawn"
+    return "2iron"
 EndFunction
 
 ; Miraak defeated latch (Dragonborn DLC): used for the Platinum Soul feat unlock path.
@@ -3809,6 +4245,7 @@ Bool Function IsMiraakDefeated(Actor player, String guid)
     if DLC2MQ06
         ; Stages 580/600 (and quest completion) are used as the authoritative "Miraak defeated" signals. Stages 580/600 occur later in the sequence.
         if DLC2MQ06.GetStageDone(580) || DLC2MQ06.GetStageDone(600) || DLC2MQ06.IsCompleted()
+            LogMsg(LOG_INFO(), "miraakKilled: latched TRUE (one-shot)")
             PersistSetInt(player, GetKey(miraakKilled, guid), 1, True)
             ; If Miraak was just latched as defeated, schedule feats evaluation immediately.
             TryScheduleFeats(player)
@@ -3830,6 +4267,7 @@ Bool Function IsAlduinDefeated(Actor player, String guid)
     if MQ305
         ; MQ305 stage 190 is the "Alduin is dead" signal (fires immediately on death).
         if MQ305.GetStage() >= 190
+            LogMsg(LOG_INFO(), "alduinKilled: latched TRUE (one-shot)")
             PersistSetInt(player, GetKey(alduinKilled, guid), 1, True)
             TryScheduleFeats(player)
             return True
@@ -3849,6 +4287,7 @@ Bool Function IsHarkonDefeated(Actor player, String guid)
     if DLC1VQ08
         ; Stage 200 is the first authoritative quest-level "Harkon defeated" signal.
         if DLC1VQ08.GetStage() >= 200
+            LogMsg(LOG_INFO(), "harkonKilled: latched TRUE (one-shot)")
             PersistSetInt(player, GetKey(harkonKilled, guid), 1, True)
             TryScheduleFeats(player)
             return True
@@ -3876,6 +4315,7 @@ Bool Function IsMolagBalDefeatedVigilant(Actor player, String guid)
 
     if _vigilantMq08Cache
         if _vigilantMq08Cache.GetStage() >= 310
+            LogMsg(LOG_INFO(), "molagBalKilled: latched TRUE (one-shot)")
             PersistSetInt(player, GetKey(molagBalKilled, guid), 1, True)
             TryScheduleFeats(player)
             return True
@@ -3891,15 +4331,22 @@ EndFunction
 ; ==================
 
 Spell Function GetSoulBonusSpellByTier(Int tier)
-    if tier <= 0
+    if tier == TIER_CHIM
+        return None
+    elseif tier == TIER_DEFIANT
+        if SoulBonus0Defiant
+            return SoulBonus0Defiant
+        endif
         return SoulBonus1Iron
-    elseif tier == 1
+    elseif tier == TIER_IRON
+        return SoulBonus1Iron
+    elseif tier == TIER_SILVER
         return SoulBonus2Silver
-    elseif tier == 2
+    elseif tier == TIER_GOLD
         return SoulBonus3Gold
-    elseif tier == 3
+    elseif tier == TIER_EBON
         return SoulBonus4Ebon
-    elseif tier >= 4
+    elseif tier >= TIER_PLATINUM
         return SoulBonus5Platinum
     endif
     return None
@@ -3908,6 +4355,9 @@ EndFunction
 Function RemoveSoulBonusAll(Actor player)
     if !player
         return
+    endif
+    if SoulBonus0Defiant && player.HasSpell(SoulBonus0Defiant)
+        player.RemoveSpell(SoulBonus0Defiant)
     endif
     if SoulBonus1Iron && player.HasSpell(SoulBonus1Iron)
         player.RemoveSpell(SoulBonus1Iron)
@@ -3928,45 +4378,80 @@ EndFunction
 
 Function SyncSoulBonusAbility(Actor player, String guid)
     ; Keep the SoulBonus tier Ability spell in sync with the character's current Soul Tier.
-    ; Tier mapping: 0=Iron, 1=Silver, 2=Gold, 3=Ebon, 4=Platinum.
+    ; Tier mapping: 0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum.
 
     if !player
         return
     endif
 
-    ; If SoulBonus is disabled or we're uninstalling, strip immediately even if GUID isn't ready yet.
-    if _disableSoulBonus || _uninstallMode
+    ; Uninstall/disabled always strips SoulBonus immediately.
+    if _uninstallMode || _modDisabled
         RemoveSoulBonusAll(player)
         _soulBonusAppliedTier = -1
         return
     endif
 
-    ; We need a GUID to read persisted tier/Defiant state.
+    ; If GUID is not ready yet, do nothing.
     if guid == ""
         return
     endif
 
-    ; Defiant active hard-disables SoulBonus: strip all abilities and stop.
-    Int defActiveSB = PersistGetInt(player, GetKey(defiantActivated, guid), 0)
-    if defActiveSB == 1
+    Int tier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+
+    if tier == TIER_CHIM
         RemoveSoulBonusAll(player)
         _soulBonusAppliedTier = -1
         return
     endif
 
-    Int tier = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
-    if tier < 0
-        tier = 0
-    elseif tier > 4
-        tier = 4
+    Bool defiantSB = (tier == TIER_DEFIANT)
+
+    ; Defiant (tier 1) is gated by DisableSoulFatigue.
+    if defiantSB && _disableSoulFatigue
+        RemoveSoulBonusAll(player)
+        _soulBonusAppliedTier = -1
+        return
     endif
 
+    ; Non-Defiant tiers are gated by DisableSoulBonus.
+    if !defiantSB && _disableSoulBonus
+        RemoveSoulBonusAll(player)
+        _soulBonusAppliedTier = -1
+        return
+    endif
+
+    LogMsg(LOG_DBG(), "SyncSoulBonusAbility: BEFORE | HP=" + player.GetAV("Health") \
+        + " Mag=" + player.GetAV("Magicka") \
+        + " Stam=" + player.GetAV("Stamina"))
+
     Spell desired = GetSoulBonusSpellByTier(tier)
+
+    ; Build a small label for logging.
+    String tierLabel = "Iron"
+    if tier == TIER_CHIM
+        tierLabel = "CHIM"
+    elseif tier == TIER_DEFIANT
+        tierLabel = "Defiant"
+    elseif tier == TIER_SILVER
+        tierLabel = "Silver"
+    elseif tier == TIER_GOLD
+        tierLabel = "Gold"
+    elseif tier == TIER_EBON
+        tierLabel = "Ebon"
+    elseif tier == TIER_PLATINUM
+        tierLabel = "Platinum"
+    endif
+
+    ; Intentional: debug-only pause to let AV changes settle before logging snapshots.
+    if _logEnabled && _logLevel >= LOG_DBG()
+        Utility.Wait(0.2) 
+    endif
 
     ; Fast path: same tier as last time. If the spell was removed externally, reapply.
     if tier == _soulBonusAppliedTier
         if desired && !player.HasSpell(desired)
             player.AddSpell(desired, False)
+            LogMsg(LOG_INFO(), "SyncSoulBonusAbility: SoulBonus re-applied (" + tierLabel + ", tier=" + tier + ")")
         endif
         return
     endif
@@ -3975,8 +4460,19 @@ Function SyncSoulBonusAbility(Actor player, String guid)
     RemoveSoulBonusAll(player)
     if desired
         player.AddSpell(desired, False)
+        LogMsg(LOG_INFO(), "SyncSoulBonusAbility: SoulBonus applied (" + tierLabel + ", tier=" + tier + ")")
     endif
     _soulBonusAppliedTier = tier
+
+    ; Intentional: debug-only pause to let AV changes settle before logging snapshots.
+    if _logEnabled && _logLevel >= LOG_DBG()
+        Utility.Wait(0.2) 
+    endif
+
+    LogMsg(LOG_DBG(), "SyncSoulBonusAbility: AFTER  | HP=" + player.GetAV("Health") \
+        + " Mag=" + player.GetAV("Magicka") \
+        + " Stam=" + player.GetAV("Stamina"))
+    
 EndFunction
 
 
@@ -3984,7 +4480,7 @@ EndFunction
 ; --- UI & Messaging ---
 ; ======================
 
-Function OpenTimedMessageSWF(String menuName, Float duration = 4.0)
+Function OpenTimedMessageSWF(String menuName, Float duration = 6.0, Bool restoreMusic = True)
     if menuName == ""
         return
     endif
@@ -3994,13 +4490,181 @@ Function OpenTimedMessageSWF(String menuName, Float duration = 4.0)
         duration = 0.1
     endif
 
+    if AudioCategoryMUS && !_disableMusicFade
+        Float menuMusicVol = Utility.GetINIFloat("fVal3:AudioMenu")
+        if menuMusicVol < 0.0 || menuMusicVol > 1.0
+            menuMusicVol = 1.0
+        endif
+        IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol)
+    endif
+
     ; Aggressive policy: interrupt any existing custom menu to guarantee our timed message shows and closes deterministically.
     UI.CloseCustomMenu()
-    Utility.WaitMenuMode(0.05)
 
     UI.OpenCustomMenu(menuName, 0)
     Utility.WaitMenuMode(duration)
     UI.CloseCustomMenu()
+    if restoreMusic && AudioCategoryMUS && !_disableMusicFade
+        IronSoulNative.MusicFadeIn(AudioCategoryMUS, 2.0)
+    endif
+EndFunction
+
+Function OpenTimedMessageSWF_SFX(String swfName, Float seconds, Sound sfx, Actor player, Bool restoreMusic = True)
+    PlaySFX(sfx, player)
+    OpenTimedMessageSWF(swfName, seconds, restoreMusic)
+EndFunction
+
+; Opens a CustomMenu and keeps it up until:
+;  - at least minDismissSeconds have elapsed, AND
+;  - the player presses any key, OR maxDuration elapses.
+Function OpenTimedMessageSWF_KeyDismiss(String menuName, Float maxDuration = 6.0, Float minDismissSeconds = 6.0, Bool restoreMusic = True)
+    if menuName == ""
+        return
+    endif
+
+    ; Clamp so we never hang or no-op.
+    if maxDuration <= 0.0
+        maxDuration = 0.1
+    endif
+    if minDismissSeconds < 0.0
+        minDismissSeconds = 0.0
+    endif
+    if minDismissSeconds > maxDuration
+        minDismissSeconds = maxDuration
+    endif
+
+    if AudioCategoryMUS && !_disableMusicFade
+        Float menuMusicVol2 = Utility.GetINIFloat("fVal3:AudioMenu")
+        if menuMusicVol2 < 0.0 || menuMusicVol2 > 1.0
+            menuMusicVol2 = 1.0
+        endif
+        IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol2)
+    endif
+
+    UI.CloseCustomMenu()
+
+    _keyDismissPressed = False
+    _keyDismissActive  = False
+
+    UI.OpenCustomMenu(menuName, 0)
+
+    ; Minimum on-screen time.
+    if minDismissSeconds > 0.0
+        Utility.WaitMenuMode(minDismissSeconds)
+    endif
+
+    ; Arm dismissal-on-key for the remainder window.
+    Float remaining = maxDuration - minDismissSeconds
+    if remaining > 0.0
+        _keyDismissPressed = False
+        _keyDismissActive  = True
+        RegisterForAllKeys()
+
+        ; Poll in short chunks so we can react quickly to keypress.
+        while remaining > 0.0 && !_keyDismissPressed
+            Utility.WaitMenuMode(0.10)
+            remaining -= 0.10
+        endwhile
+
+        _keyDismissActive = False
+        UnregisterForAllKeys()
+    endif
+
+    UI.CloseCustomMenu()
+
+    if restoreMusic && AudioCategoryMUS && !_disableMusicFade
+        IronSoulNative.MusicFadeIn(AudioCategoryMUS, 2.0)
+    endif
+
+EndFunction
+
+Function OpenTimedMessageSWF_KeyDismiss_SFX(String swfName, Float maxSeconds, Float minDismissSeconds, Sound sfx, Actor player, Bool restoreMusic = True)
+    PlaySFX(sfx, player)
+    OpenTimedMessageSWF_KeyDismiss(swfName, maxSeconds, minDismissSeconds, restoreMusic)
+EndFunction
+
+; Special Variant for Iron Intro: Does not fade music back in.
+Function OpenTimedMessageSWF_KeyDismissIronIntro(String menuName, Float maxDuration = 6.0, Float minDismissSeconds = 6.0, Sound sfx = None, Actor player = None)
+    if menuName == ""
+        return
+    endif
+
+    ; Optional SFX first (matches previous wrapper behavior)
+    if sfx != None && player != None
+        PlaySFX(sfx, player)
+    endif
+
+    ; Clamp so we never hang or no-op.
+    if maxDuration <= 0.0
+        maxDuration = 0.1
+    endif
+    if minDismissSeconds < 0.0
+        minDismissSeconds = 0.0
+    endif
+    if minDismissSeconds > maxDuration
+        minDismissSeconds = maxDuration
+    endif
+
+    if AudioCategoryMUS && !_disableMusicFade
+        Float menuMusicVol2 = Utility.GetINIFloat("fVal3:AudioMenu")
+        if menuMusicVol2 < 0.0 || menuMusicVol2 > 1.0
+            menuMusicVol2 = 1.0
+        endif
+        IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol2)
+    endif
+
+    UI.CloseCustomMenu()
+
+    _keyDismissPressed = False
+    _keyDismissActive  = False
+
+    UI.OpenCustomMenu(menuName, 0)
+
+    ; Minimum on-screen time.
+    if minDismissSeconds > 0.0
+        Utility.WaitMenuMode(minDismissSeconds)
+    endif
+
+    ; Arm dismissal-on-key for the remainder window.
+    Float remaining = maxDuration - minDismissSeconds
+    if remaining > 0.0
+        _keyDismissPressed = False
+        _keyDismissActive  = True
+        RegisterForAllKeys()
+
+        ; Poll in short chunks so we can react quickly to keypress.
+        while remaining > 0.0 && !_keyDismissPressed
+            Utility.WaitMenuMode(0.10)
+            remaining -= 0.10
+        endwhile
+
+        _keyDismissActive = False
+        UnregisterForAllKeys()
+    endif
+
+    UI.CloseCustomMenu()
+EndFunction
+
+Bool Function ShowIronIntro(Actor player, String guid)
+
+    if !player || guid == ""
+        return False
+    endif
+
+    if _disableIronSoulIntro
+        return False
+    endif
+
+    Int shown = PersistGetInt(player, GetKey(ironIntroShown, guid), 0)
+    if shown == 1
+        return False
+    endif
+
+    OpenTimedMessageSWF_KeyDismissIronIntro(SwfNoBonus("2ironintro"), 30.0, 14.5, SFXIronIntro, player)
+    PersistSetInt(player, GetKey(ironIntroShown, guid), 1, True)
+    Utility.Wait(1.0)
+    return True
+
 EndFunction
 
 ; If Soul Bonus is disabled, use the "nobonus" SWF variants for specific menus.
@@ -4008,90 +4672,13 @@ String Function SwfNoBonus(String menuName)
     if menuName == ""
         return ""
     endif
+    if StringUtil.Find(menuName, "dragonsoulrevive") != -1
+        return menuName
+    endif
     if _disableSoulBonus
         return menuName + "nobonus"
     endif
     return menuName
-EndFunction
-
-; Defiant Soul unlock menu has 4 variants depending on Soul Feats and Soul Bonus settings.
-; 0defiantfeatunlock                 : feats and soulbonus enabled
-; 0defiantfeatunlocknobonusnofeats   : feats and soulbonus disabled
-; 0defiantfeatunlocknofeats          : feats disabled
-; 0defiantfeatunlocknobonus          : soulbonus disabled
-String Function ResolveDefiantFeatUnlockMenu()
-    String base = "0defiantfeatunlock"
-    if _disableSoulFeats
-        if _disableSoulBonus
-            return base + "nobonusnofeats"
-        endif
-        return base + "nofeats"
-    endif
-    if _disableSoulBonus
-        return base + "nobonus"
-    endif
-    return base
-EndFunction
-
-; Defiant transition sequence: 3s permadeath tier screen -> 3s defiant transition -> 10s defiant intro.
-; Aggressive policy: interrupts any other custom menu at start, then keeps something open continuously.
-Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD)
-    String m1 = ResolvePermadeathMenu(soulTierTD, False)
-    String m2 = ResolveDefiantTransitionMenu(soulTierTD)
-    String m3 = SwfNoBonus("0defiantintro")
-
-    if m1 == "" || m2 == "" || m3 == ""
-        return
-    endif
-
-    ; Play Defiant transition SFX at the start of the sequence (step 1).
-    Actor player = Game.GetPlayer()
-    PlaySFX(SFXDefiantTransition, player)
-
-    ; Interrupt anything currently open once.
-    UI.CloseCustomMenu()
-    Utility.WaitMenuMode(0.05)
-
-    ; 1) 3 seconds
-    UI.OpenCustomMenu(m1, 0)
-    Utility.WaitMenuMode(3.0)
-
-    ; 2) 3 seconds (no close-first gap)
-    UI.OpenCustomMenu(m2, 0)
-    Utility.WaitMenuMode(3.0)
-
-    ; 3) 10 seconds (no close-first gap)
-    UI.OpenCustomMenu(m3, 0)
-    Utility.WaitMenuMode(10.0)
-
-    UI.CloseCustomMenu()
-EndFunction
-
-; Used by IronSoulDSROnDying so the OnDying script can be the ONLY place
-; that opens the Dragon Soul Revive UI, while still using Iron Soul's tier/Defiant
-; logic to pick the correct contextual menu.
-String Function ResolveDragonSoulReviveMenu(Actor player)
-    if !player
-        return ""
-    endif
-
-    String guid = EnsureGuid(player)
-    if guid == ""
-        return "1irondragonsoulrevive"
-    endif
-
-    if _disableDragonSoulReviveMessage
-        return ""
-    endif
-
-    Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
-    Int defActive = PersistGetInt(player, GetKey(defiantActivated, guid), 0)
-
-    if _disableDefiantSoulFeat
-        defActive = 0
-    endif
-
-    return ResolveDSRMenu(soulTier, (defActive == 1))
 EndFunction
 
 Function HandleLoadNotification(Actor player)
@@ -4108,56 +4695,38 @@ Function HandleLoadNotification(Actor player)
 		return
 	endif
 
-	_pendingLoadMessage = False
+    String guid = GetTickGuid(player)
+    if guid == ""
+        ; GUID can be briefly unavailable right after load; keep the job armed and retry shortly.
+        _loadMessageAt = Utility.GetCurrentRealTime() + 1.0
+        return
+    endif
 
-	String guid = EnsureGuid(player)
-	if guid == ""
-		return
-	endif
+    _pendingLoadMessage = False
 
 	Int deaths     = PersistGetInt(player, GetKey(deathCount, guid), 0)
-	Int soulTier   = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
+	Int soulTier   = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
 	Int daysPassed = Utility.GetCurrentGameTime() as Int
-	Int defActive  = PersistGetInt(player, GetKey(defiantActivated, guid), 0)
-	if _disableDefiantSoulFeat
-		defActive = 0
-	endif
-
-	; Defiant "active band" (post-activation, before cap).
-	Bool defiant = (defActive == 1 && deaths >= IRON_SOUL_MAX_LIVES && deaths < DEFIANT_SOUL_MAX_LIVES)
-
-	; Endless opt-in is controlled by Endless.CHIM (see LoadConfig()).
-	Bool endless = IsEndlessActive(deaths, defActive)
-
-	; Effective cap (used only for permadeath enforcement when CHIM is disabled).
-	Int maxLives = GetEffectiveMaxLives(player, guid, deaths)
-
-	; Permadeath enforcement on load (CHIM disables load enforcement)
-	if _CHIM == 0
-		if deaths >= maxLives
-			OpenTimedMessageSWF_SFX(ResolvePermadeathMenu(soulTier, (defActive == 1)), 10.0, SFXPermadeath, player)
-			FinalizeAndQuitMainMenu()
-			return
-		endif
-	endif
+	Bool defiant = (soulTier == TIER_DEFIANT && deaths >= IRON_SOUL_MAX_LIVES && deaths < DEFIANT_SOUL_MAX_LIVES)
+    Bool chimTier = (soulTier == TIER_CHIM)
 
 	; LoadNotificationMode:
-	;  0 = default (stats + flavour)
-	;  1 = no flavour (stats only)
-	;  2 = only flavour
+	;  0 = default (stats + flavor)
+	;  1 = no flavor (stats only)
+	;  2 = only flavor
 	;  3 = disabled
 	if _loadNotificationMode == 3
 		return
 	endif
 	Bool showStats  = (_loadNotificationMode == 0 || _loadNotificationMode == 1)
-	Bool showFlavour = (_loadNotificationMode == 0 || _loadNotificationMode == 2)
+	Bool showFlavor = (_loadNotificationMode == 0 || _loadNotificationMode == 2)
 
 	Bool luckActive = IsLuckActive()
 	Int luckVal = 100
-	Int resetKind = 2
+    Int luckMax = 100
 	if luckActive
+        luckMax = GetCurrentMaxLuck(player, guid)
 		luckVal = GetLuckValue(player, guid)
-		resetKind = PersistGetInt(player, GetKey(luckResetKind, guid), 2)
 	endif
 
 	if showStats
@@ -4168,21 +4737,25 @@ Function HandleLoadNotification(Actor player)
 		endif
 	endif
 
-	if !showFlavour
+	if !showFlavor
 		return
 	endif
 
-	; If Luck is active and not full, replace the 2nd load notification with Luck flavour.
-	; Luck 100 uses the normal tier-dependent load notification.
-	if luckActive && luckVal < 100
-		Debug.Notification(PickLuckLoadFlavour(luckVal, resetKind))
+	; If Luck is active and not full, replace the 2nd load notification with Luck flavor.
+	; Luck at tier max uses the normal tier-dependent load notification.
+	if luckActive && luckVal < luckMax
+		Debug.Notification(PickLuckLoadFlavor(luckVal, luckMax))
 		return
 	endif
 
-	; Priority: Endless > Defiant > Soul Feat (death-band flavour)
-	if endless
-		; When Endless is enabled (CHIM opt-in), always use the CHIM/Godhead notification pool.
-		NotifyEndlessChimLoad(deaths)
+	; Priority: CHIM > Defiant > Soul Feat (death-band flavor)
+	if chimTier
+		; CHIM tier uses the CHIM/Godhead flavor pool.
+		Int idx = Utility.RandomInt(0, 9)
+		String line = PickCHIMCHIMLine(idx)
+		if line != ""
+			Debug.Notification(line)
+		endif
 
 	elseif defiant
 		; After 75 deaths in Defiant mode, show a "rest" warning instead of the usual line.
@@ -4193,210 +4766,68 @@ Function HandleLoadNotification(Actor player)
 		endif
 
 	else
-		; Death-band flavour (under 10 deaths):
+		; Death-band flavor (under 10 deaths):
 		; 0: peerless
 		; 1-3: prevails
 		; 4-6: rises stronger
 		; 7-9: endures
 
 		if deaths <= 0
-			if soulTier == 4
+			if soulTier == TIER_PLATINUM
 				Debug.Notification("Your Platinum Soul knows no equal")
-			elseif soulTier == 3
+			elseif soulTier == TIER_EBON
 				Debug.Notification("Your Ebon Soul defies fate.")
-			elseif soulTier == 2
+			elseif soulTier == TIER_GOLD
 				Debug.Notification("Your Gilded Soul is peerless.")
-			elseif soulTier == 1
+			elseif soulTier == TIER_SILVER
 				Debug.Notification("Your Silver Soul is peerless.")
 			else
 				Debug.Notification("Your Iron Soul is peerless.")
 			endif
 
 		elseif deaths <= 3
-			if soulTier == 4
+			if soulTier == TIER_PLATINUM
 				Debug.Notification("Your Platinum Soul prevails.")
-			elseif soulTier == 3
+			elseif soulTier == TIER_EBON
 				Debug.Notification("Your Ebon Soul prevails.")
-			elseif soulTier == 2
+			elseif soulTier == TIER_GOLD
 				Debug.Notification("Your Gilded Soul prevails.")
-			elseif soulTier == 1
+			elseif soulTier == TIER_SILVER
 				Debug.Notification("Your Silver Soul prevails.")
 			else
 				Debug.Notification("Your Iron Soul prevails.")
 			endif
 
 		elseif deaths <= 6
-			if soulTier == 4
+			if soulTier == TIER_PLATINUM
 				Debug.Notification("Your Platinum Soul rises stronger.")
-			elseif soulTier == 3
+			elseif soulTier == TIER_EBON
 				Debug.Notification("Your Ebon Soul rises stronger.")
-			elseif soulTier == 2
+			elseif soulTier == TIER_GOLD
 				Debug.Notification("Your Gilded Soul rises stronger.")
-			elseif soulTier == 1
+			elseif soulTier == TIER_SILVER
 				Debug.Notification("Your Silver Soul rises stronger.")
 			else
 				Debug.Notification("Your Iron Soul rises stronger.")
 			endif
 
 		else
-			if soulTier == 4
+			if soulTier == TIER_PLATINUM
 				Debug.Notification("Your Platinum Soul endures.")
-			elseif soulTier == 3
+			elseif soulTier == TIER_EBON
 				Debug.Notification("Your Ebon Soul endures.")
-			elseif soulTier == 2
+			elseif soulTier == TIER_GOLD
 				Debug.Notification("Your Gilded Soul endures.")
-			elseif soulTier == 1
+			elseif soulTier == TIER_SILVER
 				Debug.Notification("Your Silver Soul endures.")
 			else
 				Debug.Notification("Your Iron Soul endures.")
 			endif
 		endif
 	endif
-
-    ;TEST
-    Form f = Game.GetFormFromFile(0x000B12, "Iron Soul - Permadeath Lite.esp")
-    GlobalVariable gv = f as GlobalVariable
-    
-    if gv
-        gv.SetValueInt(5)
-        Debug.MessageBox("IronSoul_DeathCount = " + gv.GetValueInt())
-    else
-        Debug.MessageBox("IronSoul_DeathCount NOT FOUND")
-    endif
 EndFunction
 
-Function HandleRespawnMenu(Actor player)
-    ; Job W: delayed free-respawn warning (after respawn completes)
-    if !IsRespawnEnabled()
-        _pendingRespawnMenu = False
-        _respawnMenuArmed = False
-        return
-    endif
-
-    if !_pendingRespawnMenu || !_respawnMenuArmed
-        return
-    endif
-
-    if Utility.GetCurrentRealTime() < _respawnWarningAt
-        return
-    endif
-
-    ; If we're in menu mode, defer showing the message (do NOT consume yet).
-    if Utility.IsInMenuMode()
-        return
-    endif
-
-    ; Now safe to consume the job (it won't get stuck in menus).
-    _pendingRespawnMenu = False
-    _respawnMenuArmed = False
-
-    if player && !player.IsDead() && !_disableRespawnMessage
-        String guid = EnsureGuid(player)
-        if guid != ""
-            Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), 0)
-            Int defActive = PersistGetInt(player, GetKey(defiantActivated, guid), 0)
-            if _disableDefiantSoulFeat
-                defActive = 0
-            endif
-            OpenTimedMessageSWF_SFX(ResolveRespawnMenu(soulTier, (defActive == 1)), 4.0, SFXRespawn, player)
-        endif
-    endif
-EndFunction
-
-String Function ResolveDefiantTransitionMenu(Int curTier)
-    ; Contextual 10th-death Defiant transition message, based on highest unlocked Soul Feat.
-    ; Tier state: 0=Iron, 1=Silver, 2=Gold, 3=Ebon, 4=Platinum. Highest eligible tier always takes priority.
-    if curTier >= 4
-        return "0defiantdeathmessage10platinum"
-
-    elseif curTier == 3
-        return "0defiantdeathmessage10ebon"
-
-    elseif curTier == 2
-        return "0defiantdeathmessage10gold"
-
-    elseif curTier == 1
-        return "0defiantdeathmessage10silver"
-    endif
-
-    ; Fallback: Iron tier.
-    return "0defiantdeathmessage10iron"
-EndFunction
-
-
-; ================
-; --- Sound FX ---
-; ================
-
-Bool Function CanPlaySFX()
-    if _disableSFX
-        return False
-    endif
-    if _uninstallMode
-        return False
-    endif
-    if _modDisabled
-        return False
-    endif
-    return True
-EndFunction
-
-Function PlaySFX(Sound sfx, Actor source)
-    if !CanPlaySFX()
-        return
-    endif
-    if !sfx || !source
-        return
-    endif
-    sfx.Play(source)
-EndFunction
-
-Function OpenTimedMessageSWF_SFX(String swfName, Float seconds, Sound sfx, Actor player)
-    PlaySFX(sfx, player)
-    OpenTimedMessageSWF(swfName, seconds)
-EndFunction
-
-
-; ===========================
-; --- Endless Mode (CHIM) ---
-; ===========================
-
-Bool Function IsEndlessActive(Int deathsNow, Int defActive)
-    ; Endless (CHIM) begins at the Iron cap unless Defiant is active,
-    ; in which case it begins at the Defiant cap.
-    Int endlessStart = IRON_SOUL_MAX_LIVES
-    if defActive == 1
-        endlessStart = DEFIANT_SOUL_MAX_LIVES
-    endif
-    return (_CHIM == 1 && deathsNow >= endlessStart)
-EndFunction
-
-Function NotifyEndlessChimLoad(Int deaths)
-    Int mode = IronSoulNative.GetConfigInt("LoadNotificationMode", 0)
-    if mode >= 3
-        return ; Disabled / Silent
-    endif
-
-    Int daysPassed = Utility.GetCurrentGameTime() as Int
-
-    ; Core notification
-    if mode != 2
-        Debug.Notification("Deaths: " + deaths + " | Days Passed: " + daysPassed)
-    endif
-
-    ; Flavour notification
-    if mode != 1
-        Int idx = Utility.RandomInt(0, 9)
-        String line = PickEndlessChimLine(idx)
-        if line != ""
-            Debug.Notification(line)
-        endif
-    endif
-EndFunction
-
-
-; Picks 1 of 10 short CHIM/Godhead lines and appends "Deaths: X / ???" on the same line.
-String Function PickEndlessChimLine(Int idx)
+String Function PickCHIMCHIMLine(Int idx)
     ; Keep lines ASCII-only for maximum compiler/font compatibility.
     if idx == 0
         return "The Godhead dreams on."
@@ -4430,151 +4861,756 @@ String Function PickEndlessChimLine(Int idx)
     endif
 EndFunction
 
+Function HandleRespawnMenu(Actor player)
+    ; Job W: delayed free-respawn warning (after respawn completes)
+    if !IsRespawnEnabled()
+        _pendingRespawnMenu = False
+        _respawnMenuArmed = False
+        return
+    endif
+
+    if !_pendingRespawnMenu || !_respawnMenuArmed
+        return
+    endif
+
+    if Utility.GetCurrentRealTime() < _respawnWarningAt
+        return
+    endif
+
+    ; If we're in menu mode, defer showing the message (do NOT consume yet).
+    if Utility.IsInMenuMode()
+        return
+    endif
+
+    ; Now safe to consume the job (it won't get stuck in menus).
+    _pendingRespawnMenu = False
+    _respawnMenuArmed = False
+
+    if player && !player.IsDead() && !_disableRespawnMessage
+        String guid = GetTickGuid(player)
+        if guid != ""
+            Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+            OpenTimedMessageSWF_SFX(ResolveRespawnMenu(soulTier), 6.0, SFXRespawn, player)
+        endif
+    endif
+EndFunction
+
+String Function ResolveDeathMessageMenu(Int soulTier, Int deathsNow)
+    if soulTier == TIER_CHIM
+        return "0chimdeath"
+    endif
+    if soulTier == TIER_DEFIANT
+        return "1defiantdeath" + deathsNow
+    endif
+    return TierMenuPrefix(soulTier) + "death" + deathsNow
+EndFunction
+
+String Function ResolvePermadeathMenu(Int soulTier)
+    if soulTier == TIER_CHIM
+        return "0chimdeath"
+    endif
+    if soulTier == TIER_DEFIANT
+        return "1defiantpermadeath"
+    endif
+    return TierMenuPrefix(soulTier) + "permadeath"
+EndFunction
+
+String Function ResolveDSRMenu(Actor player, String guid)
+    if !player
+        return ""
+    endif
+
+    if guid == ""
+        return "2irondragonsoulrevive"
+    endif
+
+    ; Message globally disabled
+    if _disableDragonSoulReviveMessage
+        return ""
+    endif
+
+    ; Read persisted state
+    Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+
+    if soulTier == TIER_CHIM
+        return "0chimdragonsoulrevive"
+    endif
+
+    String baseMenu = TierMenuPrefix(soulTier) + "dragonsoulrevive"
+
+    if _dragonSoulReviveLimit <= 1
+        return baseMenu
+    endif
+
+    ; HandleDragonSoulRevive records the current use before opening the menu.
+    Int playedNow = PersistGetInt(player, GetKey(dsrLimitPlayedSec, guid), 0)
+    Int recentUses = CompactDSRLimitUses(player, guid, playedNow)
+    if recentUses >= _dragonSoulReviveLimit
+        return TierMenuPrefix(soulTier) + "dragonsoulrevivelimit"
+    endif
+
+    return baseMenu
+EndFunction
+
+String Function ResolveRespawnMenu(Int soulTier)
+    if soulTier == TIER_CHIM
+        return "0chimrespawn"
+    endif
+    if soulTier == TIER_DEFIANT
+        return "1defiantrespawn"
+    endif
+    return TierMenuPrefix(soulTier) + "respawn"
+EndFunction
+
+String Function PickLuckLoadFlavor(Int luck, Int maxLuck)
+    ; Returns a flavor line for the 2nd load notification based on Luck% of tier max.
+    Int r = Utility.RandomInt(0, 4)
+    Int tier = LuckTier(luck, maxLuck)
+    Int lowThreshold = PercentThresholdCeil(maxLuck, 10)
+
+    if tier >= 3
+        ; 75%-max (High)
+        if r == 0
+            return "Your confidence holds."
+        elseif r == 1
+            return "Your resolve carries you forward."
+        elseif r == 2
+            return "Your steps feel true."
+        elseif r == 3
+            return "The path ahead is clear."
+        endif
+        return "You move with purpose."
+
+    elseif tier == 2
+        ; 50%-74% (Stable)
+        if r == 0
+            return "You feel steady again."
+        elseif r == 1
+            return "Your thoughts are clear."
+        elseif r == 2
+            return "You feel grounded."
+        elseif r == 3
+            return "Your footing is firm."
+        endif
+        return "You feel balanced once more."
+
+    elseif tier == 1
+        ; 25%-49% (Medium)
+        if r == 0
+            return "You remain unsettled."
+        elseif r == 1
+            return "Unease lingers."
+        elseif r == 2
+            return "Caution tempers your steps."
+        elseif r == 3
+            return "You feel on edge."
+        endif
+        return "Doubt has not fully left you."
+
+    elseif luck >= lowThreshold
+        ; 10%-24% (Low)
+        if r == 0
+            return "You are still shaken from your recent trial."
+        elseif r == 1
+            return "Your recent ordeal still weighs heavily on you."
+        elseif r == 2
+            return "Your breath has steadied, but not your thoughts."
+        elseif r == 3
+            return "You have not yet recovered from what nearly ended you."
+        endif
+        return "Your nerves have not fully settled."
+    endif
+
+    ; Default: 0-9% (Very Low)
+    if r == 0
+        return "The premonition of your death grips your soul."
+    elseif r == 1
+        return "You return shaken from a waking nightmare."
+    elseif r == 2
+        return "You see the fatal moment just before the blow lands."
+    elseif r == 3
+        return "The vision lingers, warning of what could be."
+    endif
+    return "You stand with foreknowledge you never wanted."
+
+EndFunction
+
+Function MaybeNotifyLuckThreshold(Actor player, String guid, Int luck, Int maxLuck = -1)
+    ; Do not notify during load stabilization
+    if _suppressLuckNotify
+        return
+    endif
+
+    ; Fires a one-time notification when luck reaches a new threshold:
+    ; 25%, 50%, 75%, 100% of current tier max luck.
+    if !player || guid == ""
+        return
+    endif
+    ; Intentional: cooldown mode shares this notification path to surface respawn-readiness progress.
+    if !IsLuckActive() && !IsCooldownModeActive()
+        return
+    endif
+    if _disableLuckCooldownReminderNotification
+        return
+    endif
+
+    if maxLuck <= 0
+        maxLuck = GetCurrentMaxLuck(player, guid)
+    endif
+    Int tierNow = LuckTier(luck, maxLuck)
+    if tierNow <= 0
+        return
+    endif
+
+    Int tierPrev = PersistGetInt(player, GetKey(luckNotifiedTier, guid), 0)
+    if tierNow <= tierPrev
+        return
+    endif
+
+    PersistSetInt(player, GetKey(luckNotifiedTier, guid), tierNow, True)
+
+    LogMsg(LOG_INFO(), "MaybeNotifyLuckThreshold: Luck threshold reached: tier " + tierPrev + " -> " + tierNow + " (luck=" + luck + "/" + maxLuck + ")")
+
+    String msg = "You're feeling lucky."
+    if tierNow == 1
+        msg = "Your luck is returning."
+    elseif tierNow == 2
+        msg = "Your luck has improved."
+    elseif tierNow == 3
+        msg = "The odds favor you."
+    endif
+    Debug.Notification(msg)
+EndFunction
+
+; Defiant Soul unlock menu has 4 variants depending on Soul Feats and Soul Bonus settings.
+; 1defiantfeatunlock                 : feats and soulbonus enabled
+; 1defiantfeatunlocknobonusnofeats   : feats and soulbonus disabled
+; 1defiantfeatunlocknofeats          : feats disabled
+; 1defiantfeatunlocknobonus          : soulbonus disabled
+String Function ResolveDefiantFeatUnlockMenu()
+    String base = "1defiantfeatunlock"
+    if _disableSoulFeats
+        if _disableSoulBonus
+            return base + "nobonusnofeats"
+        endif
+        return base + "nofeats"
+    endif
+    if _disableSoulBonus
+        return base + "nobonus"
+    endif
+    return base
+EndFunction
+
+String Function ResolveDefiantIntroMenu()
+    ; 4 Defiant intro variants:
+    ; - 1defiantintro
+    ; - 1defiantintronofatigue
+    ; - 1defiantintronobonus
+    ; - 1defiantintronobonusnofatigue
+    if _disableSoulBonus
+        if _disableSoulFatigue
+            return "1defiantintronobonusnofatigue"
+        endif
+        return "1defiantintronobonus"
+    endif
+    if _disableSoulFatigue
+        return "1defiantintronofatigue"
+    endif
+    return "1defiantintro"
+EndFunction
+
+String Function ResolveDefiantTransitionMenu(Int curTier)
+    ; Contextual 10th-death Defiant transition message, based on highest unlocked Soul Feat.
+    ; Tier state: 0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum.
+    if curTier >= TIER_PLATINUM
+        return "1defiantdeath10platinum"
+
+    elseif curTier == TIER_EBON
+        return "1defiantdeath10ebon"
+
+    elseif curTier == TIER_GOLD
+        return "1defiantdeath10gold"
+
+    elseif curTier == TIER_SILVER
+        return "1defiantdeath10silver"
+    endif
+
+    ; Fallback: Iron tier.
+    return "1defiantdeath10iron"
+EndFunction
+
+String Function ResolveCHIMTransitionMenu(Int curTier)
+    ; Contextual CHIM transition panel based on the pre-transition tier.
+    if curTier == TIER_DEFIANT
+        return "0chimdeathdefiant"
+
+    elseif curTier == TIER_IRON
+        return "0chimdeathiron"
+
+    elseif curTier == TIER_SILVER
+        return "0chimdeathsilver"
+
+    elseif curTier == TIER_GOLD
+        return "0chimdeathgold"
+
+    elseif curTier == TIER_EBON
+        return "0chimdeathebon"
+
+    elseif curTier >= TIER_PLATINUM
+        return "0chimdeathplatinum"
+    endif
+
+    return "0chimdeath"
+EndFunction
+
+Function PromoteToCHIMTier(Actor player, String guid)
+    if !player || guid == ""
+        return
+    endif
+
+    PersistSetInt(player, GetKey(soulTierIndex, guid), TIER_CHIM, True)
+    SyncLuckNotifiedTierToCurrent(player, guid)
+
+    ; Update splash/lvlWidget for next game launch.
+    IronSoulNative.ApplyDynamicSplash(TIER_CHIM)
+    IronSoulNative.ApplyDynamicLevelWidget(TIER_CHIM)
+
+    Int chimLogged = PersistGetInt(player, GetKey(journalCHIMLogged, guid), 0)
+    if chimLogged != 1
+        if !_disableCharacterJournalLog
+            JournalLogEvent("CHIM realized: Death is merely an illusion, a cycle to be broken. God Soul awakened.")
+        endif
+        PersistSetInt(player, GetKey(journalCHIMLogged, guid), 1, True)
+    endif
+
+    IronSoulNative.DataFlushIfDirty()
+EndFunction
+
+Bool Function ShouldTriggerCHIMTransitionOnLoad(Actor player, String guid, Int deathsNow, Int soulTier)
+    if !player || guid == ""
+        return False
+    endif
+    if _CHIM != 1
+        return False
+    endif
+    if soulTier == TIER_CHIM
+        return False
+    endif
+
+    ; Intentional: when DisableDefiantFeat=1, skip Defiant-cap CHIM gating and use Iron-cap CHIM logic below.
+    if !_disableDefiantFeat && soulTier == TIER_DEFIANT
+        return (deathsNow >= DEFIANT_SOUL_MAX_LIVES)
+    endif
+
+    ; Defiant takes priority at the Iron cap when unlocked.
+    if !_disableDefiantFeat
+        Int defFeat = PersistGetInt(player, GetKey(defiantFeatUnlocked, guid), 0)
+        if defFeat == 1 && deathsNow >= IRON_SOUL_MAX_LIVES
+            return False
+        endif
+    endif
+
+    return (deathsNow >= IRON_SOUL_MAX_LIVES)
+EndFunction
+
+Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True)
+    String m0 = "1defianttransitionflash"
+    String m1 = ResolvePermadeathMenu(soulTierTD)
+    String m2 = ResolveCHIMTransitionMenu(soulTierTD)
+    String m3 = "0chimintro"
+
+    if m1 == "" || m2 == "" || m3 == ""
+        LogMsg(LOG_ERR(), "PlayCHIMTransitionMessageSequenceSWF: One or more menus resolved empty")
+        return
+    endif
+
+    Actor player = Game.GetPlayer()
+
+    UI.CloseCustomMenu()
+
+    PlaySFX(SFXDefiantTransition, player)
+
+    UI.OpenCustomMenu(m1, 0)
+    Utility.WaitMenuMode(4.0)
+    UI.CloseCustomMenu()
+
+    UI.OpenCustomMenu(m0, 0)
+    Utility.WaitMenuMode(0.25)
+    UI.CloseCustomMenu()
+
+    UI.OpenCustomMenu(m1, 0)
+    Utility.WaitMenuMode(3.35)
+    UI.CloseCustomMenu()
+
+    UI.OpenCustomMenu(m0, 0)
+    Utility.WaitMenuMode(0.25)
+    UI.CloseCustomMenu()
+
+    UI.OpenCustomMenu(m2, 0)
+    Utility.WaitMenuMode(3.35)
+    UI.CloseCustomMenu()
+
+    UI.OpenCustomMenu(m0, 0)
+    Utility.WaitMenuMode(0.5)
+
+    OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro)
+EndFunction
+
+; Defiant transition sequence
+Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True)
+    String m0 = "1defianttransitionflash"
+    String m1 = ResolvePermadeathMenu(soulTierTD)
+    String m2 = ResolveDefiantTransitionMenu(soulTierTD)
+    String m3 = ResolveDefiantIntroMenu()
+
+    if m1 == "" || m2 == "" || m3 == ""
+        LogMsg(LOG_ERR(), "PlayDefiantTransitionMessageSequenceSWF: One or more menus resolved empty")
+        return
+    endif
+
+    Actor player = Game.GetPlayer()
+
+    ; Hard interrupt anything currently open
+    UI.CloseCustomMenu()
+
+    PlaySFX(SFXDefiantTransition, player)
+
+    ; Show permadeath tier 1
+    UI.OpenCustomMenu(m1, 0)
+    Utility.WaitMenuMode(4.0)
+    UI.CloseCustomMenu()
+
+    ; Defiant transition flash
+    UI.OpenCustomMenu(m0, 0)
+    Utility.WaitMenuMode(0.25)
+    UI.CloseCustomMenu()
+
+    ; Show permadeath tier 2
+    UI.OpenCustomMenu(m1, 0)
+    Utility.WaitMenuMode(3.35)
+    UI.CloseCustomMenu()
+
+    ; Defiant transition flash
+    UI.OpenCustomMenu(m0, 0)
+    Utility.WaitMenuMode(0.25)
+    UI.CloseCustomMenu()
+
+    ; Defiant transition
+    UI.OpenCustomMenu(m2, 0)
+    Utility.WaitMenuMode(3.35)
+    UI.CloseCustomMenu()
+
+    ; Defiant transition flash
+    UI.OpenCustomMenu(m0, 0)
+    Utility.WaitMenuMode(0.5)
+    ;UI.CloseCustomMenu()
+
+    ; Defiant intro
+    OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro)
+EndFunction
+
+Event OnKeyDown(Int keyCode)
+    if !_keyDismissActive
+        return
+    endif
+    _keyDismissPressed = True
+EndEvent
+
+Function RegisterForAllKeys()
+    ; Register only specific dismissal keys (keyboard + mouse + gamepad).
+    RegisterForKey(1)   ; Esc
+    RegisterForKey(28)  ; Enter
+    RegisterForKey(57)  ; Space
+
+    RegisterForKey(256) ; LeftMouseButton
+    RegisterForKey(257) ; RightMouseButton
+
+    RegisterForKey(270) ; Start
+    RegisterForKey(271) ; Back
+    RegisterForKey(276) ; GamepadA
+    RegisterForKey(277) ; GamepadB
+    RegisterForKey(278) ; GamepadX
+    RegisterForKey(279) ; GamepadY
+EndFunction
+
+Function UnregisterForAllKeys()
+    UnregisterForKey(1)   ; Esc
+    UnregisterForKey(28)  ; Enter
+    UnregisterForKey(57)  ; Space
+
+    UnregisterForKey(256) ; LeftMouseButton
+    UnregisterForKey(257) ; RightMouseButton
+
+    UnregisterForKey(270) ; Start
+    UnregisterForKey(271) ; Back
+    UnregisterForKey(276) ; GamepadA
+    UnregisterForKey(277) ; GamepadB
+    UnregisterForKey(278) ; GamepadX
+    UnregisterForKey(279) ; GamepadY
+EndFunction
+
+
+; ================
+; --- Sound FX ---
+; ================
+
+Bool Function CanPlaySFX()
+    if _disableSFX
+        return False
+    endif
+    if _uninstallMode
+        return False
+    endif
+    if _modDisabled
+        return False
+    endif
+    return True
+EndFunction
+
+Bool Function IsSFXDisabledByCategory(Sound sfx)
+    if !sfx
+        return True
+    endif
+
+    if sfx == SFXIronIntro
+        return _disableIronIntroSFX
+    elseif sfx == SFXDeath
+        return _disableDeathSFX
+    elseif sfx == SFXPermadeath
+        return _disablePermadeathSFX
+    elseif sfx == SFXRespawn
+        return _disableRespawnSFX
+    elseif sfx == SFXDefiantTransition
+        return _disableDefiantTransitionSFX
+    elseif sfx == SFXDragonSoulRevive1 || sfx == SFXDragonSoulRevive2 || sfx == SFXDragonSoulRevive3 || sfx == SFXDragonSoulRevive4
+        return _disableDragonSoulReviveSFX
+    elseif sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDefiant
+        return _disableFeatUnlockSFX
+    elseif sfx == SFXLuckRoll
+        return _disableLuckRollSFX
+    elseif sfx == SFXLuckFailure || sfx == SFXLuckSuccess
+        return _disableLuckOutcomeSFX
+    elseif sfx == HeavyBreathingSFX0 || sfx == HeavyBreathingSFX1 || sfx == HeavyBreathingSFX2 || sfx == HeavyBreathingSFX3 || sfx == HeavyBreathingSFX4 || sfx == HeavyBreathingSFX5 || sfx == HeavyBreathingSFX6 || sfx == HeavyBreathingSFX7 || sfx == HeavyBreathingSFX8 || sfx == HeavyBreathingSFX9
+        return _disableRespawnHeavyBreathingSFX
+    endif
+
+    return False
+EndFunction
+
+Function PlaySFX(Sound sfx, Actor source)
+    if !CanPlaySFX()
+        return
+    endif
+    if !sfx || !source
+        return
+    endif
+    if IsSFXDisabledByCategory(sfx)
+        return
+    endif
+    sfx.Play(source)
+EndFunction
+
+Sound Function PickHeavyBreathingSFX(Actor player)
+    ; Approximate player voice buckets using race + sex.
+    ; Buckets are aligned to VoicesPlayer list order (0..9).
+    Int sex = 0
+    Int raceId = 0
+    ActorBase baseRef = none
+    Race raceNow = none
+    Sound picked = none
+
+    if player
+        baseRef = player.GetActorBase()
+        raceNow = player.GetRace()
+    endif
+    if baseRef
+        sex = baseRef.GetSex()
+    endif
+    if raceNow
+        raceId = raceNow.GetFormID()
+    endif
+
+    ; Female buckets first where needed.
+    if raceId == 0x00013747 ; OrcRace
+        if sex == 1
+            picked = HeavyBreathingSFX5
+        else
+            picked = HeavyBreathingSFX1
+        endif
+    elseif raceId == 0x00013745 ; KhajiitRace
+        if sex == 1
+            picked = HeavyBreathingSFX7
+        else
+            picked = HeavyBreathingSFX0
+        endif
+    elseif raceId == 0x00013740 ; ArgonianRace
+        if sex == 1
+            picked = HeavyBreathingSFX9
+        else
+            picked = HeavyBreathingSFX4
+        endif
+    elseif raceId == 0x00013742 || raceId == 0x00013743 || raceId == 0x00013749 ; Dark/High/Wood Elf
+        if sex == 1
+            picked = HeavyBreathingSFX8
+        else
+            picked = HeavyBreathingSFX3
+        endif
+    else
+        ; EvenToned approximation for Nord/Breton/Imperial/Redguard/unknown.
+        if sex == 1
+            picked = HeavyBreathingSFX6
+        else
+            picked = HeavyBreathingSFX2
+        endif
+    endif
+
+    if picked
+        return picked
+    endif
+
+    ; Fallback to first available heavy-breathing SFX.
+    if HeavyBreathingSFX0
+        return HeavyBreathingSFX0
+    elseif HeavyBreathingSFX1
+        return HeavyBreathingSFX1
+    elseif HeavyBreathingSFX2
+        return HeavyBreathingSFX2
+    elseif HeavyBreathingSFX3
+        return HeavyBreathingSFX3
+    elseif HeavyBreathingSFX4
+        return HeavyBreathingSFX4
+    elseif HeavyBreathingSFX5
+        return HeavyBreathingSFX5
+    elseif HeavyBreathingSFX6
+        return HeavyBreathingSFX6
+    elseif HeavyBreathingSFX7
+        return HeavyBreathingSFX7
+    elseif HeavyBreathingSFX8
+        return HeavyBreathingSFX8
+    endif
+    return HeavyBreathingSFX9
+EndFunction
+
+Sound Function PickDragonSoulReviveCastSFX()
+    Int r = Utility.RandomInt(1, 4)
+    Sound picked = none
+
+    if r == 1 && SFXDragonSoulReviveCast1
+        picked = SFXDragonSoulReviveCast1
+    elseif r == 2 && SFXDragonSoulReviveCast2
+        picked = SFXDragonSoulReviveCast2
+    elseif r == 3 && SFXDragonSoulReviveCast3
+        picked = SFXDragonSoulReviveCast3
+    elseif r == 4 && SFXDragonSoulReviveCast4
+        picked = SFXDragonSoulReviveCast4
+    endif
+
+    if !picked
+        if SFXDragonSoulReviveCast1
+            picked = SFXDragonSoulReviveCast1
+        elseif SFXDragonSoulReviveCast2
+            picked = SFXDragonSoulReviveCast2
+        elseif SFXDragonSoulReviveCast3
+            picked = SFXDragonSoulReviveCast3
+        elseif SFXDragonSoulReviveCast4
+            picked = SFXDragonSoulReviveCast4
+        endif
+    endif
+
+    return picked
+EndFunction
+
+Sound Function PickDragonSoulReviveSFX()
+    Int r = Utility.RandomInt(1, 4)
+    Sound picked = none
+
+    if r == 1 && SFXDragonSoulRevive1
+        picked = SFXDragonSoulRevive1
+    elseif r == 2 && SFXDragonSoulRevive2
+        picked = SFXDragonSoulRevive2
+    elseif r == 3 && SFXDragonSoulRevive3
+        picked = SFXDragonSoulRevive3
+    elseif r == 4 && SFXDragonSoulRevive4
+        picked = SFXDragonSoulRevive4
+    endif
+
+    if !picked
+        if SFXDragonSoulRevive1
+            picked = SFXDragonSoulRevive1
+        elseif SFXDragonSoulRevive2
+            picked = SFXDragonSoulRevive2
+        elseif SFXDragonSoulRevive3
+            picked = SFXDragonSoulRevive3
+        elseif SFXDragonSoulRevive4
+            picked = SFXDragonSoulRevive4
+        endif
+    endif
+
+    return picked
+EndFunction
+
+Function RegisterMusicFadeBridge()
+    UnregisterForModEvent("IronSoul_MusicFadeSetVolume")
+    RegisterForModEvent("IronSoul_MusicFadeSetVolume", "OnMusicFadeSetVolume")
+EndFunction
+
+Event OnMusicFadeSetVolume(String eventName, String strArg, Float numArg, Form sender)
+    SoundCategory cat = sender as SoundCategory
+    if !cat
+        return
+    endif
+
+    Float v = numArg
+    if v < 0.0
+        v = 0.0
+    elseif v > 1.0
+        v = 1.0
+    endif
+
+    cat.SetVolume(v)
+EndEvent
+
 
 ; ===========================
 ; --- Uninstall / Cleanup ---
 ; ===========================
 ;
 ; When UninstallMode=1 in config:
-;  - All Iron Soul functionality is disabled.
-;  - A one-time cleanup pass clears any risky runtime state (deferred kill / essential / ghost / paralysis).
-;  - The controller quest stops itself.
+;  - Iron Soul is disabled on load.
+;  - Cleanup runs in one pass from OnPlayerLoadGame.
+;  - The controller remains inert while uninstall mode (or _modDisabled latch) is active.
 Function HandleUninstallMode(Actor player)
-    ; If uninstall has already completed in this save, keep the quest permanently inert.
-    if _modDisabled
-        ; Safety: ensure SoulBonus remains disabled in inert state.
-        RemoveSoulBonusAll(player)
-        _soulBonusAppliedTier = -1
-        if !_uninstallNotified
-            _uninstallNotified = True
-            Debug.MessageBox("Iron Soul has been safely disabled.\nYou may now uninstall the mod, or leave it installed in its disabled state.")
-        endif
-        QueueUpdate(30.0)
-        return
-    endif
-
-    ; Stage 0: cancel pending jobs so no gameplay logic runs during cleanup.
-    if _uninstallStage == 0
-
-        ; Journal: uninstall/disable milestone (one-time).
-        if !_disableCharacterJournalLog
-            String guidU = EnsureGuid(player)
-            if guidU != ""
-                Int unLogged = PersistGetInt(player, GetKey(journalUninstallLogged, guidU), 0)
-                if unLogged != 1
-                    JournalLogEvent("The soul retreats into itself, no longer strong enough to defy the cruel fate that awaits.")
-                    PersistSetInt(player, GetKey(journalUninstallLogged, guidU), 1, True)
-                endif
-            endif
-        endif
-
-        _pendingDisableRespawn = False
-        _pendingLoadMessage = False
-        _pendingDeathCheck = False
-        _pendingRespawnMenu = False
-        _respawnMenuArmed = False
-        _pendingDeathResync = False
-
-        ; SoulBonus: uninstall mode always strips SoulBonus abilities immediately.
-        RemoveSoulBonusAll(player)
-        _soulBonusAppliedTier = -1
-
-        ; Disable DSR immediately so it cannot fire during cleanup.
-        if DSRAbility && player.HasSpell(DSRAbility)
-            player.RemoveSpell(DSRAbility)
-        endif
-        if DSROnDying && player.HasSpell(DSROnDying)
-            player.RemoveSpell(DSROnDying)
-        endif
-        if DSRQuest
-            DSRQuest.Stop()
-        endif
-
-        ; Ensure Respawn mod quest is running so Respawn works after we disable Iron Soul.
-        if _respawnQuest
-            if !_respawnQuest.IsRunning()
-                _respawnQuest.Start()
-            endif
-        endif
-
-        _uninstallStage = 1
-        QueueUpdate(FastPollSeconds)
-        return
-    endif
-
-    ; Stage 1: release any deferred-kill state while the player is protected.
-    if _uninstallStage == 1
-        player.GetActorBase().SetEssential(True)
-        player.EndDeferredKill()
-
-        ; Force a death attempt while essential to clear stuck states.
-        player.DamageAV("Health", player.GetAVMax("Health") + 999.0)
-
-        _uninstallAt = Utility.GetCurrentRealTime() + 3.0
-        _uninstallStage = 2
-        QueueUpdate(FastPollSeconds)
-        return
-    endif
-
-    ; Stage 2: restore and clear flags, remove optional DSR assets, then stop this quest.
-    if _uninstallStage == 2
-        if Utility.GetCurrentRealTime() < _uninstallAt
-            QueueUpdate(FastPollSeconds)
-            return
-        endif
-
-        player.RestoreAV("Health", 1000.0)
-        player.SetGhost(False)
-        player.SetAV("Paralysis", 0.0)
-        player.GetActorBase().SetEssential(False)
-
-        ; Optional: remove DSR spells/quest if provided.
-        if DSRAbility && player.HasSpell(DSRAbility)
-            player.RemoveSpell(DSRAbility)
-        endif
-        if DSROnDying && player.HasSpell(DSROnDying)
-            player.RemoveSpell(DSROnDying)
-        endif
-
-        ; Also remove SoulBonus abilities if present.
-        RemoveSoulBonusAll(player)
-        if DSRQuest
-            DSRQuest.Stop()
-        endif
-
-        _modDisabled = True
-
-        if !_uninstallNotified
-            _uninstallNotified = True
-            Debug.MessageBox("Iron Soul has been safely disabled.\nYou may now uninstall the mod, or leave it installed in its disabled state.")
-        endif
-
-        QueueUpdate(30.0)
-        return
-    endif
-EndFunction
-
-Function SyncDSROnLoad(Actor player)
-    ; Ensures DSR quest/spells exist when DSR is enabled in config.
-    ; This covers cases where UninstallMode previously removed/stopped DSR, and later the user re-enables DSR.
-    ; Assumption: session-based only (no live hotswap). Safe to call on load.
     if !player
         return
     endif
 
-    ; Do not install while Iron Soul is inert or while DSR is config-disabled.
-    if _modDisabled || _uninstallMode || _disableDragonSoulRevive
-        return
+    IronSoulNative.StopHealthMonitor()
+
+    ; Clear transient runtime jobs/caches so nothing continues in background.
+    ResetTransientState()
+
+    ; Ensure no per-tick loop remains active while disabled.
+    UnregisterForUpdate()
+
+    ; Strip SoulBonus and OnDying hook immediately.
+    RemoveSoulBonusAll(player)
+    _soulBonusAppliedTier = -1
+    if IronSoulOnDyingSpell && player.HasSpell(IronSoulOnDyingSpell)
+        player.RemoveSpell(IronSoulOnDyingSpell)
     endif
 
-    if DSRQuest && !DSRQuest.IsRunning()
-        DSRQuest.Start()
-    endif
-    if DSRAbility && !player.HasSpell(DSRAbility)
-        player.AddSpell(DSRAbility, False)
-    endif
-    if DSROnDying && !player.HasSpell(DSROnDying)
-        player.AddSpell(DSROnDying, False)
+    ; Normalize player state in-place.
+    player.EndDeferredKill()
+    player.GetActorBase().SetEssential(False)
+    player.SetGhost(False)
+    player.SetAV("Paralysis", 0.0)
+    player.RestoreAV("Health", 1000.0)
+
+    _modDisabled = True
+
+    if !_uninstallNotified
+        _uninstallNotified = True
+        Debug.MessageBox("Iron Soul has been safely disabled.\nYou may now uninstall the mod, or leave it installed in its disabled state.")
     endif
 EndFunction
 
@@ -4589,31 +5625,14 @@ Function ReenableAfterUninstall(Actor player)
 
     ; Clear uninstall latch so gameplay logic runs again.
     _modDisabled = False
-    _uninstallStage = 0
-    _uninstallAt = 0.0
     _uninstallNotified = False
 
     ; Reset transient jobs/caches so nothing resumes half-armed.
-    ResetTransientJobsAndCaches()
+    ResetTransientState()
 
-    ; Re-evaluate respawn integration on next tick.
-    _pendingDisableRespawn = True
-    _pendingDeathResync = True
-    _pendingDeathCheck = False
-    _pendingRespawnMenu = False
-    _respawnMenuArmed = False
-
-    ; Restore Dragon Soul Revive system if enabled in config.
-    if !_disableDragonSoulRevive
-        if DSRQuest && !DSRQuest.IsRunning()
-            DSRQuest.Start()
-        endif
-        if DSRAbility && !player.HasSpell(DSRAbility)
-            player.AddSpell(DSRAbility, False)
-        endif
-        if DSROnDying && !player.HasSpell(DSROnDying)
-            player.AddSpell(DSROnDying, False)
-        endif
+    ; Restore OnDying Spell
+    if IronSoulOnDyingSpell && !player.HasSpell(IronSoulOnDyingSpell)
+        player.AddSpell(IronSoulOnDyingSpell, False)
     endif
 
     ; Kick the controller back into normal cadence.
