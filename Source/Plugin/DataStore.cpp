@@ -1,11 +1,10 @@
 #include "pch.h"
-
 #include "DataStore.h"
 #include "PathUtil.h"
-#include <vector>
-#include <chrono>
-#include <thread>
+#include <algorithm>
 #include <cstring>
+#include <limits>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -21,19 +20,19 @@ namespace IronSoul
         return IronSoul::PathUtil::GetSksePluginsDir() / L"StorageUtilData" / L"PapyrusUtil" / L"Runtime" / L"MD_5729.dat";
     }
 
-    static constexpr std::uint32_t FILE_VERSION = 1;
-    static constexpr char MAGIC[4] = { 'I','S','D','T' };
+    static constexpr std::uint32_t FILE_VERSION = 2;
+    static constexpr char MAGIC[4] = { 'I', 'S', 'D', 'T' };
 
-    // Hardening caps (v1): keep loads safe even if files are corrupted/tampered.
+    // Hardening caps (v2): keep loads/writes safe even if files are corrupted/tampered.
     // Iron Soul stores a small KV set; these limits are intentionally generous.
-    static constexpr std::size_t  MAX_PAYLOAD_BYTES = 1u * 1024u * 1024u;   // 1 MiB
-    static constexpr std::uint32_t MAX_RECORDS      = 50'000u;
-    static constexpr std::uint32_t MAX_STRING_BYTES = 16u * 1024u;          // 16 KiB per string value
-    static constexpr std::uint16_t MAX_KEY_BYTES    = 256u;
+    static constexpr std::size_t MAX_PAYLOAD_BYTES = 1u * 1024u * 1024u;  // 1 MiB
+    static constexpr std::uint32_t MAX_RECORDS = 50'000u;
+    static constexpr std::uint32_t MAX_STRING_BYTES = 16u * 1024u;  // 16 KiB per string value
+    static constexpr std::uint16_t MAX_KEY_BYTES = 256u;
+    static constexpr std::uint64_t HEADER_BYTES =
+        sizeof(MAGIC) + (sizeof(std::uint32_t) * 3u) + sizeof(std::uint64_t);
 
     // Simple integrity hash (FNV-1a 32-bit) for the payload.
-    // NOTE: If you ever want a different integrity mechanism, swap fnv1a32() out for CRC32 or stronger.
-    // We intentionally keep this lightweight (no external deps).
     static std::uint32_t fnv1a32(const std::uint8_t* data, std::size_t size)
     {
         std::uint32_t hash = 0x811C9DC5u;
@@ -44,50 +43,22 @@ namespace IronSoul
         return hash;
     }
 
+    static bool ReadExact(std::ifstream& in, void* dst, std::size_t n)
+    {
+        in.read(reinterpret_cast<char*>(dst), static_cast<std::streamsize>(n));
+        return in.good();
+    }
+
     void DataStore::Initialize()
     {
-        if (_initialized) {
+        if (_initialized.load()) {
             return;
         }
 
         EnsureDirectories();
         Load();
 
-        // Periodic flush: every 30 seconds, only if dirty.
-        _stopThread.store(false);
-        _flushThread = std::thread([]() {
-            using namespace std::chrono;
-            auto lastFlush = steady_clock::now();
-
-            while (!DataStore::_stopThread.load()) {
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                if (DataStore::_stopThread.load()) {
-                    break;
-                }
-
-                auto now = steady_clock::now();
-                if (now - lastFlush < std::chrono::seconds(30)) {
-                    continue;
-                }
-                lastFlush = now;
-
-                DataStore::FlushNow();
-            }
-        });
-
-        _initialized = true;
-    }
-
-    void DataStore::Shutdown()
-    {
-        // Stop the background flush thread to avoid races with file writes.
-        _stopThread.store(true);
-        if (_flushThread.joinable()) {
-            _flushThread.join();
-        }
-
-        // Final best-effort flush.
-        FlushNow();
+        _initialized.store(true);
     }
 
     void DataStore::EnsureDirectories()
@@ -104,170 +75,242 @@ namespace IronSoul
 
     void DataStore::Load()
     {
-        bool restoreFromMirror = false;
-        bool healMirrorFromMain = false;
-        bool loadedMain = false;
+        const ParsedSnapshot mainSnapshot = LoadFile(MainDataPath().wstring());
+        const ParsedSnapshot mirrorSnapshot = LoadFile(MirrorDataPath().wstring());
+
+        bool shouldHeal = false;
 
         {
             std::lock_guard<std::mutex> lock(_mutex);
 
-            if (LoadFile(MainDataPath().wstring())) {
-                logger::info("IronSoul DataStore: loaded MainData");
-
-                loadedMain = true;
-
-                // Mirror self-heal: if Main is valid but Mirror is missing/tampered,
-                // mark dirty so we rebuild Mirror from the loaded Main snapshot.
-                // NOTE: LoadFile commits into _data on success, so preserve Main.
-                const auto mainSnapshot = _data;
-                const bool mirrorOk = LoadFile(MirrorDataPath().wstring());
-                _data = mainSnapshot;
+            if (!mainSnapshot.valid && !mirrorSnapshot.valid) {
+                logger::warn("IronSoul DataStore: no valid v2 data files found, starting fresh");
+                _data.clear();
+                _sequence = 0;
                 _dirty = false;
-
-                if (!mirrorOk) {
-                    logger::warn("IronSoul DataStore: MirrorData missing/invalid; will rebuild from MainData");
-                    _dirty = true;
-                    healMirrorFromMain = true;
-                }
-
-                // If mirror is fine, we're done.
-                if (!healMirrorFromMain) {
-                    return;
-                }
+                return;
             }
 
-            // If Main loaded but Mirror needs rebuild, do NOT attempt mirror-restore logic.
-            if (loadedMain) {
-                // We already have a valid Main snapshot in _data.
-                // We'll rebuild Mirror after releasing the lock.
-            } else {
-                if (LoadFile(MirrorDataPath().wstring())) {
-                    logger::warn("IronSoul DataStore: MainData invalid/missing, restored from MirrorData");
-
-                    // IMPORTANT: mark dirty under lock so the flush thread can't race this flag
+            if (mainSnapshot.valid && mirrorSnapshot.valid) {
+                if (mainSnapshot.sequence > mirrorSnapshot.sequence) {
+                    _data = mainSnapshot.data;
+                    _sequence = mainSnapshot.sequence;
                     _dirty = true;
-                    restoreFromMirror = true;
+                    shouldHeal = true;
+                    logger::warn("IronSoul DataStore: MirrorData stale (main seq={} mirror seq={}); scheduling heal",
+                        mainSnapshot.sequence, mirrorSnapshot.sequence);
+                } else if (mirrorSnapshot.sequence > mainSnapshot.sequence) {
+                    _data = mirrorSnapshot.data;
+                    _sequence = mirrorSnapshot.sequence;
+                    _dirty = true;
+                    shouldHeal = true;
+                    logger::warn("IronSoul DataStore: MainData stale (main seq={} mirror seq={}); restoring from Mirror and scheduling heal",
+                        mainSnapshot.sequence, mirrorSnapshot.sequence);
                 } else {
-                    logger::warn("IronSoul DataStore: no valid data files found, starting fresh");
-                    _data.clear();
-                    _dirty = false;
-                    return;
+                    if (mainSnapshot.payloadHash != mirrorSnapshot.payloadHash ||
+                        mainSnapshot.recordCount != mirrorSnapshot.recordCount ||
+                        mainSnapshot.data != mirrorSnapshot.data) {
+                        _data = mainSnapshot.data;
+                        _sequence = mainSnapshot.sequence;
+                        _dirty = true;
+                        shouldHeal = true;
+                        logger::warn("IronSoul DataStore: Main/Mirror divergence at seq={}; selecting MainData and scheduling heal",
+                            mainSnapshot.sequence);
+                    } else {
+                        _data = mainSnapshot.data;
+                        _sequence = mainSnapshot.sequence;
+                        _dirty = false;
+                    }
                 }
+            } else if (mainSnapshot.valid) {
+                _data = mainSnapshot.data;
+                _sequence = mainSnapshot.sequence;
+                _dirty = true;
+                shouldHeal = true;
+                logger::warn("IronSoul DataStore: MirrorData invalid/missing; loading MainData seq={} and scheduling heal",
+                    mainSnapshot.sequence);
+            } else {
+                _data = mirrorSnapshot.data;
+                _sequence = mirrorSnapshot.sequence;
+                _dirty = true;
+                shouldHeal = true;
+                logger::warn("IronSoul DataStore: MainData invalid/missing; loading MirrorData seq={} and scheduling heal",
+                    mirrorSnapshot.sequence);
             }
         }
 
-        if (restoreFromMirror || healMirrorFromMain) {
-            // Restore Main from Mirror snapshot OR rebuild Mirror from Main.
-            // Do disk I/O outside the mutex.
-            FlushNow();
+        if (shouldHeal) {
+            // Heal stale/invalid side after selection; do disk I/O outside lock.
+            FlushIfDirty();
         }
     }
 
-static bool ReadExact(std::ifstream& in, void* dst, std::size_t n)
-{
-    in.read(reinterpret_cast<char*>(dst), static_cast<std::streamsize>(n));
-    return in.good();
-}
-
-static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
+    DataStore::ParsedSnapshot DataStore::LoadFile(const std::wstring& path)
     {
-        out.assign(std::istreambuf_iterator<char>(in), {});
-        return true;
-    }
+        ParsedSnapshot parsed{};
 
-    bool DataStore::LoadFile(const std::wstring& path)
-    {
         const fs::path p(path);
         const std::string fileName = p.filename().string();
 
         std::ifstream in(path, std::ios::binary);
         if (!in.good()) {
-            return false;
+            return parsed;
         }
 
-        char magic[4]{};
-        std::uint32_t version = 0;
-        std::uint32_t count = 0;
-        std::uint32_t payloadHash = 0;
-
-        if (!ReadExact(in, magic, 4)) return false;
-        if (!ReadExact(in, &version, 4)) return false;
-        if (!ReadExact(in, &count, 4)) return false;
-        if (!ReadExact(in, &payloadHash, 4)) return false;
-
-        if (std::memcmp(magic, MAGIC, 4) != 0 || version != FILE_VERSION) {
-            // Wrong file or incompatible version.
-            return false;
+        constexpr std::uint64_t kHeaderBytes = HEADER_BYTES;
+        {
+            std::error_code ec;
+            const auto fsz = fs::file_size(p, ec);
+            if (!ec) {
+                if (fsz < kHeaderBytes) {
+                    return parsed;
+                }
+                const auto remaining = static_cast<std::uint64_t>(fsz - kHeaderBytes);
+                if (remaining > static_cast<std::uint64_t>(MAX_PAYLOAD_BYTES)) {
+                    logger::warn(
+                        "IronSoul DataStore: {} rejected (payload {} bytes exceeds max {} bytes)",
+                        fileName,
+                        remaining,
+                        static_cast<std::uint64_t>(MAX_PAYLOAD_BYTES));
+                    return parsed;
+                }
+            }
         }
 
-        if (count > MAX_RECORDS) {
-            logger::warn("IronSoul DataStore: {} rejected (recordCount {} exceeds max {})", fileName, count, MAX_RECORDS);
-            return false;
+        FileHeaderV2 header{};
+        if (!ReadExact(in, header.magic, sizeof(header.magic))) {
+            return parsed;
+        }
+        if (!ReadExact(in, &header.version, sizeof(header.version))) {
+            return parsed;
+        }
+        if (!ReadExact(in, &header.recordCount, sizeof(header.recordCount))) {
+            return parsed;
+        }
+        if (!ReadExact(in, &header.payloadHash, sizeof(header.payloadHash))) {
+            return parsed;
+        }
+        if (!ReadExact(in, &header.sequence, sizeof(header.sequence))) {
+            return parsed;
+        }
+
+        if (std::memcmp(header.magic, MAGIC, sizeof(header.magic)) != 0 || header.version != FILE_VERSION) {
+            return parsed;
+        }
+
+        if (header.recordCount > MAX_RECORDS) {
+            logger::warn("IronSoul DataStore: {} rejected (recordCount {} exceeds max {})",
+                fileName, header.recordCount, MAX_RECORDS);
+            return parsed;
         }
 
         std::vector<std::uint8_t> payload;
-        read_all(in, payload);
-
-        if (payload.size() > MAX_PAYLOAD_BYTES) {
-            logger::warn("IronSoul DataStore: {} rejected (payload {} bytes exceeds max {} bytes)", fileName, payload.size(), MAX_PAYLOAD_BYTES);
-            return false;
+        in.seekg(0, std::ios::end);
+        const auto endPos = in.tellg();
+        if (endPos < 0) {
+            return parsed;
+        }
+        const auto endPosU64 = static_cast<std::uint64_t>(endPos);
+        if (endPosU64 < kHeaderBytes) {
+            return parsed;
+        }
+        const auto payloadBytes = static_cast<std::size_t>(endPosU64 - kHeaderBytes);
+        if (payloadBytes > MAX_PAYLOAD_BYTES) {
+            logger::warn(
+                "IronSoul DataStore: {} rejected (payload {} bytes exceeds max {} bytes)",
+                fileName,
+                payloadBytes,
+                MAX_PAYLOAD_BYTES);
+            return parsed;
+        }
+        in.seekg(static_cast<std::streamoff>(kHeaderBytes), std::ios::beg);
+        if (!in.good()) {
+            return parsed;
         }
 
-        if (fnv1a32(payload.data(), payload.size()) != payloadHash) {
-            return false;
+        payload.resize(payloadBytes);
+        if (payloadBytes > 0) {
+            in.read(reinterpret_cast<char*>(payload.data()), static_cast<std::streamsize>(payloadBytes));
+            if (!in.good()) {
+                return parsed;
+            }
         }
+
+        if (fnv1a32(payload.data(), payload.size()) != header.payloadHash) {
+            return parsed;
+        }
+
+        std::unordered_map<std::string, Value> tmp;
+        std::size_t offset = 0;
 
         auto require = [&](bool ok) -> bool {
             return ok;
         };
 
-        std::unordered_map<std::string, Value> tmp;
-        std::size_t offset = 0;
-
         auto read_u8 = [&](std::uint8_t& v) -> bool {
-            if (!require(offset + 1 <= payload.size())) return false;
+            if (!require(offset + 1 <= payload.size())) {
+                return false;
+            }
             v = payload[offset];
             offset += 1;
             return true;
         };
+
         auto read_u16 = [&](std::uint16_t& v) -> bool {
-            if (!require(offset + 2 <= payload.size())) return false;
+            if (!require(offset + 2 <= payload.size())) {
+                return false;
+            }
             std::memcpy(&v, payload.data() + offset, 2);
             offset += 2;
             return true;
         };
+
         auto read_u32 = [&](std::uint32_t& v) -> bool {
-            if (!require(offset + 4 <= payload.size())) return false;
+            if (!require(offset + 4 <= payload.size())) {
+                return false;
+            }
             std::memcpy(&v, payload.data() + offset, 4);
             offset += 4;
             return true;
         };
 
-        for (std::uint32_t i = 0; i < count; i++) {
+        for (std::uint32_t i = 0; i < header.recordCount; ++i) {
             std::uint8_t type = 0;
             std::uint16_t keyLen = 0;
             std::uint32_t valLen = 0;
 
-            if (!read_u8(type)) return false;
-            if (!read_u16(keyLen)) return false;
+            if (!read_u8(type)) {
+                return parsed;
+            }
+            if (!read_u16(keyLen)) {
+                return parsed;
+            }
             if (keyLen == 0 || keyLen > MAX_KEY_BYTES) {
                 logger::warn("IronSoul DataStore: {} rejected (invalid key length {})", fileName, keyLen);
-                return false;
+                return parsed;
             }
-
-            if (!require(offset + keyLen <= payload.size())) return false;
+            if (!require(offset + keyLen <= payload.size())) {
+                return parsed;
+            }
             std::string key(reinterpret_cast<const char*>(payload.data() + offset), keyLen);
             offset += keyLen;
 
-            if (!read_u32(valLen)) return false;
-            if (type == 2 && valLen > MAX_STRING_BYTES) {
-                logger::warn("IronSoul DataStore: {} rejected (string length {} exceeds max {})", fileName, valLen, MAX_STRING_BYTES);
-                return false;
+            if (!read_u32(valLen)) {
+                return parsed;
             }
-            if (!require(offset + valLen <= payload.size())) return false;
+            if (type == 2 && valLen > MAX_STRING_BYTES) {
+                logger::warn("IronSoul DataStore: {} rejected (string length {} exceeds max {})",
+                    fileName, valLen, MAX_STRING_BYTES);
+                return parsed;
+            }
+            if (!require(offset + valLen <= payload.size())) {
+                return parsed;
+            }
 
             if (type == 1) {
-                if (!require(valLen == 4)) return false;
+                if (!require(valLen == 4)) {
+                    return parsed;
+                }
                 std::int32_t iv = 0;
                 std::memcpy(&iv, payload.data() + offset, 4);
                 tmp[key] = iv;
@@ -275,96 +318,198 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
                 std::string sv(reinterpret_cast<const char*>(payload.data() + offset), valLen);
                 tmp[key] = sv;
             } else {
-                // Unknown type => reject file (keeps it simple)
-                return false;
+                return parsed;
             }
 
             offset += valLen;
         }
 
-        // Tighten: require that the payload is fully consumed by the record loop.
         if (offset != payload.size()) {
             logger::warn(
                 "IronSoul DataStore: {} rejected (payload parse ended at {} of {} bytes)",
                 fileName,
                 offset,
                 payload.size());
-            return false;
+            return parsed;
         }
 
-        // Successful parse, commit.
-        _data = std::move(tmp);
-        _dirty = false;
-        return true;
+        parsed.valid = true;
+        parsed.data = std::move(tmp);
+        parsed.sequence = header.sequence;
+        parsed.payloadHash = header.payloadHash;
+        parsed.recordCount = header.recordCount;
+        return parsed;
     }
 
     void DataStore::WriteFiles()
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        // Snapshot under lock, then do disk I/O without holding the mutex.
+        std::unordered_map<std::string, Value> snapshot;
+        std::uint64_t nextSequence = 0;
+        {
+            std::lock_guard<std::mutex> lock(_mutex);
+            if (!_dirty) {
+                return;
+            }
+
+            snapshot = _data;
+            if (_sequence == (std::numeric_limits<std::uint64_t>::max)()) {
+                nextSequence = _sequence;
+                logger::warn("IronSoul DataStore: sequence reached max; future flushes will reuse max sequence");
+            } else {
+                nextSequence = _sequence + 1;
+            }
+
+            // Optimistically clear dirty; if new writes happen while we flush, Set* will set _dirty=true.
+            _dirty = false;
+        }
 
         const fs::path mainPath = MainDataPath();
         const fs::path mirrorPath = MirrorDataPath();
 
-        auto writeOne = [&](const fs::path& path, bool writeThrough)
-        {
-            std::vector<std::uint8_t> payload;
-            payload.reserve(_data.size() * 32);
+        if (snapshot.size() > MAX_RECORDS) {
+            logger::error("IronSoul DataStore: flush rejected (record count {} exceeds max {})",
+                snapshot.size(), MAX_RECORDS);
+            std::lock_guard<std::mutex> lock(_mutex);
+            _dirty = true;
+            return;
+        }
 
-            for (auto& [k, v] : _data) {
-                if (std::holds_alternative<std::int32_t>(v)) {
-                    payload.push_back(1);
-                    std::uint16_t klen = static_cast<std::uint16_t>(k.size());
-                    payload.insert(payload.end(),
-                        reinterpret_cast<std::uint8_t*>(&klen),
-                        reinterpret_cast<std::uint8_t*>(&klen) + 2);
-                    payload.insert(payload.end(), k.begin(), k.end());
+        std::vector<std::uint8_t> payload;
+        payload.reserve(std::min<std::size_t>(snapshot.size() * 32, MAX_PAYLOAD_BYTES));
 
-                    std::uint32_t vlen = 4;
-                    payload.insert(payload.end(),
-                        reinterpret_cast<std::uint8_t*>(&vlen),
-                        reinterpret_cast<std::uint8_t*>(&vlen) + 4);
-
-                    std::int32_t iv = std::get<std::int32_t>(v);
-                    payload.insert(payload.end(),
-                        reinterpret_cast<std::uint8_t*>(&iv),
-                        reinterpret_cast<std::uint8_t*>(&iv) + 4);
-                } else {
-                    payload.push_back(2);
-                    std::uint16_t klen = static_cast<std::uint16_t>(k.size());
-                    payload.insert(payload.end(),
-                        reinterpret_cast<std::uint8_t*>(&klen),
-                        reinterpret_cast<std::uint8_t*>(&klen) + 2);
-                    payload.insert(payload.end(), k.begin(), k.end());
-
-                    const auto& sv = std::get<std::string>(v);
-                    std::uint32_t vlen = static_cast<std::uint32_t>(sv.size());
-                    payload.insert(payload.end(),
-                        reinterpret_cast<std::uint8_t*>(&vlen),
-                        reinterpret_cast<std::uint8_t*>(&vlen) + 4);
-                    payload.insert(payload.end(), sv.begin(), sv.end());
-                }
+        std::uint32_t recordCount = 0;
+        for (const auto& [k, v] : snapshot) {
+            if (k.empty() || k.size() > MAX_KEY_BYTES) {
+                logger::error("IronSoul DataStore: flush rejected (invalid key length {})", k.size());
+                std::lock_guard<std::mutex> lock(_mutex);
+                _dirty = true;
+                return;
             }
-
-            const std::uint32_t payloadHash = fnv1a32(payload.data(), payload.size());
-
-            fs::path tmpPath = path.wstring() + L".tmp";
-            std::ofstream out(tmpPath, std::ios::binary | std::ios::trunc);
-            if (!out.is_open()) {
-                logger::warn("IronSoul DataStore: failed to open tmp for write: {}", tmpPath.string());
+            if (recordCount >= MAX_RECORDS) {
+                logger::error("IronSoul DataStore: flush rejected (record count exceeds max {})", MAX_RECORDS);
+                std::lock_guard<std::mutex> lock(_mutex);
+                _dirty = true;
                 return;
             }
 
-            out.write(MAGIC, 4);
-            out.write(reinterpret_cast<const char*>(&FILE_VERSION), 4);
+            const bool isInt = std::holds_alternative<std::int32_t>(v);
+            const std::uint8_t type = isInt ? 1 : 2;
+            const std::uint32_t valueLen = [&]() -> std::uint32_t {
+                if (isInt) {
+                    return 4u;
+                }
+                const auto& sv = std::get<std::string>(v);
+                if (sv.size() > MAX_STRING_BYTES) {
+                    return (std::numeric_limits<std::uint32_t>::max)();
+                }
+                return static_cast<std::uint32_t>(sv.size());
+            }();
 
-            std::uint32_t count = static_cast<std::uint32_t>(_data.size());
-            out.write(reinterpret_cast<const char*>(&count), 4);
-            out.write(reinterpret_cast<const char*>(&payloadHash), 4);
-            out.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
+            if (valueLen == (std::numeric_limits<std::uint32_t>::max)()) {
+                logger::error("IronSoul DataStore: flush rejected (string value exceeds max {} bytes)",
+                    MAX_STRING_BYTES);
+                std::lock_guard<std::mutex> lock(_mutex);
+                _dirty = true;
+                return;
+            }
+
+            const std::size_t recordBytes = 1u + 2u + k.size() + 4u + static_cast<std::size_t>(valueLen);
+            if (payload.size() + recordBytes > MAX_PAYLOAD_BYTES) {
+                logger::error("IronSoul DataStore: flush rejected (payload {} + record {} exceeds max {})",
+                    payload.size(), recordBytes, MAX_PAYLOAD_BYTES);
+                std::lock_guard<std::mutex> lock(_mutex);
+                _dirty = true;
+                return;
+            }
+
+            payload.push_back(type);
+
+            const std::uint16_t keyLen = static_cast<std::uint16_t>(k.size());
+            payload.insert(payload.end(),
+                reinterpret_cast<const std::uint8_t*>(&keyLen),
+                reinterpret_cast<const std::uint8_t*>(&keyLen) + sizeof(keyLen));
+            payload.insert(payload.end(), k.begin(), k.end());
+
+            payload.insert(payload.end(),
+                reinterpret_cast<const std::uint8_t*>(&valueLen),
+                reinterpret_cast<const std::uint8_t*>(&valueLen) + sizeof(valueLen));
+
+            if (isInt) {
+                const std::int32_t iv = std::get<std::int32_t>(v);
+                payload.insert(payload.end(),
+                    reinterpret_cast<const std::uint8_t*>(&iv),
+                    reinterpret_cast<const std::uint8_t*>(&iv) + sizeof(iv));
+            } else {
+                const auto& sv = std::get<std::string>(v);
+                payload.insert(payload.end(), sv.begin(), sv.end());
+            }
+
+            ++recordCount;
+        }
+
+        const std::uint32_t payloadHash = fnv1a32(payload.data(), payload.size());
+        const FileHeaderV2 header{
+            { MAGIC[0], MAGIC[1], MAGIC[2], MAGIC[3] },
+            FILE_VERSION,
+            recordCount,
+            payloadHash,
+            nextSequence
+        };
+
+        auto writeOne = [&](const fs::path& path, bool writeThrough) -> bool
+        {
+            fs::path tmpPath = path;
+            tmpPath += L".tmp";
+
+            std::ofstream out(tmpPath, std::ios::binary | std::ios::trunc);
+            if (!out.is_open()) {
+                logger::warn("IronSoul DataStore: failed to open tmp for write: {}", tmpPath.string());
+                return false;
+            }
+
+            out.write(header.magic, sizeof(header.magic));
+            out.write(reinterpret_cast<const char*>(&header.version), sizeof(header.version));
+            out.write(reinterpret_cast<const char*>(&header.recordCount), sizeof(header.recordCount));
+            out.write(reinterpret_cast<const char*>(&header.payloadHash), sizeof(header.payloadHash));
+            out.write(reinterpret_cast<const char*>(&header.sequence), sizeof(header.sequence));
+            if (!out.good()) {
+                logger::warn("IronSoul DataStore: header write failed: {}", tmpPath.string());
+                out.close();
+                std::error_code ec;
+                fs::remove(tmpPath, ec);
+                return false;
+            }
+
+            if (!payload.empty()) {
+                out.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
+                if (!out.good()) {
+                    logger::warn("IronSoul DataStore: payload write failed: {}", tmpPath.string());
+                    out.close();
+                    std::error_code ec;
+                    fs::remove(tmpPath, ec);
+                    return false;
+                }
+            }
+
             out.flush();
-            out.close();
+            if (!out.good()) {
+                logger::warn("IronSoul DataStore: flush to tmp failed: {}", tmpPath.string());
+                out.close();
+                std::error_code ec;
+                fs::remove(tmpPath, ec);
+                return false;
+            }
 
-            // Atomic replace; WRITE_THROUGH only for MainData
+            out.close();
+            if (out.fail()) {
+                logger::warn("IronSoul DataStore: close tmp failed: {}", tmpPath.string());
+                std::error_code ec;
+                fs::remove(tmpPath, ec);
+                return false;
+            }
+
+            // Atomic replace; WRITE_THROUGH only for MainData.
             DWORD flags = MOVEFILE_REPLACE_EXISTING;
             if (writeThrough) {
                 flags |= MOVEFILE_WRITE_THROUGH;
@@ -373,15 +518,27 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
             if (!MoveFileExW(tmpPath.c_str(), path.c_str(), flags)) {
                 const DWORD err = GetLastError();
                 logger::warn("IronSoul DataStore: MoveFileExW failed (err={}): {}", err, path.string());
-                // Best effort: leave tmp file behind for debugging.
-                return;
+                // Leave tmp for debugging.
+                return false;
             }
+
+            return true;
         };
 
-        writeOne(mainPath, true);
-        writeOne(mirrorPath, false);
+        const bool okMain = writeOne(mainPath, true);
+        const bool okMirror = writeOne(mirrorPath, false);
 
-        _dirty = false;
+        {
+            std::lock_guard<std::mutex> lock(_mutex);
+            if (okMain && okMirror) {
+                _sequence = nextSequence;
+            } else {
+                // If any write failed, mark dirty so we retry later.
+                _dirty = true;
+                logger::warn("IronSoul DataStore: flush incomplete (mainOk={} mirrorOk={}); will retry",
+                    okMain, okMirror);
+            }
+        }
     }
 
     std::int32_t DataStore::GetInt(const std::string& key, std::int32_t fallback)
@@ -389,17 +546,22 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
         std::lock_guard<std::mutex> lock(_mutex);
 
         auto it = _data.find(key);
-        if (it == _data.end())
+        if (it == _data.end()) {
             return fallback;
+        }
 
-        if (auto p = std::get_if<std::int32_t>(&it->second))
+        if (auto p = std::get_if<std::int32_t>(&it->second)) {
             return *p;
+        }
 
         return fallback;
     }
 
     bool DataStore::SetInt(const std::string& key, std::int32_t value)
     {
+        if (key.empty() || key.size() > MAX_KEY_BYTES) {
+            return false;
+        }
         std::lock_guard<std::mutex> lock(_mutex);
         _data[key] = value;
         _dirty = true;
@@ -408,13 +570,17 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
 
     bool DataStore::SetIntIfChanged(const std::string& key, std::int32_t value)
     {
+        if (key.empty() || key.size() > MAX_KEY_BYTES) {
+            return false;
+        }
         std::lock_guard<std::mutex> lock(_mutex);
 
         auto it = _data.find(key);
         if (it != _data.end()) {
             if (auto p = std::get_if<std::int32_t>(&it->second)) {
-                if (*p == value)
+                if (*p == value) {
                     return false;
+                }
             }
         }
 
@@ -428,17 +594,25 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
         std::lock_guard<std::mutex> lock(_mutex);
 
         auto it = _data.find(key);
-        if (it == _data.end())
+        if (it == _data.end()) {
             return fallback;
+        }
 
-        if (auto p = std::get_if<std::string>(&it->second))
+        if (auto p = std::get_if<std::string>(&it->second)) {
             return *p;
+        }
 
         return fallback;
     }
 
     bool DataStore::SetString(const std::string& key, const std::string& value)
     {
+        if (key.empty() || key.size() > MAX_KEY_BYTES) {
+            return false;
+        }
+        if (value.size() > MAX_STRING_BYTES) {
+            return false;
+        }
         std::lock_guard<std::mutex> lock(_mutex);
         _data[key] = value;
         _dirty = true;
@@ -447,13 +621,20 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
 
     bool DataStore::SetStringIfChanged(const std::string& key, const std::string& value)
     {
+        if (key.empty() || key.size() > MAX_KEY_BYTES) {
+            return false;
+        }
+        if (value.size() > MAX_STRING_BYTES) {
+            return false;
+        }
         std::lock_guard<std::mutex> lock(_mutex);
 
         auto it = _data.find(key);
         if (it != _data.end()) {
             if (auto p = std::get_if<std::string>(&it->second)) {
-                if (*p == value)
+                if (*p == value) {
                     return false;
+                }
             }
         }
 
@@ -470,6 +651,9 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
 
     bool DataStore::SetIntIfAbsent(const std::string& key, std::int32_t value)
     {
+        if (key.empty() || key.size() > MAX_KEY_BYTES) {
+            return false;
+        }
         std::lock_guard<std::mutex> lock(_mutex);
 
         if (_data.contains(key)) {
@@ -483,21 +667,22 @@ static bool read_all(std::ifstream& in, std::vector<std::uint8_t>& out)
 
     void DataStore::DeleteKey(const std::string& key)
     {
+        if (key.empty() || key.size() > MAX_KEY_BYTES) {
+            return;
+        }
         std::lock_guard<std::mutex> lock(_mutex);
         if (_data.erase(key) != 0) {
             _dirty = true;
         }
     }
 
-    void DataStore::FlushNow()
+    void DataStore::FlushIfDirty()
     {
-        // Quick check under lock; write outside lock? WriteFiles locks, so just call it after checking.
-        {
-            std::lock_guard<std::mutex> lock(_mutex);
-            if (!_dirty) {
-                return;
-            }
-        }
+        // Explicit flush requests should be deterministic: if another flush is in flight,
+        // wait for it instead of dropping this request.
+        std::unique_lock<std::mutex> flushLock(_flushMutex);
+
+        // WriteFiles snapshots under lock and performs disk I/O without holding the mutex.
         WriteFiles();
     }
 }

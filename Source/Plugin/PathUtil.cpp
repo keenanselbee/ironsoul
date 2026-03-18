@@ -7,22 +7,30 @@ namespace IronSoul::PathUtil
 {
     fs::path GetGameRoot()
     {
-        wchar_t buf[MAX_PATH]{};
-        DWORD len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
-        if (len == 0 || len >= MAX_PATH) {
-            util::report_and_fail("Iron Soul: GetModuleFileNameW failed (PathUtil)");
-        }
-        fs::path exePath{ buf };
-        return exePath.parent_path();
+        // Cache the resolved root path. GetModuleFileNameW is relatively expensive and
+        // this path is stable for the lifetime of the process.
+        static const fs::path cachedRoot = []() -> fs::path {
+            wchar_t buf[MAX_PATH]{};
+            DWORD len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
+            if (len == 0 || len >= MAX_PATH) {
+                util::report_and_fail("Iron Soul: GetModuleFileNameW failed (PathUtil)");
+            }
+            fs::path exePath{ buf };
+            return exePath.parent_path();
+        }();
+
+        return cachedRoot;
     }
 
     fs::path GetDataRoot()
     {
-        return GetGameRoot() / L"Data";
+        static const fs::path cachedDataRoot = GetGameRoot() / L"Data";
+        return cachedDataRoot;
     }
 
     fs::path GetSksePluginsDir()
     {
-        return GetDataRoot() / L"SKSE" / L"Plugins";
+        static const fs::path cachedSksePluginsDir = GetDataRoot() / L"SKSE" / L"Plugins";
+        return cachedSksePluginsDir;
     }
 }

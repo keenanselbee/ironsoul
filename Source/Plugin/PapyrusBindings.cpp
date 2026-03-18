@@ -3,229 +3,1287 @@
 #include "PapyrusBindings.h"
 #include "Config.h"
 #include "JournalLog.h"
+#include "PathUtil.h"
 
 #include <random>
 #include <format>
 #include <cctype>
+#include <filesystem>
+#include <array>
+#include <atomic>
+#include <thread>
+#include <algorithm>
+#include <chrono>
+#include <type_traits>
+#include <utility>
 
 namespace IronSoul::Papyrus
 {
-	// Script name that owns the global native functions.
-	// In Papyrus you will call:
-	//   IronSoulNative.LogJournalEntry(msg)  (plugin will prepend player name + space)
-	//   int v = IronSoulNative.GetConfigInt("SomeKey", 0)
-	static constexpr const char* kScriptName = "IronSoulNative";
+    // Script name that owns the global native functions.
+    // In Papyrus you will call:
+    //   IronSoulNative.LogJournalEntry(msg)  (plugin will prepend player name + space)
+    //   int v = IronSoulNative.GetConfigInt("SomeKey", 0)
+    static constexpr const char* kScriptName = "IronSoulNative";
+    static constexpr const char* kMusicFadeSetVolumeEvent = "IronSoul_MusicFadeSetVolume";
+    static bool InfoLoggingEnabled()
+    {
+        return IronSoul::Config::ShouldEmitInfoLog();
+    }
+    static bool DeathSlowMoEnabled()
+    {
+        return IronSoul::Config::GetInt("DisableSlowMoOnDeath", 0) == 0;
+    }
+    namespace
+    {
+        struct MusicFadeState
+        {
+            std::mutex lock;
+            std::atomic<std::uint64_t> token{ 0 };
+            std::thread worker;
+            std::atomic<bool> warnedMissingSink{ false };
+            std::atomic<bool> warnedMissingCategory{ false };
+            float currentVolume{ 1.0f };
+            float cachedMenuVolume{ -1.0f };
+            bool cachedMenuVolumeValid{ false };
 
-	static std::string Trim(std::string s)
-	{
-		const auto first = s.find_first_not_of(" \t\n\r");
-		if (first == std::string::npos) {
-			return {};
-		}
-		const auto last = s.find_last_not_of(" \t\n\r");
-		return s.substr(first, last - first + 1);
-	}
+            ~MusicFadeState()
+            {
+                token.fetch_add(1);
+                if (worker.joinable()) {
+                    worker.join();
+                }
+            }
+        };
 
-	static std::string ResolvePlayerName(bool a_fallbackToPrisoner)
-	{
-		// Player name can be unavailable very early (pre-RaceMenu / early load).
-		// For journal logging we may want a stable fallback; for Papyrus callers we often
-		// want an empty string so the controller can decide when identity is "ready".
-		constexpr const char* kFallback = "Prisoner";
-		auto* player = RE::PlayerCharacter::GetSingleton();
-		if (!player) {
-			return a_fallbackToPrisoner ? kFallback : std::string{};
-		}
+        MusicFadeState g_musicFade;
+        struct MusicVolumeOverrideState
+        {
+            std::mutex lock;
+            std::int32_t mode{ -1 };               // -1=disabled, 0=force mute restore, 1=force full restore
+            bool enabled{ false };
+            float effectiveMenuVolume{ 1.0f };     // valid only when enabled
+        };
+        MusicVolumeOverrideState g_musicVolumeOverride;
 
-		std::string name = player->GetName();
-		name = Trim(name);
-		if (name.empty()) {
-			return a_fallbackToPrisoner ? kFallback : std::string{};
-		}
-		return name;
-	}
+        struct HealthMonitorState
+        {
+            std::mutex lock;
+            std::atomic<std::uint64_t> token{ 0 };
+            std::thread worker;
+            bool hpDepletedLatched{ false };
+            bool slowmoActive{ false };
+            double slowmoEndAtSec{ 0.0 };
+            bool slowmoRecovering{ false };
+            double slowmoRecoverStartAtSec{ 0.0 };
+            double slowmoRecoverEndAtSec{ 0.0 };
+            double recoveredSinceSec{ 0.0 };
+            double lastWallClockSampleSec{ 0.0 };
+            double activeGameplayClockSec{ 0.0 };
 
-	static std::string GetPlayerName(RE::StaticFunctionTag*)
-	{
-		// Return empty if the name is not yet available (Papyrus uses this to gate GUID assignment).
-		return ResolvePlayerName(false);
-	}
+            ~HealthMonitorState()
+            {
+                token.fetch_add(1);
+                if (worker.joinable()) {
+                    worker.join();
+                }
+            }
+        };
 
+        HealthMonitorState g_healthMonitor;
 
-	static char FirstGuidLetterFromName(const std::string& a_playerName)
-	{
-		// GUID prefix letter is derived from the character name (uppercase).
-		// We skip leading whitespace and prefer the first ASCII alphabetic character.
-		// If unavailable, fall back to 'P' (Prisoner).
-		std::string name = Trim(a_playerName);
-		for (unsigned char c : name) {
-			if (std::isalpha(c)) {
-				return static_cast<char>(std::toupper(c));
-			}
-		}
-		return 'P';
-	}
+        struct SlowMoSfxState
+        {
+            std::mutex lock;
+            bool initialized{ false };
+            bool enabled{ false };
+            std::array<RE::BGSSoundDescriptorForm*, 4> descriptors{};
+            std::mt19937 rng{ std::random_device{}() };
+        };
 
-	static std::string GenerateGuidUnique(RE::StaticFunctionTag*, std::string a_playerName)
-	{
-		// GUID format (v2): "<LETTER><####>" where:
-		//   - LETTER is the first letter of the player name (uppercase), fallback 'P'
-		//   - #### is 1000-9999
-		// Collision handling:
-		//   - We maintain a dedicated collision index in MainData:
-		//       "G.U.<GUID>" = 1
-		//   - Generation checks for key existence and CLAIMS the GUID by writing the marker
-		//     before returning it.
-		// This avoids scanning the entire datastore.
-		thread_local std::mt19937 rng{ std::random_device{}() };
-		std::uniform_int_distribution<std::int32_t> dist(1000, 9999);
+        SlowMoSfxState g_slowMoSfx;
+        struct CursorSuppressState
+        {
+            std::mutex lock;
+            std::uint8_t suppressStep{ 0 };  // 0=idle, 1=moved-right, 2=hidden+offscreen-right
+            bool savedPosValid{ false };
+            bool savedVisibilityValid{ false };
+            bool savedVisible{ true };
+            float savedPosX{ 0.0f };
+            float savedPosY{ 0.0f };
+        };
+        CursorSuppressState g_cursorSuppressState;
 
-		const char prefix = FirstGuidLetterFromName(a_playerName);
+        static constexpr const char* kPluginName = "Iron Soul - Permadeath Lite.esp";
+        static constexpr std::array<RE::FormID, 4> kSlowMoLocalFormIDs{
+            0x000216,
+            0x000217,
+            0x000218,
+            0x000219
+        };
 
-		for (std::int32_t attempt = 1; attempt <= 64; ++attempt) {
-			const auto n = dist(rng);
-			std::string guid = std::format("{}{}", prefix, n);
-			std::string usedKey = std::format("G.U.{}", guid);
+        static constexpr float kDeathSlowmoMultiplier = 0.3f;
+        static constexpr float kDeathSlowmoSeconds = 2.0f;
+        static constexpr float kDeathSlowmoRecoverSeconds = 2.0f;
+        static constexpr float kRearArmRecoverySeconds = 0.5f;
 
-			// Atomically claim the GUID marker. If it already exists, it's a collision.
-			if (IronSoul::DataStore::SetIntIfAbsent(usedKey, 1)) {
-				if (attempt > 1) {
-					logger::warn("IronSoul GUID: collision(s) avoided; claimed '{}' on attempt {}", guid, attempt);
-				}
-				return guid;
-			}
-		}
+        static float Clamp01(float a_value)
+        {
+            return std::clamp(a_value, 0.0f, 1.0f);
+        }
 
-		// Extremely unlikely fallback: widen the space slightly.
-		std::uniform_int_distribution<std::int32_t> distWide(100000, 999999);
-		for (std::int32_t attempt = 1; attempt <= 64; ++attempt) {
-			const auto n = distWide(rng);
-			std::string guid = std::format("{}{}", prefix, n);
-			std::string usedKey = std::format("G.U.{}", guid);
-			if (IronSoul::DataStore::SetIntIfAbsent(usedKey, 1)) {
-				logger::error("IronSoul GUID: exhausted 4-digit space; claimed widened GUID '{}'", guid);
-				return guid;
-			}
-		}
+        static bool IsGamePausedByMenu()
+        {
+            auto* ui = RE::UI::GetSingleton();
+            return ui && ui->GameIsPaused();
+        }
 
-		logger::critical("IronSoul GUID: failed to claim a unique GUID (unexpected)");
-		return {};
-	}
+        static void RefreshMusicVolumeOverrideCache()
+        {
+            std::int32_t mode = IronSoul::Config::GetInt("MusicVolumeOverride", -1);
+            if (mode != -1 && mode != 0 && mode != 1) {
+                logger::warn("MusicFade: invalid MusicVolumeOverride={} (expected -1/0/1). Falling back to -1.", mode);
+                mode = -1;
+            }
 
-	
-static bool IsAvailable(RE::StaticFunctionTag*)
-{
-	// Simple probe to confirm the Iron Soul SKSE plugin is loaded and Papyrus natives are registered.
-	return true;
-}
+            const bool enabled = (mode == 0 || mode == 1);
+            const float effective = (mode == 0) ? 0.0f : 1.0f;
+            {
+                std::scoped_lock lock(g_musicVolumeOverride.lock);
+                g_musicVolumeOverride.mode = mode;
+                g_musicVolumeOverride.enabled = enabled;
+                g_musicVolumeOverride.effectiveMenuVolume = effective;
+            }
 
-static bool DataStoreReady(RE::StaticFunctionTag*)
-{
-	// True once the native datastore has been initialized.
-	return IronSoul::DataStore::IsInitialized();
-}
+            if (InfoLoggingEnabled()) {
+                logger::info(
+                    "MusicFade: MusicVolumeOverride cached mode={} enabled={} effectiveMenuVolume={}",
+                    mode,
+                    enabled ? 1 : 0,
+                    enabled ? effective : -1.0f);
+            }
+        }
 
-static void LogJournalEntry(RE::StaticFunctionTag*, std::string a_message)
-	{
-		// Papyrus supplies the full event text (including punctuation).
-		// The plugin prepends the current player name and a single space.
-		const std::string name = ResolvePlayerName(true);
-		std::string msg = Trim(a_message);
-		if (msg.empty()) {
-			return;  // nothing to log
-		}
+        static void QueueSetMusicVolume(RE::FormID a_categoryFormID, float a_volume, std::uint64_t a_token)
+        {
+            auto* task = SKSE::GetTaskInterface();
+            if (!task || a_categoryFormID == 0) {
+                logger::warn("Music fade: QueueSetMusicVolume skipped (task={} formID={})", task ? "ok" : "null", a_categoryFormID);
+                return;
+            }
 
-		IronSoul::JournalLog::AppendLine(name + " " + msg);
-	}
+            const float v = Clamp01(a_volume);
+            task->AddTask([a_categoryFormID, v, a_token]() {
+                if (g_musicFade.token.load() != a_token) {
+                    return;
+                }
 
-	static std::int32_t GetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_fallback)
-	{
-		return IronSoul::Config::GetInt(a_key, a_fallback);
-	}
+                auto* modCallbacks = SKSE::GetModCallbackEventSource();
+                if (!modCallbacks) {
+                    if (!g_musicFade.warnedMissingSink.exchange(true)) {
+                        logger::warn("Music fade: mod callback source unavailable");
+                    }
+                    return;
+                }
 
-// ===============================
-// DataStore native wrappers
-// ===============================
+                auto* category = RE::TESForm::LookupByID<RE::BGSSoundCategory>(a_categoryFormID);
+                if (!category) {
+                    if (!g_musicFade.warnedMissingCategory.exchange(true)) {
+                        logger::warn("Music fade: SoundCategory lookup failed for formID={}", a_categoryFormID);
+                    }
+                    return;
+                }
 
-static int32_t DataGetInt(RE::StaticFunctionTag*, std::string a_key, int32_t a_fallback)
-{
-	return IronSoul::DataStore::GetInt(a_key, a_fallback);
-}
+                const SKSE::ModCallbackEvent ev(kMusicFadeSetVolumeEvent, "", v, category);
+                modCallbacks->SendEvent(&ev);
+            });
+        }
 
-static void DataSetInt(RE::StaticFunctionTag*, std::string a_key, int32_t a_value)
-{
-	IronSoul::DataStore::SetInt(a_key, a_value);
-}
+        static bool SleepCancelable(std::uint64_t a_token, std::chrono::duration<float> a_totalSleep)
+        {
+            constexpr auto kSlice = std::chrono::milliseconds(10);
+            const auto endAt = std::chrono::steady_clock::now() + a_totalSleep;
 
-static bool DataSetIntIfChanged(RE::StaticFunctionTag*, std::string a_key, int32_t a_value)
-{
-	return IronSoul::DataStore::SetIntIfChanged(a_key, a_value);
-}
+            while (true) {
+                if (g_musicFade.token.load() != a_token) {
+                    return false;
+                }
 
-static std::string DataGetString(RE::StaticFunctionTag*, std::string a_key, std::string a_fallback)
-{
-	return IronSoul::DataStore::GetString(a_key, a_fallback);
-}
+                const auto now = std::chrono::steady_clock::now();
+                if (now >= endAt) {
+                    return true;
+                }
 
-static void DataSetString(RE::StaticFunctionTag*, std::string a_key, std::string a_value)
-{
-	IronSoul::DataStore::SetString(a_key, a_value);
-}
+                const auto remaining = endAt - now;
+                const auto waitFor = remaining < kSlice ? remaining : kSlice;
+                std::this_thread::sleep_for(waitFor);
+            }
+        }
 
-static bool DataSetStringIfChanged(RE::StaticFunctionTag*, std::string a_key, std::string a_value)
-{
-	return IronSoul::DataStore::SetStringIfChanged(a_key, a_value);
-}
+        static bool SleepCancelable(std::atomic<std::uint64_t>& a_tokenSource, std::uint64_t a_token, std::chrono::duration<float> a_totalSleep)
+        {
+            constexpr auto kSlice = std::chrono::milliseconds(10);
+            const auto endAt = std::chrono::steady_clock::now() + a_totalSleep;
 
-static bool DataHasKey(RE::StaticFunctionTag*, std::string a_key)
-{
-	return IronSoul::DataStore::HasKey(a_key);
-}
+            while (true) {
+                if (a_tokenSource.load() != a_token) {
+                    return false;
+                }
 
-static void DataDeleteKey(RE::StaticFunctionTag*, std::string a_key)
-{
-	IronSoul::DataStore::DeleteKey(a_key);
-}
+                const auto now = std::chrono::steady_clock::now();
+                if (now >= endAt) {
+                    return true;
+                }
 
-static void DataFlushNow(RE::StaticFunctionTag*)
-{
-	IronSoul::DataStore::FlushNow();
-}
+                const auto remaining = endAt - now;
+                const auto waitFor = remaining < kSlice ? remaining : kSlice;
+                std::this_thread::sleep_for(waitFor);
+            }
+        }
 
+        static void QueueSetGlobalTimeMultiplier(float a_multiplier, const char* a_reason, bool a_log = true);
 
-	bool Register()
-	{
-		auto* papyrus = SKSE::GetPapyrusInterface();
-		if (!papyrus) {
-			logger::error("Iron Soul: Papyrus interface unavailable");
-			return false;
-		}
+        static bool EnsureSlowMoDescriptorsLoaded()
+        {
+            std::scoped_lock lock(g_slowMoSfx.lock);
+            if (g_slowMoSfx.initialized) {
+                return g_slowMoSfx.enabled;
+            }
 
-		const bool ok = papyrus->Register([](RE::BSScript::IVirtualMachine* a_vm) {
-			a_vm->RegisterFunction("IsAvailable", kScriptName, IsAvailable);
-			a_vm->RegisterFunction("DataStoreReady", kScriptName, DataStoreReady);
-			a_vm->RegisterFunction("LogJournalEntry", kScriptName, LogJournalEntry);
-			a_vm->RegisterFunction("GetPlayerName", kScriptName, GetPlayerName);
-			a_vm->RegisterFunction("GenerateGuidUnique", kScriptName, GenerateGuidUnique);
-			a_vm->RegisterFunction("GetConfigInt", kScriptName, GetConfigInt);
-			a_vm->RegisterFunction("DataGetInt", kScriptName, DataGetInt);
-			a_vm->RegisterFunction("DataSetInt", kScriptName, DataSetInt);
-			a_vm->RegisterFunction("DataSetIntIfChanged", kScriptName, DataSetIntIfChanged);
-			a_vm->RegisterFunction("DataGetString", kScriptName, DataGetString);
-			a_vm->RegisterFunction("DataSetString", kScriptName, DataSetString);
-			a_vm->RegisterFunction("DataSetStringIfChanged", kScriptName, DataSetStringIfChanged);
-			a_vm->RegisterFunction("DataHasKey", kScriptName, DataHasKey);
-			a_vm->RegisterFunction("DataDeleteKey", kScriptName, DataDeleteKey);
-			a_vm->RegisterFunction("DataFlushNow", kScriptName, DataFlushNow);
-			return true;
-		});
+            g_slowMoSfx.initialized = true;
+            auto* dataHandler = RE::TESDataHandler::GetSingleton();
+            if (!dataHandler) {
+                logger::warn("SlowMoSFX: TESDataHandler unavailable");
+                return false;
+            }
 
-		if (ok) {
-			logger::info("Iron Soul: Registered papyrus natives on script '{}'", kScriptName);
-		} else {
-			logger::critical("Iron Soul: Failed to register papyrus natives");
-		}
+            for (std::size_t i = 0; i < kSlowMoLocalFormIDs.size(); ++i) {
+                auto* form = dataHandler->LookupForm(kSlowMoLocalFormIDs[i], kPluginName);
+                auto* sound = form ? form->As<RE::BGSSoundDescriptorForm>() : nullptr;
+                if (!sound) {
+                    logger::warn("SlowMoSFX: missing descriptor localID=0x{:06X} plugin='{}'", kSlowMoLocalFormIDs[i], kPluginName);
+                    return false;
+                }
+                g_slowMoSfx.descriptors[i] = sound;
+            }
 
-		return ok;
-	}
+            g_slowMoSfx.enabled = true;
+            if (InfoLoggingEnabled()) {
+                logger::info("SlowMoSFX: loaded {} descriptors", g_slowMoSfx.descriptors.size());
+            }
+            return true;
+        }
+
+        static void PlayRandomSlowMoSound()
+        {
+            if (IronSoul::Config::GetInt("DisableSFX", 0) == 1) {
+                return;
+            }
+            if (IronSoul::Config::GetInt("DisableSlowMoSFX", 0) == 1) {
+                return;
+            }
+            if (!EnsureSlowMoDescriptorsLoaded()) {
+                return;
+            }
+
+            auto* audioMgr = RE::BSAudioManager::GetSingleton();
+            if (!audioMgr) {
+                logger::warn("SlowMoSFX: BSAudioManager unavailable");
+                return;
+            }
+
+            RE::BGSSoundDescriptorForm* descriptor = nullptr;
+            {
+                std::scoped_lock lock(g_slowMoSfx.lock);
+                std::uniform_int_distribution<std::size_t> dist(0, g_slowMoSfx.descriptors.size() - 1);
+                descriptor = g_slowMoSfx.descriptors[dist(g_slowMoSfx.rng)];
+            }
+
+            if (!descriptor) {
+                logger::warn("SlowMoSFX: descriptor cache empty");
+                return;
+            }
+
+            RE::BSSoundHandle handle{};
+            if (!audioMgr->BuildSoundDataFromDescriptor(handle, descriptor, 0x1A)) {
+                logger::warn("SlowMoSFX: BuildSoundDataFromDescriptor failed");
+                return;
+            }
+            if (!handle.IsValid()) {
+                logger::warn("SlowMoSFX: invalid sound handle");
+                return;
+            }
+            if (!handle.Play()) {
+                logger::warn("SlowMoSFX: Play failed");
+            }
+        }
+
+        static void StopHealthMonitorInternal()
+        {
+            std::thread oldWorker;
+            {
+                std::scoped_lock lock(g_healthMonitor.lock);
+                g_healthMonitor.token.fetch_add(1);
+                g_healthMonitor.hpDepletedLatched = false;
+                g_healthMonitor.slowmoActive = false;
+                g_healthMonitor.slowmoEndAtSec = 0.0;
+                g_healthMonitor.slowmoRecovering = false;
+                g_healthMonitor.slowmoRecoverStartAtSec = 0.0;
+                g_healthMonitor.slowmoRecoverEndAtSec = 0.0;
+                g_healthMonitor.recoveredSinceSec = 0.0;
+                g_healthMonitor.lastWallClockSampleSec = 0.0;
+                g_healthMonitor.activeGameplayClockSec = 0.0;
+                if (g_healthMonitor.worker.joinable()) {
+                    oldWorker = std::move(g_healthMonitor.worker);
+                }
+            }
+
+            if (oldWorker.joinable()) {
+                oldWorker.join();
+            }
+            QueueSetGlobalTimeMultiplier(1.0f, "monitor-stop");
+        }
+
+        static void QueueSetGlobalTimeMultiplier(float a_multiplier, const char* a_reason, bool a_log)
+        {
+            auto* task = SKSE::GetTaskInterface();
+            if (!task) {
+                if (InfoLoggingEnabled()) {
+                    logger::warn("DeathSlowMo: task interface unavailable (reason={})", a_reason ? a_reason : "unknown");
+                }
+                return;
+            }
+
+            const float mult = a_multiplier;
+            const bool infoLog = InfoLoggingEnabled();
+            const bool doLog = a_log;
+            const std::string reason = a_reason ? a_reason : "unknown";
+
+            task->AddTask([mult, infoLog, doLog, reason]() {
+                auto* timer = RE::BSTimer::GetSingleton();
+                if (!timer) {
+                    if (infoLog && doLog) {
+                        logger::warn("DeathSlowMo: BSTimer unavailable (reason={})", reason);
+                    }
+                    return;
+                }
+
+                timer->SetGlobalTimeMultiplier(mult, false);
+                if (infoLog && doLog) {
+                    logger::info("DeathSlowMo: BSTimer SetGlobalTimeMultiplier multiplier={} reason={}", mult, reason);
+                }
+            });
+        }
+
+        static void StartHealthMonitorInternal()
+        {
+            constexpr float kPollSeconds = 0.1f;
+            std::thread oldWorker;
+            std::uint64_t myToken = 0;
+
+            {
+                std::scoped_lock lock(g_healthMonitor.lock);
+                if (g_healthMonitor.worker.joinable()) {
+                    oldWorker = std::move(g_healthMonitor.worker);
+                }
+                myToken = g_healthMonitor.token.fetch_add(1) + 1;
+                g_healthMonitor.hpDepletedLatched = false;
+                g_healthMonitor.slowmoActive = false;
+                g_healthMonitor.slowmoEndAtSec = 0.0;
+                g_healthMonitor.slowmoRecovering = false;
+                g_healthMonitor.slowmoRecoverStartAtSec = 0.0;
+                g_healthMonitor.slowmoRecoverEndAtSec = 0.0;
+                g_healthMonitor.recoveredSinceSec = 0.0;
+                g_healthMonitor.lastWallClockSampleSec = 0.0;
+                g_healthMonitor.activeGameplayClockSec = 0.0;
+
+                g_healthMonitor.worker = std::thread([myToken]() {
+                    while (g_healthMonitor.token.load() == myToken) {
+                        auto* task = SKSE::GetTaskInterface();
+                        if (!task) {
+                            if (!SleepCancelable(g_healthMonitor.token, myToken, std::chrono::duration<float>(kPollSeconds))) {
+                                return;
+                            }
+                            continue;
+                        }
+
+                        task->AddTask([myToken]() {
+                            if (g_healthMonitor.token.load() != myToken) {
+                                return;
+                            }
+                            const double nowWallSec = std::chrono::duration<double>(
+                                std::chrono::steady_clock::now().time_since_epoch())
+                                .count();
+                            const bool pausedByMenu = IsGamePausedByMenu();
+
+                            auto* player = RE::PlayerCharacter::GetSingleton();
+                            if (!player) {
+                                return;
+                            }
+                            auto* actor = static_cast<RE::Actor*>(player);
+                            if (!actor) {
+                                return;
+                            }
+                            auto* avOwner = actor->AsActorValueOwner();
+                            if (!avOwner) {
+                                return;
+                            }
+
+                            const float currentHealth = avOwner->GetActorValue(RE::ActorValue::kHealth);
+
+                            bool shouldApplySlowmo = false;
+                            bool shouldMaintainSlowmo = false;
+                            bool shouldStartSlowmoRecovery = false;
+                            bool shouldRecoverSlowmo = false;
+                            bool shouldCompleteSlowmoRecovery = false;
+                            float recoverSlowmoMultiplier = 1.0f;
+                            double nowGameplaySec = 0.0;
+                            {
+                                std::scoped_lock lock(g_healthMonitor.lock);
+                                if (g_healthMonitor.lastWallClockSampleSec <= 0.0 || nowWallSec < g_healthMonitor.lastWallClockSampleSec) {
+                                    g_healthMonitor.lastWallClockSampleSec = nowWallSec;
+                                } else {
+                                    const double wallDelta = nowWallSec - g_healthMonitor.lastWallClockSampleSec;
+                                    g_healthMonitor.lastWallClockSampleSec = nowWallSec;
+                                    if (!pausedByMenu && wallDelta > 0.0) {
+                                        g_healthMonitor.activeGameplayClockSec += wallDelta;
+                                    }
+                                }
+
+                                nowGameplaySec = g_healthMonitor.activeGameplayClockSec;
+
+                                if (g_healthMonitor.slowmoActive && nowGameplaySec >= g_healthMonitor.slowmoEndAtSec) {
+                                    g_healthMonitor.slowmoActive = false;
+                                    g_healthMonitor.slowmoEndAtSec = 0.0;
+                                    g_healthMonitor.slowmoRecovering = true;
+                                    g_healthMonitor.slowmoRecoverStartAtSec = nowGameplaySec;
+                                    g_healthMonitor.slowmoRecoverEndAtSec = nowGameplaySec + kDeathSlowmoRecoverSeconds;
+                                    shouldStartSlowmoRecovery = true;
+                                } else if (g_healthMonitor.slowmoActive) {
+                                    shouldMaintainSlowmo = true;
+                                }
+
+                                if (g_healthMonitor.slowmoRecovering) {
+                                    const double recoverDuration = g_healthMonitor.slowmoRecoverEndAtSec - g_healthMonitor.slowmoRecoverStartAtSec;
+                                    if (recoverDuration <= 0.0 || nowGameplaySec >= g_healthMonitor.slowmoRecoverEndAtSec) {
+                                        g_healthMonitor.slowmoRecovering = false;
+                                        g_healthMonitor.slowmoRecoverStartAtSec = 0.0;
+                                        g_healthMonitor.slowmoRecoverEndAtSec = 0.0;
+                                        shouldCompleteSlowmoRecovery = true;
+                                    } else {
+                                        const double tRaw = (nowGameplaySec - g_healthMonitor.slowmoRecoverStartAtSec) / recoverDuration;
+                                        const float t = std::clamp(static_cast<float>(tRaw), 0.0f, 1.0f);
+                                        recoverSlowmoMultiplier = kDeathSlowmoMultiplier + ((1.0f - kDeathSlowmoMultiplier) * t);
+                                        shouldRecoverSlowmo = true;
+                                    }
+                                }
+
+                                if (currentHealth <= 0.0f) {
+                                    if (!g_healthMonitor.hpDepletedLatched) {
+                                        if (DeathSlowMoEnabled()) {
+                                            shouldApplySlowmo = true;
+                                            g_healthMonitor.slowmoActive = true;
+                                            g_healthMonitor.slowmoEndAtSec = nowGameplaySec + kDeathSlowmoSeconds;
+                                            g_healthMonitor.slowmoRecovering = false;
+                                            g_healthMonitor.slowmoRecoverStartAtSec = 0.0;
+                                            g_healthMonitor.slowmoRecoverEndAtSec = 0.0;
+                                        }
+                                    }
+                                    g_healthMonitor.hpDepletedLatched = true;
+                                    g_healthMonitor.recoveredSinceSec = 0.0;
+                                } else {
+                                    if (g_healthMonitor.hpDepletedLatched) {
+                                        if (g_healthMonitor.recoveredSinceSec <= 0.0) {
+                                            g_healthMonitor.recoveredSinceSec = nowGameplaySec;
+                                        } else if ((nowGameplaySec - g_healthMonitor.recoveredSinceSec) >= kRearArmRecoverySeconds) {
+                                            g_healthMonitor.hpDepletedLatched = false;
+                                            g_healthMonitor.recoveredSinceSec = 0.0;
+                                        }
+                                    } else {
+                                        g_healthMonitor.recoveredSinceSec = 0.0;
+                                    }
+                                }
+                            }
+
+                            if (shouldApplySlowmo) {
+                                shouldStartSlowmoRecovery = false;
+                                shouldRecoverSlowmo = false;
+                                shouldCompleteSlowmoRecovery = false;
+                            }
+
+                            if (shouldStartSlowmoRecovery && InfoLoggingEnabled()) {
+                                logger::info("DeathSlowMo: recovery start seconds={}", kDeathSlowmoRecoverSeconds);
+                            }
+                            if (shouldApplySlowmo) {
+                                QueueSetGlobalTimeMultiplier(kDeathSlowmoMultiplier, "death-detected");
+                                PlayRandomSlowMoSound();
+                            }
+                            if (shouldMaintainSlowmo) {
+                                QueueSetGlobalTimeMultiplier(kDeathSlowmoMultiplier, "slowmo-maintain", false);
+                            }
+                            if (shouldRecoverSlowmo) {
+                                QueueSetGlobalTimeMultiplier(recoverSlowmoMultiplier, "slowmo-recover", false);
+                            }
+                            if (shouldCompleteSlowmoRecovery) {
+                                QueueSetGlobalTimeMultiplier(1.0f, "slowmo-recover-end");
+                            }
+                        });
+
+                        if (!SleepCancelable(g_healthMonitor.token, myToken, std::chrono::duration<float>(kPollSeconds))) {
+                            return;
+                        }
+                    }
+                });
+            }
+
+            if (oldWorker.joinable()) {
+                oldWorker.join();
+            }
+        }
+
+        static void StartMusicFade(RE::FormID a_categoryFormID, float a_targetVolume, float a_seconds)
+        {
+            if (a_categoryFormID == 0) {
+                logger::warn("Music fade: StartMusicFade skipped (invalid formID)");
+                return;
+            }
+
+            const float target = Clamp01(a_targetVolume);
+            const float seconds = (std::max)(0.0f, a_seconds);
+            float start = 1.0f;
+            std::thread oldWorker;
+
+            {
+                std::scoped_lock lock(g_musicFade.lock);
+                if (g_musicFade.worker.joinable()) {
+                    oldWorker = std::move(g_musicFade.worker);
+                }
+            }
+
+            const std::uint64_t myToken = g_musicFade.token.fetch_add(1) + 1;
+            if (InfoLoggingEnabled()) {
+                logger::info("Music fade: start request token={} formID={} target={} seconds={}", myToken, a_categoryFormID, target, seconds);
+            }
+
+            if (oldWorker.joinable()) {
+                if (InfoLoggingEnabled()) {
+                    logger::info("Music fade: waiting for previous worker");
+                }
+                oldWorker.join();
+                if (InfoLoggingEnabled()) {
+                    logger::info("Music fade: previous worker joined");
+                }
+            }
+
+            {
+                std::scoped_lock lock(g_musicFade.lock);
+                start = Clamp01(g_musicFade.currentVolume);
+                if (InfoLoggingEnabled()) {
+                    logger::info("Music fade: worker begin token={} start={} target={} seconds={}", myToken, start, target, seconds);
+                }
+                g_musicFade.worker = std::thread([myToken, a_categoryFormID, start, target, seconds]() {
+                if (seconds <= 0.0f) {
+                    if (g_musicFade.token.load() != myToken) {
+                        if (InfoLoggingEnabled()) {
+                            logger::info("Music fade: immediate set canceled token={}", myToken);
+                        }
+                        return;
+                    }
+                    QueueSetMusicVolume(a_categoryFormID, target, myToken);
+                    std::scoped_lock lock(g_musicFade.lock);
+                    g_musicFade.currentVolume = target;
+                    if (InfoLoggingEnabled()) {
+                        logger::info("Music fade: immediate set complete token={} value={}", myToken, target);
+                    }
+                    return;
+                }
+
+                constexpr int kSteps = 20;
+                const auto stepSleep = std::chrono::duration<float>(seconds / static_cast<float>(kSteps));
+
+                for (int i = 1; i <= kSteps; ++i) {
+                    if (g_musicFade.token.load() != myToken) {
+                        if (InfoLoggingEnabled()) {
+                            logger::info("Music fade: worker canceled token={} step={}/{}", myToken, i, kSteps);
+                        }
+                        return;
+                    }
+
+                    const float t = static_cast<float>(i) / static_cast<float>(kSteps);
+                    const float v = start + (target - start) * t;
+                    QueueSetMusicVolume(a_categoryFormID, v, myToken);
+
+                    {
+                        std::scoped_lock lock(g_musicFade.lock);
+                        g_musicFade.currentVolume = Clamp01(v);
+                    }
+
+                    if (!SleepCancelable(myToken, stepSleep)) {
+                        if (InfoLoggingEnabled()) {
+                            logger::info("Music fade: sleep canceled token={} step={}/{}", myToken, i, kSteps);
+                        }
+                        return;
+                    }
+                }
+                if (InfoLoggingEnabled()) {
+                    logger::info("Music fade: worker complete token={} final={}", myToken, target);
+                }
+                });
+            }
+        }
+    }
+
+    static std::string Trim(std::string s)
+    {
+        const auto first = s.find_first_not_of(" \t\n\r");
+        if (first == std::string::npos) {
+            return {};
+        }
+        const auto last = s.find_last_not_of(" \t\n\r");
+        return s.substr(first, last - first + 1);
+    }
+
+    static std::string ResolvePlayerName(bool a_fallbackToPrisoner)
+    {
+        // Player name can be unavailable very early (pre-RaceMenu / early load).
+        // For journal logging we may want a stable fallback; for Papyrus callers we often
+        // want an empty string so the controller can decide when identity is "ready".
+        constexpr const char* kFallback = "Prisoner";
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player) {
+            return a_fallbackToPrisoner ? kFallback : std::string{};
+        }
+
+        std::string name = player->GetName();
+        name = Trim(name);
+        if (name.empty()) {
+            return a_fallbackToPrisoner ? kFallback : std::string{};
+        }
+        return name;
+    }
+
+    static std::string GetPlayerName(RE::StaticFunctionTag*)
+    {
+        // Return empty if the name is not yet available (Papyrus uses this to gate GUID assignment).
+        return ResolvePlayerName(false);
+    }
+
+    static char FirstGuidLetterFromName(const std::string& a_playerName)
+    {
+        // GUID prefix letter is derived from the character name (uppercase).
+        // We skip leading whitespace and prefer the first ASCII alphabetic character.
+        // If unavailable, fall back to 'P' (Prisoner).
+        std::string name = Trim(a_playerName);
+        for (unsigned char c : name) {
+            if (std::isalpha(c)) {
+                return static_cast<char>(std::toupper(c));
+            }
+        }
+        return 'P';
+    }
+
+    static std::string GenerateGuidUnique(RE::StaticFunctionTag*, std::string a_playerName)
+    {
+        // GUID format (v2): "<LETTER><####>" where:
+        //   - LETTER is the first letter of the player name (uppercase), fallback 'P'
+        //   - #### is 1000-9999
+        // Collision handling:
+        //   - We maintain a dedicated collision index in MainData:
+        //       "G.U.<GUID>" = 1
+        //   - Generation checks for key existence and CLAIMS the GUID by writing the marker
+        //     before returning it.
+        // This avoids scanning the entire datastore.
+        thread_local std::mt19937 rng{ std::random_device{}() };
+        std::uniform_int_distribution<std::int32_t> dist(1000, 9999);
+
+        const char prefix = FirstGuidLetterFromName(a_playerName);
+
+        for (std::int32_t attempt = 1; attempt <= 64; ++attempt) {
+            const auto n = dist(rng);
+            std::string guid = std::format("{}{}", prefix, n);
+            std::string usedKey = std::format("G.U.{}", guid);
+
+            // Atomically claim the GUID marker. If it already exists, it's a collision.
+            if (IronSoul::DataStore::SetIntIfAbsent(usedKey, 1)) {
+                if (attempt > 1) {
+                    logger::warn("IronSoul GUID: collision(s) avoided; claimed '{}' on attempt {}", guid, attempt);
+                }
+                return guid;
+            }
+        }
+
+        // Extremely unlikely fallback: widen the space slightly.
+        std::uniform_int_distribution<std::int32_t> distWide(100000, 999999);
+        for (std::int32_t attempt = 1; attempt <= 64; ++attempt) {
+            const auto n = distWide(rng);
+            std::string guid = std::format("{}{}", prefix, n);
+            std::string usedKey = std::format("G.U.{}", guid);
+            if (IronSoul::DataStore::SetIntIfAbsent(usedKey, 1)) {
+                logger::error("IronSoul GUID: exhausted 4-digit space; claimed widened GUID '{}'", guid);
+                return guid;
+            }
+        }
+
+        logger::critical("IronSoul GUID: failed to claim a unique GUID (unexpected)");
+        return {};
+    }
+
+    static bool IsAvailable(RE::StaticFunctionTag*)
+    {
+        // Simple probe to confirm the Iron Soul SKSE plugin is loaded and Papyrus natives are registered.
+        return true;
+    }
+
+    static bool DataStoreReady(RE::StaticFunctionTag*)
+    {
+        // True once the native datastore has been initialized.
+        return IronSoul::DataStore::IsInitialized();
+    }
+
+    static void LogJournalEntry(RE::StaticFunctionTag*, std::string a_message)
+    {
+        // Papyrus supplies the full event text (including punctuation).
+        // The plugin prepends the current player name and a single space.
+        const std::string name = ResolvePlayerName(true);
+        std::string msg = Trim(a_message);
+        if (msg.empty()) {
+            return;  // nothing to log
+        }
+
+        IronSoul::JournalLog::AppendLine(name + " " + msg);
+    }
+
+    static std::int32_t GetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_fallback)
+    {
+        return IronSoul::Config::GetInt(a_key, a_fallback);
+    }
+
+    static bool SetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_value, bool a_persistToIni)
+    {
+        return IronSoul::Config::SetInt(a_key, a_value, a_persistToIni);
+    }
+
+    static bool ReloadConfig(RE::StaticFunctionTag*)
+    {
+        IronSoul::Config::Load();
+        RefreshMusicVolumeOverrideCache();
+        return true;
+    }
+
+    static int32_t DataGetInt(RE::StaticFunctionTag*, std::string a_key, int32_t a_fallback)
+    {
+        return IronSoul::DataStore::GetInt(a_key, a_fallback);
+    }
+
+    static void DataSetInt(RE::StaticFunctionTag*, std::string a_key, int32_t a_value)
+    {
+        if (!IronSoul::DataStore::SetInt(a_key, a_value)) {
+            logger::warn("DataSetInt rejected (invalid key): key='{}' keyLen={}", a_key, a_key.size());
+        }
+    }
+
+    static bool DataSetIntIfChanged(RE::StaticFunctionTag*, std::string a_key, int32_t a_value)
+    {
+        return IronSoul::DataStore::SetIntIfChanged(a_key, a_value);
+    }
+
+    static std::string DataGetString(RE::StaticFunctionTag*, std::string a_key, std::string a_fallback)
+    {
+        return IronSoul::DataStore::GetString(a_key, a_fallback);
+    }
+
+    static void DataSetString(RE::StaticFunctionTag*, std::string a_key, std::string a_value)
+    {
+        if (!IronSoul::DataStore::SetString(a_key, a_value)) {
+            logger::warn(
+                "DataSetString rejected (invalid key or value too long): key='{}' keyLen={} valueLen={}",
+                a_key,
+                a_key.size(),
+                a_value.size());
+        }
+    }
+
+    static bool DataSetStringIfChanged(RE::StaticFunctionTag*, std::string a_key, std::string a_value)
+    {
+        return IronSoul::DataStore::SetStringIfChanged(a_key, a_value);
+    }
+
+    static bool DataHasKey(RE::StaticFunctionTag*, std::string a_key)
+    {
+        return IronSoul::DataStore::HasKey(a_key);
+    }
+
+    static void DataDeleteKey(RE::StaticFunctionTag*, std::string a_key)
+    {
+        IronSoul::DataStore::DeleteKey(a_key);
+    }
+
+    static void DataFlushIfDirty(RE::StaticFunctionTag*)
+    {
+        IronSoul::DataStore::FlushIfDirty();
+    }
+
+    static void ApplyDynamicSplash(RE::StaticFunctionTag*, std::int32_t a_splashIndex)
+    {
+        // Guardrail: respect INI gate too (even if controller also checks).
+        // DisableDynamicSplash=1 disables; default 0 means enabled.
+        if (IronSoul::Config::GetInt("DisableDynamicSplash", 0) == 1) {
+            return;
+        }
+
+        // Plugin performs the file copy.
+        try {
+            namespace fs = std::filesystem;
+
+            // 0=chim, 1=defiant, 2=iron, 3=silver, 4=gold, 5=ebon, 6=platinum
+            static constexpr const wchar_t* kFiles[] = {
+                L"splash0chim.png",
+                L"splash1defiant.png",
+                L"splash2iron.png",
+                L"splash3silver.png",
+                L"splash4gold.png",
+                L"splash5ebon.png",
+                L"splash6platinum.png"
+            };
+
+            if (a_splashIndex < 0 || a_splashIndex >= static_cast<std::int32_t>(std::size(kFiles))) {
+                logger::warn("ApplyDynamicSplash: invalid splashIndex={}", a_splashIndex);
+                return;
+            }
+
+            const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
+            const fs::path src = ifaceDir / kFiles[a_splashIndex];
+            const fs::path dst = ifaceDir / L"splash.png";
+            const fs::path tmp = ifaceDir / L"splash.png.tmp";
+
+            if (!fs::exists(src)) {
+                logger::warn("ApplyDynamicSplash: source missing: {}", src.string());
+                return;
+            }
+
+            // Ensure directory exists (should, but safe).
+            std::error_code ec;
+            fs::create_directories(ifaceDir, ec);
+            if (ec) {
+                logger::warn("ApplyDynamicSplash: create_directories failed: {} (ec={})", ifaceDir.string(), ec.value());
+                // Continue anyway; copy may still succeed if dir already exists.
+                ec.clear();
+            }
+
+            // Copy to temp, then move into place. If move-over fails, fall back to overwrite copy.
+            fs::copy_file(src, tmp, fs::copy_options::overwrite_existing, ec);
+            if (ec) {
+                logger::error("ApplyDynamicSplash: copy failed '{}' -> '{}' (ec={})", src.string(), tmp.string(), ec.value());
+                return;
+            }
+
+            ec.clear();
+            fs::rename(tmp, dst, ec);
+            if (ec) {
+                ec.clear();
+                fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
+                if (ec) {
+                    logger::error("ApplyDynamicSplash: overwrite failed '{}' -> '{}' (ec={})", src.string(), dst.string(), ec.value());
+                    // Best-effort cleanup
+                    ec.clear();
+                    fs::remove(tmp, ec);
+                    return;
+                }
+                // Best-effort cleanup: if rename failed, tmp may still exist.
+                ec.clear();
+                fs::remove(tmp, ec);
+            }
+
+            if (InfoLoggingEnabled()) {
+                logger::info("ApplyDynamicSplash: applied idx={} ('{}' -> '{}')", a_splashIndex, src.string(), dst.string());
+            }
+        }
+        catch (const std::exception& e) {
+            logger::error("ApplyDynamicSplash: exception: {}", e.what());
+        }
+    }
+
+    static bool DynamicLevelWidgetAssetsPresent()
+    {
+        namespace fs = std::filesystem;
+        const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
+
+        // Require the base destination to exist to confirm the user has the widget mod installed.
+        // We still overwrite it, but its presence is used as the install signal.
+        if (!fs::exists(ifaceDir / L"lvlWidget.swf")) {
+            return false;
+        }
+        static constexpr const wchar_t* kVariants[] = {
+            L"lvlWidget0chim.swf",
+            L"lvlWidget1defiant.swf",
+            L"lvlWidget2iron.swf",
+            L"lvlWidget3silver.swf",
+            L"lvlWidget4gold.swf",
+            L"lvlWidget5ebon.swf",
+            L"lvlWidget6platinum.swf"
+        };
+
+        for (auto* f : kVariants) {
+            if (!fs::exists(ifaceDir / f)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    static void ApplyDynamicLevelWidget(RE::StaticFunctionTag*, std::int32_t a_widgetIndex)
+    {
+        // Hard-gate via INI (global).
+        if (IronSoul::Config::GetInt("DisableDynamicLevelWidget", 0) == 1) {
+            return;
+        }
+
+        if (!DynamicLevelWidgetAssetsPresent()) {
+            return;
+        }
+
+        if (a_widgetIndex < 0) a_widgetIndex = 0;
+        if (a_widgetIndex > 6) a_widgetIndex = 6;
+
+        try {
+            namespace fs = std::filesystem;
+            const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
+
+            static constexpr const wchar_t* kFiles[] = {
+                L"lvlWidget0chim.swf",
+                L"lvlWidget1defiant.swf",
+                L"lvlWidget2iron.swf",
+                L"lvlWidget3silver.swf",
+                L"lvlWidget4gold.swf",
+                L"lvlWidget5ebon.swf",
+                L"lvlWidget6platinum.swf"
+            };
+
+            const fs::path src = ifaceDir / kFiles[a_widgetIndex];
+            const fs::path dst = ifaceDir / L"lvlWidget.swf";
+            const fs::path tmp = ifaceDir / L"lvlWidget.swf.tmp";
+
+            std::error_code ec;
+            fs::create_directories(ifaceDir, ec);
+            ec.clear();
+
+            fs::copy_file(src, tmp, fs::copy_options::overwrite_existing, ec);
+            if (ec) {
+                logger::error("ApplyDynamicLevelWidget: copy failed '{}' -> '{}' (ec={})", src.string(), tmp.string(), ec.value());
+                return;
+            }
+
+            ec.clear();
+            fs::rename(tmp, dst, ec);
+            if (ec) {
+                ec.clear();
+                fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
+                if (ec) {
+                    logger::error("ApplyDynamicLevelWidget: overwrite failed '{}' -> '{}' (ec={})", src.string(), dst.string(), ec.value());
+                    // Best-effort cleanup.
+                    ec.clear();
+                    fs::remove(tmp, ec);
+                    return;
+                }
+                // Best-effort cleanup: if rename failed, tmp may still exist.
+                ec.clear();
+                fs::remove(tmp, ec);
+            }
+
+            if (InfoLoggingEnabled()) {
+                logger::info("ApplyDynamicLevelWidget: applied idx={} ('{}' -> '{}')", a_widgetIndex, src.string(), dst.string());
+            }
+        }
+        catch (const std::exception& e) {
+            logger::error("ApplyDynamicLevelWidget: exception: {}", e.what());
+        }
+    }
+
+    static void MusicFadeOut(RE::StaticFunctionTag*, RE::BGSSoundCategory* a_musicCategory, float a_seconds, float a_menuVolume)
+    {
+        if (IronSoul::Config::GetInt("DisableMusicFade", 0) == 1) {
+            return;
+        }
+
+        if (!a_musicCategory) {
+            logger::warn("MusicFadeOut: null SoundCategory");
+            return;
+        }
+
+        const RE::FormID formID = a_musicCategory->GetFormID();
+        float effectiveMenuVolume = a_menuVolume;
+        std::int32_t overrideMode = -1;
+        bool usingOverride = false;
+        {
+            std::scoped_lock lock(g_musicVolumeOverride.lock);
+            overrideMode = g_musicVolumeOverride.mode;
+            usingOverride = g_musicVolumeOverride.enabled;
+            if (usingOverride) {
+                effectiveMenuVolume = g_musicVolumeOverride.effectiveMenuVolume;
+            }
+        }
+
+        if (InfoLoggingEnabled()) {
+            logger::info(
+                "MusicFadeOut: formID={} seconds={} menuVolumeIn={} effectiveMenuVolume={} source={} overrideMode={}",
+                formID,
+                a_seconds,
+                a_menuVolume,
+                effectiveMenuVolume,
+                usingOverride ? "override" : "papyrus",
+                overrideMode);
+        }
+        {
+            std::scoped_lock lock(g_musicFade.lock);
+
+            if (effectiveMenuVolume >= 0.0f) {
+                g_musicFade.cachedMenuVolume = Clamp01(effectiveMenuVolume);
+                g_musicFade.cachedMenuVolumeValid = true;
+            } else if (!g_musicFade.cachedMenuVolumeValid) {
+                g_musicFade.cachedMenuVolume = 1.0f;
+                g_musicFade.cachedMenuVolumeValid = true;
+            }
+
+            if (g_musicFade.currentVolume >= 0.999f) {
+                g_musicFade.currentVolume = g_musicFade.cachedMenuVolume;
+            }
+
+            if (InfoLoggingEnabled()) {
+                logger::info(
+                    "MusicFadeOut: cache valid={} cachedMenu={} currentVolume={}",
+                    g_musicFade.cachedMenuVolumeValid ? 1 : 0,
+                    g_musicFade.cachedMenuVolume,
+                    g_musicFade.currentVolume);
+            }
+        }
+
+        StartMusicFade(formID, 0.0f, a_seconds);
+    }
+
+    static void MusicFadeIn(RE::StaticFunctionTag*, RE::BGSSoundCategory* a_musicCategory, float a_seconds)
+    {
+        if (IronSoul::Config::GetInt("DisableMusicFade", 0) == 1) {
+            return;
+        }
+
+        if (!a_musicCategory) {
+            logger::warn("MusicFadeIn: null SoundCategory");
+            return;
+        }
+
+        const RE::FormID formID = a_musicCategory->GetFormID();
+        float target = 1.0f;
+        if (InfoLoggingEnabled()) {
+            logger::info("MusicFadeIn: formID={} seconds={}", formID, a_seconds);
+        }
+
+        {
+            std::scoped_lock lock(g_musicFade.lock);
+            if (!g_musicFade.cachedMenuVolumeValid) {
+                if (InfoLoggingEnabled()) {
+                    logger::info("MusicFadeIn: no cached menu volume; using 1.0");
+                }
+                target = 1.0f;
+            } else {
+                target = Clamp01(g_musicFade.cachedMenuVolume);
+            }
+            if (InfoLoggingEnabled()) {
+                logger::info(
+                    "MusicFadeIn: cache valid={} cachedMenu={} currentVolume={} target={}",
+                    g_musicFade.cachedMenuVolumeValid ? 1 : 0,
+                    g_musicFade.cachedMenuVolume,
+                    g_musicFade.currentVolume,
+                    target);
+            }
+            g_musicFade.cachedMenuVolumeValid = false;
+            g_musicFade.cachedMenuVolume = -1.0f;
+        }
+
+        StartMusicFade(formID, target, a_seconds);
+    }
+
+    static void StartHealthMonitor(RE::StaticFunctionTag*)
+    {
+        StartHealthMonitorInternal();
+    }
+
+    static void StopHealthMonitor(RE::StaticFunctionTag*)
+    {
+        StopHealthMonitorInternal();
+    }
+
+    static void SuppressCursor(RE::StaticFunctionTag*, bool a_suppress)
+    {
+        // Gate cursor suppression behind INI:
+        // DisableCursorHide=1 blocks both suppress and restore calls.
+        if (IronSoul::Config::GetInt("DisableCursorHide", 0) == 1) {
+            if (InfoLoggingEnabled()) {
+                logger::info("SuppressCursor: blocked by DisableCursorHide=1");
+            }
+            return;
+        }
+
+        auto* task = SKSE::GetTaskInterface();
+        if (!task) {
+            logger::warn("SuppressCursor: task interface unavailable");
+            return;
+        }
+
+        task->AddTask([a_suppress]() {
+            auto* menuCursor = RE::MenuCursor::GetSingleton();
+            auto* uiQueue = RE::UIMessageQueue::GetSingleton();
+            auto* uiStr = RE::InterfaceStrings::GetSingleton();
+
+            if (!menuCursor && InfoLoggingEnabled()) {
+                logger::warn("SuppressCursor: MenuCursor singleton unavailable");
+            }
+
+            {
+                std::scoped_lock lock(g_cursorSuppressState.lock);
+                if (a_suppress) {
+                    if (g_cursorSuppressState.suppressStep == 0) {
+                        g_cursorSuppressState.savedPosValid = false;
+                        g_cursorSuppressState.savedVisibilityValid = false;
+                        if (menuCursor) {
+                            auto& rt = menuCursor->GetRuntimeData();
+                            g_cursorSuppressState.savedPosX = rt.cursorPosX;
+                            g_cursorSuppressState.savedPosY = rt.cursorPosY;
+                            g_cursorSuppressState.savedPosValid = true;
+                            g_cursorSuppressState.savedVisible = rt.showCursorCount >= 0;
+                            g_cursorSuppressState.savedVisibilityValid = true;
+
+                            const float baseW = rt.screenWidthX > 0.0f ? rt.screenWidthX : 1920.0f;
+                            const float rightEdgeX = baseW - 1.0f;
+                            rt.cursorPosX = rightEdgeX > 0.0f ? rightEdgeX : 0.0f;
+                            rt.cursorPosY = g_cursorSuppressState.savedPosY;
+                        }
+                        g_cursorSuppressState.suppressStep = 1;
+                        if (InfoLoggingEnabled()) {
+                            logger::info("SuppressCursor: step1 move-right");
+                        }
+                        return;
+                    }
+
+                    if (g_cursorSuppressState.suppressStep == 1) {
+                        if (uiQueue && uiStr) {
+                            uiQueue->AddMessage(uiStr->cursorMenu, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+                        }
+                        if (menuCursor) {
+                            auto& rt = menuCursor->GetRuntimeData();
+                            const float baseW = rt.screenWidthX > 0.0f ? rt.screenWidthX : 1920.0f;
+                            rt.cursorPosX = baseW + 10000.0f;
+                            rt.cursorPosY = g_cursorSuppressState.savedPosY;
+                            menuCursor->SetCursorVisibility(false);
+                        }
+                        g_cursorSuppressState.suppressStep = 2;
+                        if (InfoLoggingEnabled()) {
+                            logger::info("SuppressCursor: step2 hide+offscreen-right");
+                        }
+                        return;
+                    }
+
+                    // step >= 2: keep hidden + offscreen-right
+                    if (menuCursor) {
+                        auto& rt = menuCursor->GetRuntimeData();
+                        const float baseW = rt.screenWidthX > 0.0f ? rt.screenWidthX : 1920.0f;
+                        rt.cursorPosX = baseW + 10000.0f;
+                        rt.cursorPosY = g_cursorSuppressState.savedPosY;
+                        menuCursor->SetCursorVisibility(false);
+                    }
+                    if (InfoLoggingEnabled()) {
+                        logger::info("SuppressCursor: step2 reapply");
+                    }
+                } else {
+                    if (g_cursorSuppressState.suppressStep == 0) {
+                        if (InfoLoggingEnabled()) {
+                            logger::warn("SuppressCursor: disable requested while not suppressed (ignored)");
+                        }
+                        return;
+                    }
+
+                    bool hasSavedVisibility = false;
+                    bool restoreVisible = true;
+
+                    if (menuCursor) {
+                        auto& rt = menuCursor->GetRuntimeData();
+                        if (g_cursorSuppressState.savedPosValid) {
+                            rt.cursorPosX = g_cursorSuppressState.savedPosX;
+                            rt.cursorPosY = g_cursorSuppressState.savedPosY;
+                            g_cursorSuppressState.savedPosValid = false;
+                        }
+                        if (g_cursorSuppressState.savedVisibilityValid) {
+                            hasSavedVisibility = true;
+                            restoreVisible = g_cursorSuppressState.savedVisible;
+                            menuCursor->SetCursorVisibility(restoreVisible);
+                            g_cursorSuppressState.savedVisibilityValid = false;
+                        } else {
+                            menuCursor->SetCursorVisibility(true);
+                        }
+                    }
+
+                    if (uiQueue && uiStr) {
+                        if (hasSavedVisibility && !restoreVisible) {
+                            uiQueue->AddMessage(uiStr->cursorMenu, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+                        } else {
+                            uiQueue->AddMessage(uiStr->cursorMenu, RE::UI_MESSAGE_TYPE::kUpdate, nullptr);
+                        }
+                    }
+
+                    g_cursorSuppressState.savedPosValid = false;
+                    g_cursorSuppressState.savedVisibilityValid = false;
+                    g_cursorSuppressState.suppressStep = 0;
+
+                    if (InfoLoggingEnabled()) {
+                        logger::info("SuppressCursor: disabled");
+                    }
+                }
+            }
+        });
+    }
+
+    bool Register()
+    {
+        auto* papyrus = SKSE::GetPapyrusInterface();
+        if (!papyrus) {
+            logger::error("Iron Soul: Papyrus interface unavailable");
+            return false;
+        }
+
+        RefreshMusicVolumeOverrideCache();
+
+        const bool ok = papyrus->Register([](RE::BSScript::IVirtualMachine* a_vm) {
+            a_vm->RegisterFunction("IsAvailable", kScriptName, IsAvailable);
+            a_vm->RegisterFunction("DataStoreReady", kScriptName, DataStoreReady);
+            a_vm->RegisterFunction("LogJournalEntry", kScriptName, LogJournalEntry);
+            a_vm->RegisterFunction("GetPlayerName", kScriptName, GetPlayerName);
+            a_vm->RegisterFunction("GenerateGuidUnique", kScriptName, GenerateGuidUnique);
+            a_vm->RegisterFunction("GetConfigInt", kScriptName, GetConfigInt);
+            a_vm->RegisterFunction("SetConfigInt", kScriptName, SetConfigInt);
+            a_vm->RegisterFunction("ReloadConfig", kScriptName, ReloadConfig);
+            a_vm->RegisterFunction("ApplyDynamicSplash", kScriptName, ApplyDynamicSplash);
+            a_vm->RegisterFunction("ApplyDynamicLevelWidget", kScriptName, ApplyDynamicLevelWidget);
+            a_vm->RegisterFunction("MusicFadeOut", kScriptName, MusicFadeOut);
+            a_vm->RegisterFunction("MusicFadeIn", kScriptName, MusicFadeIn);
+            a_vm->RegisterFunction("StartHealthMonitor", kScriptName, StartHealthMonitor);
+            a_vm->RegisterFunction("StopHealthMonitor", kScriptName, StopHealthMonitor);
+            a_vm->RegisterFunction("SuppressCursor", kScriptName, SuppressCursor);
+            a_vm->RegisterFunction("DataGetInt", kScriptName, DataGetInt);
+            a_vm->RegisterFunction("DataSetInt", kScriptName, DataSetInt);
+            a_vm->RegisterFunction("DataSetIntIfChanged", kScriptName, DataSetIntIfChanged);
+            a_vm->RegisterFunction("DataGetString", kScriptName, DataGetString);
+            a_vm->RegisterFunction("DataSetString", kScriptName, DataSetString);
+            a_vm->RegisterFunction("DataSetStringIfChanged", kScriptName, DataSetStringIfChanged);
+            a_vm->RegisterFunction("DataHasKey", kScriptName, DataHasKey);
+            a_vm->RegisterFunction("DataDeleteKey", kScriptName, DataDeleteKey);
+            a_vm->RegisterFunction("DataFlushIfDirty", kScriptName, DataFlushIfDirty);
+            return true;
+        });
+
+        if (ok) {
+            logger::info("Iron Soul: Registered papyrus natives on script '{}'", kScriptName);
+        } else {
+            logger::critical("Iron Soul: Failed to register papyrus natives");
+        }
+
+        return ok;
+    }
 }

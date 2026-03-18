@@ -1,5 +1,4 @@
 #include "pch.h"
-
 #include "plugin.h"
 #include "PathUtil.h"
 #include "PapyrusBindings.h"
@@ -36,7 +35,7 @@ namespace IronSoul
 #endif
 
 		spdlog::set_level(spdlog::level::info);
-		spdlog::flush_on(spdlog::level::info);
+		spdlog::flush_on(spdlog::level::warn);
 	}
 
 	static fs::path GetGameRoot()
@@ -79,23 +78,20 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::EnsureDirectories();
 
 	IronSoul::Config::Load();
-	// Phase 1 DataStore (.dat) init
 	IronSoul::DataStore::Initialize();
 
 	// Flush DataStore on save (most reliable session boundary)
 	if (auto* ser = SKSE::GetSerializationInterface(); ser) {
 		ser->SetUniqueID('ISDT');
 		ser->SetSaveCallback([](SKSE::SerializationInterface*) {
-			IronSoul::DataStore::FlushNow();
+			if (IronSoul::Config::ShouldEmitInfoLog()) {
+				logger::info("Iron Soul: Save flush");
+			}
+			IronSoul::DataStore::FlushIfDirty();
 		});
 	} else {
 		logger::warn("Iron Soul: Serialization interface unavailable; save-flush disabled");
 	}
-
-	// Final best-effort flush on normal process exit
-	std::atexit([]() {
-		IronSoul::DataStore::Shutdown();
-	});
 
 	if (!IronSoul::Papyrus::Register()) {
 		logger::critical("Iron Soul: Papyrus registration failed");
@@ -103,5 +99,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	}
 
 	logger::info("{} loaded successfully", Plugin::NAME);
+	// From here onward, INFO logs must be gated by EnableLogging=1.
+	IronSoul::Config::SetInfoGateArmed(true);
 	return true;
 }

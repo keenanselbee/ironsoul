@@ -1,4 +1,5 @@
 #include "keyhandler.h"
+#include "../Config.h"
 
 KeyHandler* KeyHandler::GetSingleton()
 {
@@ -11,7 +12,9 @@ void KeyHandler::RegisterSink()
     auto inputMgr = RE::BSInputDeviceManager::GetSingleton();
     if (inputMgr) {
         inputMgr->AddEventSink(GetSingleton());
-        logger::info("KeyHandler sink registered successfully.");
+        if (IronSoul::Config::ShouldEmitInfoLog()) {
+            logger::info("KeyHandler sink registered successfully.");
+        }
     }
     else {
         logger::critical("Failed to get InputDeviceManager. KeyHandler sink NOT registered!");
@@ -34,7 +37,9 @@ void KeyHandler::RegisterSink()
 
     std::unique_lock lock(_mutex);
 
-    logger::info("Registering callback with handle {} for key 0x{:X}, event type {}", handle, dxScanCode, (eventType == KeyEventType::KEY_DOWN ? "DOWN" : "UP"));
+    if (IronSoul::Config::ShouldEmitInfoLog()) {
+        logger::info("Registering callback with handle {} for key 0x{:X}, event type {}", handle, dxScanCode, (eventType == KeyEventType::KEY_DOWN ? "DOWN" : "UP"));
+    }
 
     auto& keyCallbacks = _registeredCallbacks[dxScanCode];
     auto& targetMap = (eventType == KeyEventType::KEY_DOWN) ? keyCallbacks.down : keyCallbacks.up;
@@ -76,7 +81,9 @@ void KeyHandler::Unregister(KeyHandlerEvent handle)
         size_t removedCount = targetMap.erase(handle);
 
         if (removedCount > 0) {
-            logger::info("Unregistered callback with handle {} for key 0x{:X}, event type {}", handle, info.key, (info.type == KeyEventType::KEY_DOWN ? "DOWN" : "UP"));
+            if (IronSoul::Config::ShouldEmitInfoLog()) {
+                logger::info("Unregistered callback with handle {} for key 0x{:X}, event type {}", handle, info.key, (info.type == KeyEventType::KEY_DOWN ? "DOWN" : "UP"));
+            }
         }
         else {
             logger::error("Inconsistency detected: Handle {} found in handle map but corresponding callback not found for key 0x{:X}.", handle, info.key);
