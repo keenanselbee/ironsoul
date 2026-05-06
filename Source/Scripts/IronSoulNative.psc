@@ -117,7 +117,7 @@ Bool Function DataStoreReady() Global Native
 ; =======================
 
 ; Appends a single journal line to the Iron Soul character journal log.
-; The SKSE plugin prepends the player name automatically.
+; The SKSE plugin prepends the player name as "<CharacterName> | ".
 ;
 ; Log file:
 ;   Data\SKSE\Plugins\IronSoulCharacterJournal.log
@@ -186,25 +186,26 @@ String Function GenerateGuidUnique(String playerName) Global Native
 ; --- Dynamic UI ---
 ; ==================
 ;
-; Provides direct, index-based swapping of dynamic UI assets through the native plugin.
-; No tier state is stored or tracked by the plugin. The controller supplies the desired
-; index whenever a UI change is required.
+; Provides direct, tier-ID-based swapping of dynamic UI assets through the native plugin.
+; No tier or preset state is stored or tracked by the plugin. The controller supplies
+; the desired tier and effective preset IDs whenever a UI change is required.
 ;
 ; Behaviour:
 ; - The plugin performs an immediate file swap when these functions are called.
 ; - There is no persistence, "last seen", or automatic startup restore.
 ; - The most recent call simply overwrites the UI asset currently in use.
 ;
-; Index mapping:
-;   0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum
+; Tier mapping:
+;   0=Defiant, 1=Iron, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour, 9=CHIM
 ;
 ; Notes:
 ; - Global (not per-character).
-; - Values are clamped internally to 0..6.
+; - Invalid tier IDs are ignored; only 0,1,2,3,4,5,6,9 are accepted.
+; - Preset 0/1 uses normal splash files; preset 2/3 uses preset-prefixed files.
 ; - Changes may not visually appear until next UI reload / game launch due to UI caching.
 ;
-Function ApplyDynamicSplash(Int splashIndex) Global Native
-Function ApplyDynamicLevelWidget(Int widgetIndex) Global Native
+Function ApplyDynamicSplash(Int tierId, Int presetId) Global Native
+Function ApplyDynamicLevelWidget(Int tierId) Global Native
 
 
 ; =====================
