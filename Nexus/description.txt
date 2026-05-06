@@ -17,8 +17,8 @@ It combines [b]Dragon Soul Revive[/b], [b]True Death[/b], and [b]Optional Respaw
 On death, Iron Soul resolves outcomes in this order:
 [list]
 [*][b]Dragon Soul Revive[/b] (highest priority): if valid, consumes 1 Dragon Soul and revives you.
-[*][b]Cooldown Mode[/b] (when DisableLuckSystem=1 and Optional Respawn Integration is active): no roll, respawn is only allowed when cooldown is ready.
-[*][b]Luck Mode[/b] (when DisableLuckSystem=0 and Optional Respawn Integration is active): roll against current Luck; success respawns, failure becomes True Death.
+[*][b]Cooldown Mode[/b] (when LuckSystem=0 and Optional Respawn Integration is active): no roll, respawn is only allowed when cooldown is ready.
+[*][b]Luck Mode[/b] (when LuckSystem=1 and Optional Respawn Integration is active): roll against current Luck; success respawns, failure becomes True Death.
 [*][b]True Death[/b] fallback: records death, shows tier-appropriate death/permadeath messaging, and exits the session.
 [/list]
 
@@ -32,7 +32,7 @@ On death, Iron Soul resolves outcomes in this order:
 [heading][color=#e69138]Luck Mode vs Cooldown Mode[/color][/heading]
 Both modes are tied to [b]Optional Respawn Integration[/b].
 
-[b]Luck Mode[/b] ([b]DisableLuckSystem=0[/b])
+[b]Luck Mode[/b] ([b]LuckSystem=1[/b])
 [list]
 [*]Each eligible death rolls against your current Luck value.
 [*]Luck resets on respawn and on True Death.
@@ -40,7 +40,7 @@ Both modes are tied to [b]Optional Respawn Integration[/b].
 [*]Menu time does not advance Luck/Cooldown progression.
 [/list]
 
-[b]Cooldown Mode[/b] ([b]DisableLuckSystem=1[/b])
+[b]Cooldown Mode[/b] ([b]LuckSystem=0[/b])
 [list]
 [*]No luck roll is performed.
 [*]Respawn is only available when the [b]60 minute cooldown[/b] is fully recovered.
@@ -52,6 +52,7 @@ Both modes are tied to [b]Optional Respawn Integration[/b].
 [list]
 [*]Default [b]Iron[/b] cap is 10 deaths.
 [*][b]Defiant[/b] cap is 100 deaths (when Defiant is unlocked and activated).
+[*][b]Devour[/b] unlocks at 50 Dragon Souls obtained, raises max Luck to 100, and removes permadeath.
 [*][b]CHIM[/b] tier removes practical cap limits (optional via INI).
 [/list]
 
@@ -62,6 +63,7 @@ Both modes are tied to [b]Optional Respawn Integration[/b].
 [*]Gold: 20 Dragon Souls obtained.
 [*]Ebon: defeat Alduin or Harkon.
 [*]Platinum: defeat Miraak or Molag Bal (Vigilant-supported path).
+[*]Devour: 50 Dragon Souls obtained (lifetime tracked total). Unlocking Devour suppresses lower-tier unlock messages and prevents further organic CHIM promotion.
 [/list]
 
 [heading][color=#e69138]Persistence and Integrity[/color][/heading]
@@ -81,12 +83,13 @@ When enabled, total deaths are mirrored to actor value [b]DEPRECATED05[/b] for C
 Config path: [b]Data/SKSE/Plugins/IronSoul.ini[/b]
 
 [list]
-[*][b]DisableRespawn[/b]: turn Optional Respawn Integration on/off.
-[*][b]DisableLuckSystem[/b]: switch between Luck Mode (0) and Cooldown Mode (1).
-[*][b]DisableDragonSoulRevive[/b]: disable Dragon Soul Revive.
-[*][b]DisableDeathMessage[/b], [b]DisableRespawnMessage[/b], [b]LoadNotificationMode[/b], [b]LuckRollMessageMode[/b]: control message/UI behavior.
-[*][b]DisableSoulFeats[/b], [b]DisableSoulBonus[/b], [b]DisableSoulFatigue[/b], [b]DisableDefiantFeat[/b]: control progression and stat-modifier behavior.
-[*][b]DisableDragonSoulAnticheat[/b]: disables anti-cheat filtering for Dragon Soul gain deltas.
+[*][b]Respawn[/b]: turn Optional Respawn Integration on/off.
+[*][b]LuckSystem[/b]: switch between Luck Mode (1) and Cooldown Mode (0).
+[*][b]DragonSoulRevive[/b]: turn Dragon Soul Revive on/off.
+[*][b]DeathMessage[/b], [b]RespawnMessage[/b], [b]LoadNotificationMode[/b], [b]LuckRollMessageMode[/b]: control message/UI behavior.
+[*][b]SoulFeats[/b], [b]DeathReset[/b], [b]SoulBonus[/b], [b]SoulFatigue[/b]: control progression and stat-modifier behavior.
+[*][b]DefiantResetSFX[/b], [b]DeathsPurgedSFX[/b]: control reset-related SFX behavior.
+[*][b]DragonSoulAnticheat[/b]: controls anti-cheat filtering for Dragon Soul gain deltas.
 [*][b]CHIM[/b]: enables CHIM transition path.
 [*][b]EnableCharacterSheetCompatibility[/b]: mirrors death count to DEPRECATED05.
 [*][b]UninstallMode[/b]: safe disable/uninstall flow.
