@@ -2,3 +2,5 @@ meta.ini
 .vscode/
 skyrimse.ppj
 SkyrimSE.code-workspace
+.codex-temp/
+Tools/IronSoulLogGenerator/Papyrus_IronSoul.log
