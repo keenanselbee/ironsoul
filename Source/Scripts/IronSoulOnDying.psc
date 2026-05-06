@@ -6,15 +6,15 @@ IronSoulController Property Controller Auto
 ; - Fires when player health is <= 0
 Event OnEffectStart(Actor Target, Actor Caster)
 
-	Actor player = Game.GetPlayer()
+    Actor player = Game.GetPlayer()
 
-	if Target != player
-		Debug.Trace("[IronSoul] IronSoulOnDying: Target is not player; exiting")
-	    return
-	endif
+    if Target != player
+        Debug.Trace("[IronSoul] IronSoulOnDying: Target is not player; exiting")
+        return
+    endif
 
-	if Controller
-		Controller.HandlePlayerDying(Target, Caster)
-	endif
+    if Controller
+        Controller.HandlePlayerDying(Target, Caster)
+    endif
 
 EndEvent

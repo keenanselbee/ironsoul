@@ -3,9 +3,9 @@ Scriptname IronSoulPlayerAlias extends ReferenceAlias
 IronSoulController Property Controller Auto
 
 Event OnInit()
-	if Controller
+    if Controller
         Debug.Trace("[IronSoul] IronSoulPlayerAlias: OnInit event fired")
-	endif
+    endif
 EndEvent
 
 Event OnPlayerLoadGame()
