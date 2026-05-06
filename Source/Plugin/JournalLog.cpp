@@ -1,6 +1,7 @@
 #include "pch.h"
 
 #include "JournalLog.h"
+#include "PathUtil.h"
 
 namespace fs = std::filesystem;
 
@@ -8,20 +9,9 @@ namespace IronSoul::JournalLog
 {
 	static std::mutex g_mutex;
 
-	static fs::path GetGameRoot()
-	{
-		wchar_t buf[MAX_PATH]{};
-		DWORD len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
-		if (len == 0 || len >= MAX_PATH) {
-			util::report_and_fail("Iron Soul: GetModuleFileNameW failed (JournalLog)");
-		}
-		fs::path exePath{ buf };
-		return exePath.parent_path();
-	}
-
 	static fs::path GetLogPath()
 	{
-		return GetGameRoot() / L"Data" / L"SKSE" / L"Plugins" / L"IronSoulCharacterJournal.log";
+		return IronSoul::PathUtil::GetSksePluginsDir() / L"IronSoulCharacterJournal.log";
 	}
 
 	void AppendLine(std::string_view line)

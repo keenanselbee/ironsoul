@@ -5,6 +5,8 @@
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
+#include <array>
+#include <utility>
 
 namespace IronSoul
 {
@@ -16,6 +18,10 @@ namespace IronSoul
     class DataStore
     {
     public:
+        using IntWrite = std::pair<std::string, std::int32_t>;
+        using IntBatch4 = std::array<IntWrite, 4>;
+        using IntBatch5 = std::array<IntWrite, 5>;
+
         static void Initialize();
 
         // Returns true after Initialize() has run successfully.
@@ -24,6 +30,8 @@ namespace IronSoul
         static std::int32_t GetInt(const std::string& key, std::int32_t fallback);
         static bool         SetInt(const std::string& key, std::int32_t value);
         static bool         SetIntIfChanged(const std::string& key, std::int32_t value);
+        static bool         SetIntBatch(const IntBatch4& writes);
+        static bool         SetIntBatch(const IntBatch5& writes);
 
         static std::string  GetString(const std::string& key, const std::string& fallback);
         static bool         SetString(const std::string& key, const std::string& value);

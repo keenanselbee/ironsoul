@@ -589,6 +589,72 @@ namespace IronSoul
         return true;
     }
 
+    bool DataStore::SetIntBatch(const IntBatch4& writes)
+    {
+        for (const auto& [key, value] : writes) {
+            (void)value;
+            if (key.empty() || key.size() > MAX_KEY_BYTES) {
+                return false;
+            }
+        }
+
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        bool changed = false;
+        for (const auto& [key, value] : writes) {
+            auto it = _data.find(key);
+            if (it != _data.end()) {
+                if (auto current = std::get_if<std::int32_t>(&it->second)) {
+                    if (*current == value) {
+                        continue;
+                    }
+                }
+            }
+
+            _data[key] = value;
+            changed = true;
+        }
+
+        if (changed) {
+            _dirty = true;
+        }
+
+        return true;
+    }
+
+    bool DataStore::SetIntBatch(const IntBatch5& writes)
+    {
+        for (const auto& [key, value] : writes) {
+            (void)value;
+            if (key.empty() || key.size() > MAX_KEY_BYTES) {
+                return false;
+            }
+        }
+
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        bool changed = false;
+        for (const auto& [key, value] : writes) {
+            auto it = _data.find(key);
+            if (it != _data.end()) {
+                if (auto current = std::get_if<std::int32_t>(&it->second)) {
+                    if (*current == value) {
+                        continue;
+                    }
+                }
+            }
+
+            _data[key] = value;
+            changed = true;
+        }
+
+        if (changed) {
+            _dirty = true;
+        }
+
+        return true;
+    }
+
     std::string DataStore::GetString(const std::string& key, const std::string& fallback)
     {
         std::lock_guard<std::mutex> lock(_mutex);

@@ -38,21 +38,11 @@ namespace IronSoul
 		spdlog::flush_on(spdlog::level::warn);
 	}
 
-	static fs::path GetGameRoot()
-	{
-		wchar_t buf[MAX_PATH]{};
-		DWORD len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
-		if (len == 0 || len >= MAX_PATH) {
-			util::report_and_fail("Iron Soul: GetModuleFileNameW failed");
-		}
-		return fs::path{ buf }.parent_path();
-	}
-
 	static void EnsureDirectories()
 	{
 		// Where IronSoul.ini and the character journal live:
-		// GameRoot/Data/SKSE/Plugins
-		const fs::path pluginsDir = GetGameRoot() / L"Data" / L"SKSE" / L"Plugins";
+		// Data/SKSE/Plugins
+		const fs::path pluginsDir = IronSoul::PathUtil::GetSksePluginsDir();
 
 		std::error_code ec;
 		fs::create_directories(pluginsDir, ec);

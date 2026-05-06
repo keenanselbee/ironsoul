@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Config.h"
+#include "PathUtil.h"
 #include <atomic>
 #include <unordered_set>
 #include <vector>
@@ -184,25 +185,9 @@ namespace IronSoul::Config
 		}
 	}
 
-	static fs::path GetGameRoot()
-	{
-		wchar_t buf[MAX_PATH]{};
-		DWORD len = GetModuleFileNameW(nullptr, buf, MAX_PATH);
-		if (len == 0 || len >= MAX_PATH) {
-			util::report_and_fail("Iron Soul: GetModuleFileNameW failed (Config)");
-		}
-		fs::path exePath{ buf };
-		return exePath.parent_path();
-	}
-
-	static fs::path GetPluginDir()
-	{
-		return GetGameRoot() / L"Data" / L"SKSE" / L"Plugins";
-	}
-
 	static fs::path GetIniPath()
 	{
-		return GetPluginDir() / L"IronSoul.ini";
+		return IronSoul::PathUtil::GetSksePluginsDir() / L"IronSoul.ini";
 	}
 
 	static void EnsureDirExists(const fs::path& a_path)
@@ -219,6 +204,8 @@ namespace IronSoul::Config
 		std::lock_guard lock(g_mutex);
 
 		std::string k = ToLowerCopy(key);
+		TrimInPlace(k);
+
 		auto it = g_ints.find(k);
 		if (it == g_ints.end()) {
 			return defaultValue;
@@ -249,44 +236,50 @@ namespace IronSoul::Config
 			"enablelogging",
 			"loglevel",
 			"enablelognotifications",
-			"disabledeathmessage",
-			"disabledragonsoulrevive",
-			"disabledragonsoulrevivemessage",
+			"deathmessage",
+			"dragonsoulrevive",
+			"dragonsoulrevivemessage",
 			"dragonsoulrevivelimit",
-			"disabledynamicsplash",
-			"disabledynamiclevelwidget",
-			"disablecharacterjournallog",
-			"disableironsoulintro",
-			"disablelucksystem",
-			"disableluckcooldownremindernotification",
-			"disablesfx",
-			"disablemusicfade",
+			"dynamicsplash",
+			"dynamiclevelwidget",
+			"characterjournallog",
+			"ironsoulintro",
+			"lucksystem",
+			"luckcooldownremindernotification",
+			"sfx",
+			"musicfade",
 			"musicvolumeoverride",
-			"disablecursorhide",
-			"disableslowmoondeath",
-			"disableslowmosfx",
-			"disableironintrosfx",
-			"disabledeathsfx",
-			"disablepermadeathsfx",
-			"disablerespawnsfx",
-			"disabledefianttransitionsfx",
-			"disabledragonsoulrevivecastsfx",
-			"disabledragonsoulrevivesfx",
-			"disablefeatunlocksfx",
-			"disableluckrollsfx",
-			"disableluckoutcomesfx",
-			"disablerespawnheavybreathingsfx",
-			"disablerespawn",
-			"disablerespawnmessage",
+			"cursorhide",
+			"slowmoondeath",
+			"slowmosfx",
+			"ironintrosfx",
+			"deathsfx",
+			"permadeathsfx",
+			"respawnsfx",
+			"defianttransitionsfx",
+			"defiantresetsfx",
+			"deathspurgedsfx",
+			"dragonsoulrevivecastsfx",
+			"dragonsoulrevivesfx",
+			"featunlocksfx",
+			"luckrollsfx",
+			"luckoutcomesfx",
+			"respawnheavybreathingsfx",
+			"respawn",
+			"respawnmessage",
 			"loadnotificationmode",
 			"luckrollmessagemode",
 			"uninstallmode",
-			"disabledefiantfeat",
-			"disablesoulfeats",
-			"disablesoulbonus",
-			"disablesoulfatigue",
-			"disabledragonsoulanticheat",
+			"deathreset",
+			"defiantsoul",
+			"soulfeats",
+			"soulbonus",
+			"soulfatigue",
+			"dragonsoulanticheat",
+			"dragonsoulincreasenotification",
+			"ironsoulpreset",
 			"chim",
+			"enabledebug",
 			"enablecharactersheetcompatibility"
 		};
 		return kAllowed;
@@ -315,6 +308,23 @@ namespace IronSoul::Config
 		}
 
 		return std::nullopt;
+	}
+
+	int GetAllowedInt(std::string_view key, int defaultValue)
+	{
+		std::lock_guard lock(g_mutex);
+
+		const auto canonicalKey = CanonicalizeAllowedKey(key);
+		if (!canonicalKey.has_value()) {
+			return defaultValue;
+		}
+
+		auto it = g_ints.find(*canonicalKey);
+		if (it == g_ints.end()) {
+			return defaultValue;
+		}
+
+		return static_cast<int>(it->second);
 	}
 
 	static bool ReplaceIniIntForExistingKey(const fs::path& iniPath, const std::string& targetKeyLower, std::int32_t value)

@@ -14,6 +14,9 @@
 #include <thread>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <string>
+#include <limits>
 #include <type_traits>
 #include <utility>
 
@@ -21,7 +24,7 @@ namespace IronSoul::Papyrus
 {
     // Script name that owns the global native functions.
     // In Papyrus you will call:
-    //   IronSoulNative.LogJournalEntry(msg)  (plugin will prepend player name + space)
+    //   IronSoulNative.LogJournalEntry(msg)  (plugin will prepend "Name | ")
     //   int v = IronSoulNative.GetConfigInt("SomeKey", 0)
     static constexpr const char* kScriptName = "IronSoulNative";
     static constexpr const char* kMusicFadeSetVolumeEvent = "IronSoul_MusicFadeSetVolume";
@@ -31,7 +34,7 @@ namespace IronSoul::Papyrus
     }
     static bool DeathSlowMoEnabled()
     {
-        return IronSoul::Config::GetInt("DisableSlowMoOnDeath", 0) == 0;
+        return IronSoul::Config::GetInt("SlowMoOnDeath", 1) == 1;
     }
     namespace
     {
@@ -275,10 +278,10 @@ namespace IronSoul::Papyrus
 
         static void PlayRandomSlowMoSound()
         {
-            if (IronSoul::Config::GetInt("DisableSFX", 0) == 1) {
+            if (IronSoul::Config::GetInt("SFX", 1) == 0) {
                 return;
             }
-            if (IronSoul::Config::GetInt("DisableSlowMoSFX", 0) == 1) {
+            if (IronSoul::Config::GetInt("SlowMoSFX", 1) == 0) {
                 return;
             }
             if (!EnsureSlowMoDescriptorsLoaded()) {
@@ -742,20 +745,20 @@ namespace IronSoul::Papyrus
     static void LogJournalEntry(RE::StaticFunctionTag*, std::string a_message)
     {
         // Papyrus supplies the full event text (including punctuation).
-        // The plugin prepends the current player name and a single space.
+        // The plugin prepends the current player name and separator.
         const std::string name = ResolvePlayerName(true);
         std::string msg = Trim(a_message);
         if (msg.empty()) {
             return;  // nothing to log
         }
 
-        IronSoul::JournalLog::AppendLine(name + " " + msg);
+        IronSoul::JournalLog::AppendLine(name + " | " + msg);
     }
 
-    static std::int32_t GetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_fallback)
-    {
-        return IronSoul::Config::GetInt(a_key, a_fallback);
-    }
+	static std::int32_t GetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_fallback)
+	{
+		return IronSoul::Config::GetAllowedInt(a_key, a_fallback);
+	}
 
     static bool SetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_value, bool a_persistToIni)
     {
@@ -822,11 +825,87 @@ namespace IronSoul::Papyrus
         IronSoul::DataStore::FlushIfDirty();
     }
 
-    static void ApplyDynamicSplash(RE::StaticFunctionTag*, std::int32_t a_splashIndex)
+
+    static std::optional<const wchar_t*> ResolveDynamicSplashTierToken(std::int32_t a_tierId)
+    {
+        switch (a_tierId) {
+        case 0:
+            return L"0defiant";
+        case 1:
+            return L"1iron";
+        case 2:
+            return L"2silver";
+        case 3:
+            return L"3gold";
+        case 4:
+            return L"4ebon";
+        case 5:
+            return L"5platinum";
+        case 6:
+            return L"6devour";
+        case 9:
+            return L"9chim";
+        default:
+            return std::nullopt;
+        }
+    }
+
+    static std::int32_t NormalizeDynamicSplashPreset(std::int32_t a_presetId)
+    {
+        if (a_presetId == 2 || a_presetId == 3) {
+            return a_presetId;
+        }
+
+        return 0;
+    }
+
+    static std::optional<std::wstring> ResolveDynamicSplashFile(std::int32_t a_tierId, std::int32_t a_presetId)
+    {
+        const auto token = ResolveDynamicSplashTierToken(a_tierId);
+        if (!token) {
+            return std::nullopt;
+        }
+
+        std::wstring file = L"splash";
+        const auto preset = NormalizeDynamicSplashPreset(a_presetId);
+        if (preset != 0) {
+            file += std::to_wstring(preset);
+        }
+        file += *token;
+        file += L".png";
+
+        return file;
+    }
+
+    static std::optional<const wchar_t*> ResolveDynamicLevelWidgetFile(std::int32_t a_tierId)
+    {
+        switch (a_tierId) {
+        case 0:
+            return L"lvlWidget0defiant.swf";
+        case 1:
+            return L"lvlWidget1iron.swf";
+        case 2:
+            return L"lvlWidget2silver.swf";
+        case 3:
+            return L"lvlWidget3gold.swf";
+        case 4:
+            return L"lvlWidget4ebon.swf";
+        case 5:
+            return L"lvlWidget5platinum.swf";
+        case 6:
+            return L"lvlWidget6devour.swf";
+        case 9:
+            return L"lvlWidget9chim.swf";
+        default:
+            return std::nullopt;
+        }
+    }
+
+    static void ApplyDynamicSplash(RE::StaticFunctionTag*, std::int32_t a_tierId, std::int32_t a_presetId)
     {
         // Guardrail: respect INI gate too (even if controller also checks).
-        // DisableDynamicSplash=1 disables; default 0 means enabled.
-        if (IronSoul::Config::GetInt("DisableDynamicSplash", 0) == 1) {
+        // DynamicSplash=0 disables; default 1 means enabled.
+        if (IronSoul::Config::GetInt("DynamicSplash", 1) == 0) {
             return;
         }
 
@@ -834,24 +913,14 @@ namespace IronSoul::Papyrus
         try {
             namespace fs = std::filesystem;
 
-            // 0=chim, 1=defiant, 2=iron, 3=silver, 4=gold, 5=ebon, 6=platinum
-            static constexpr const wchar_t* kFiles[] = {
-                L"splash0chim.png",
-                L"splash1defiant.png",
-                L"splash2iron.png",
-                L"splash3silver.png",
-                L"splash4gold.png",
-                L"splash5ebon.png",
-                L"splash6platinum.png"
-            };
-
-            if (a_splashIndex < 0 || a_splashIndex >= static_cast<std::int32_t>(std::size(kFiles))) {
-                logger::warn("ApplyDynamicSplash: invalid splashIndex={}", a_splashIndex);
+            const auto file = ResolveDynamicSplashFile(a_tierId, a_presetId);
+            if (!file) {
+                logger::warn("ApplyDynamicSplash: invalid tierId={}", a_tierId);
                 return;
             }
 
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
-            const fs::path src = ifaceDir / kFiles[a_splashIndex];
+            const fs::path src = ifaceDir / fs::path(*file);
             const fs::path dst = ifaceDir / L"splash.png";
             const fs::path tmp = ifaceDir / L"splash.png.tmp";
 
@@ -894,7 +963,7 @@ namespace IronSoul::Papyrus
             }
 
             if (InfoLoggingEnabled()) {
-                logger::info("ApplyDynamicSplash: applied idx={} ('{}' -> '{}')", a_splashIndex, src.string(), dst.string());
+                logger::info("ApplyDynamicSplash: applied tierId={} presetId={} ('{}' -> '{}')", a_tierId, a_presetId, src.string(), dst.string());
             }
         }
         catch (const std::exception& e) {
@@ -913,13 +982,14 @@ namespace IronSoul::Papyrus
             return false;
         }
         static constexpr const wchar_t* kVariants[] = {
-            L"lvlWidget0chim.swf",
-            L"lvlWidget1defiant.swf",
-            L"lvlWidget2iron.swf",
-            L"lvlWidget3silver.swf",
-            L"lvlWidget4gold.swf",
-            L"lvlWidget5ebon.swf",
-            L"lvlWidget6platinum.swf"
+            L"lvlWidget0defiant.swf",
+            L"lvlWidget1iron.swf",
+            L"lvlWidget2silver.swf",
+            L"lvlWidget3gold.swf",
+            L"lvlWidget4ebon.swf",
+            L"lvlWidget5platinum.swf",
+            L"lvlWidget6devour.swf",
+            L"lvlWidget9chim.swf"
         };
 
         for (auto* f : kVariants) {
@@ -930,10 +1000,10 @@ namespace IronSoul::Papyrus
         return true;
     }
 
-    static void ApplyDynamicLevelWidget(RE::StaticFunctionTag*, std::int32_t a_widgetIndex)
+    static void ApplyDynamicLevelWidget(RE::StaticFunctionTag*, std::int32_t a_tierId)
     {
         // Hard-gate via INI (global).
-        if (IronSoul::Config::GetInt("DisableDynamicLevelWidget", 0) == 1) {
+        if (IronSoul::Config::GetInt("DynamicLevelWidget", 1) == 0) {
             return;
         }
 
@@ -941,24 +1011,16 @@ namespace IronSoul::Papyrus
             return;
         }
 
-        if (a_widgetIndex < 0) a_widgetIndex = 0;
-        if (a_widgetIndex > 6) a_widgetIndex = 6;
-
         try {
             namespace fs = std::filesystem;
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
+            const auto file = ResolveDynamicLevelWidgetFile(a_tierId);
+            if (!file) {
+                logger::warn("ApplyDynamicLevelWidget: invalid tierId={}", a_tierId);
+                return;
+            }
 
-            static constexpr const wchar_t* kFiles[] = {
-                L"lvlWidget0chim.swf",
-                L"lvlWidget1defiant.swf",
-                L"lvlWidget2iron.swf",
-                L"lvlWidget3silver.swf",
-                L"lvlWidget4gold.swf",
-                L"lvlWidget5ebon.swf",
-                L"lvlWidget6platinum.swf"
-            };
-
-            const fs::path src = ifaceDir / kFiles[a_widgetIndex];
+            const fs::path src = ifaceDir / *file;
             const fs::path dst = ifaceDir / L"lvlWidget.swf";
             const fs::path tmp = ifaceDir / L"lvlWidget.swf.tmp";
 
@@ -990,7 +1052,7 @@ namespace IronSoul::Papyrus
             }
 
             if (InfoLoggingEnabled()) {
-                logger::info("ApplyDynamicLevelWidget: applied idx={} ('{}' -> '{}')", a_widgetIndex, src.string(), dst.string());
+                logger::info("ApplyDynamicLevelWidget: applied tierId={} ('{}' -> '{}')", a_tierId, src.string(), dst.string());
             }
         }
         catch (const std::exception& e) {
@@ -1000,7 +1062,7 @@ namespace IronSoul::Papyrus
 
     static void MusicFadeOut(RE::StaticFunctionTag*, RE::BGSSoundCategory* a_musicCategory, float a_seconds, float a_menuVolume)
     {
-        if (IronSoul::Config::GetInt("DisableMusicFade", 0) == 1) {
+        if (IronSoul::Config::GetInt("MusicFade", 1) == 0) {
             return;
         }
 
@@ -1061,7 +1123,7 @@ namespace IronSoul::Papyrus
 
     static void MusicFadeIn(RE::StaticFunctionTag*, RE::BGSSoundCategory* a_musicCategory, float a_seconds)
     {
-        if (IronSoul::Config::GetInt("DisableMusicFade", 0) == 1) {
+        if (IronSoul::Config::GetInt("MusicFade", 1) == 0) {
             return;
         }
 
@@ -1114,10 +1176,10 @@ namespace IronSoul::Papyrus
     static void SuppressCursor(RE::StaticFunctionTag*, bool a_suppress)
     {
         // Gate cursor suppression behind INI:
-        // DisableCursorHide=1 blocks both suppress and restore calls.
-        if (IronSoul::Config::GetInt("DisableCursorHide", 0) == 1) {
+        // CursorHide=0 blocks both suppress and restore calls.
+        if (IronSoul::Config::GetInt("CursorHide", 1) == 0) {
             if (InfoLoggingEnabled()) {
-                logger::info("SuppressCursor: blocked by DisableCursorHide=1");
+                logger::info("SuppressCursor: blocked by CursorHide=0");
             }
             return;
         }
