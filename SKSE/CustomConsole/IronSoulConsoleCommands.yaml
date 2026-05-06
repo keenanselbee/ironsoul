@@ -2,20 +2,27 @@ version: 1
 name: IronSoul
 alias: is
 script: IronSoulConsoleCommands
-help: Inspect and edit Iron Soul tier, death, luck, and soul total values for the current character. Write/set commands require CHIM=1.
+help: Use `is help` to list available Iron Soul console commands. Inspect and edit Iron Soul values for the current character. Write/set commands require EnableDebug=1.
 subs:
-  - name: GetState
-    alias: gs
+  - name: Help
+    alias: h
+    func: GetHelp
+    help: Lists available Iron Soul console commands and what they do.
+    args:
+      - name: topic
+        alias: -t
+        type: String
+        default: ""
+        required: false
+        help: Optional help topic.
+  - name: State
+    alias: s
     func: GetIronSoulState
-    help: Prints GUID, current tier, death count, and stored soul total.
-  - name: GetTier
-    alias: gt
-    func: GetTier
-    help: Returns current soul tier (0=CHIM, 1=Defiant, 2=Iron, 3=Silver, 4=Gold, 5=Ebon, 6=Platinum).
+    help: Prints GUID, preset, current tier, death count, and stored soul total.
   - name: SetTier
     alias: st
     func: SetTier
-    help: Sets current soul tier. Value is clamped to 0..6. Optional `f|force` enables manual override mode.
+    help: Sets current soul tier. Accepted IDs are 0,1,2,3,4,5,6,9. Invalid values are rejected. Optional `f|force` enables manual override mode. Requires EnableDebug=1.
     args:
       - name: tier
         alias: -t
@@ -31,11 +38,7 @@ subs:
   - name: ResetTier
     alias: rt
     func: ResetTier
-    help: Clears manual tier override and restores the current organic tier. Requires CHIM=1.
-  - name: GetDeaths
-    alias: gd
-    func: GetDeaths
-    help: Returns current true death count.
+    help: Clears manual tier override and restores the current organic tier. Requires EnableDebug=1.
   - name: Luck
     alias: l
     func: GetLuck
@@ -43,7 +46,7 @@ subs:
   - name: SetLuck
     alias: sl
     func: SetLuck
-    help: Sets current luck value. Value is clamped to 0..current tier max. Requires CHIM=1.
+    help: Sets current luck value. Value is clamped to 0..current tier max. Requires EnableDebug=1.
     args:
       - name: luck
         alias: -l
@@ -53,7 +56,7 @@ subs:
   - name: SetDeaths
     alias: sd
     func: SetDeaths
-    help: Sets current true death count. Value is clamped to >= 0.
+    help: Sets current true death count. Value is clamped to >= 0. Requires EnableDebug=1.
     args:
       - name: deaths
         alias: -d
@@ -63,13 +66,21 @@ subs:
   - name: SetDragonSoulsState
     alias: sds
     func: SetDragonSoulsState
-    help: Sets stored soul total and re-baselines observed souls to current live souls. Requires CHIM=1.
+    help: Sets stored soul total and re-baselines observed souls to current live souls. Requires EnableDebug=1.
     args:
       - name: total
         alias: -t
         type: int
         required: true
         help: Target stored soul total.
+  - name: ResetCharacterData
+    alias: rcd
+    func: ResetCharacterData
+    help: Resets Iron Soul tracked data for the current character only. Requires EnableDebug=1 and a second identical command within 10 seconds.
+  - name: PurgeData
+    alias: pd
+    func: PurgeData
+    help: Purges Iron Soul tracked data for all characters except the current character. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: GetIni
     alias: gini
     func: GetIni
@@ -89,7 +100,7 @@ subs:
   - name: SetIni
     alias: sini
     func: SetIni
-    help: Sets an integer INI key in native cache and optionally updates its existing IronSoul.ini entry.
+    help: Sets an integer INI key in native cache and optionally updates its existing IronSoul.ini entry. Requires EnableDebug=1.
     args:
       - name: key
         alias: -k
