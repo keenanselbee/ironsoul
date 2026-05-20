@@ -34,7 +34,7 @@ Commits often need a body when they touch:
 - SKSE plugin source under `Source/Plugin` or `source/plugin`.
 - Persistence, INI keys, Papyrus/native contracts, death flow, tier progression, journal/data storage, or generated runtime outputs.
 
-Subject-only commits are fine for simple Papyrus or plugin fixes where the subject says enough. They are also fine for straightforward docs, asset moves, UI/audio refreshes, generated-only builds, and narrow housekeeping.
+Subject-only commits are fine for simple Papyrus or plugin fixes where the subject says enough. They are also fine for straightforward docs, asset moves, UI/audio refreshes, native DLL build refreshes, and narrow housekeeping. Papyrus compiled output needs source context and should not be committed by itself.
 
 When a body is useful, prefer this shape:
 
@@ -55,7 +55,7 @@ Group a core script with another file only when the companion is part of the sam
 - `IronSoulNative.psc` may travel with matching SKSE plugin native bindings.
 - A new imported subsystem, such as Draugnarok, may group its related scripts together.
 
-Keep compiled `.pex` outputs in a separate `build(papyrus)` commit.
+Keep matching compiled `.pex` outputs with the `.psc` source commit that required the compile. Do not make standalone Papyrus compiled-output commits when no Papyrus source changed.
 
 
 --- Types ---
@@ -112,7 +112,8 @@ Leave the scope off when the change is naturally repo-wide or too small to name 
 - Keep summaries concise, present-tense, and without a trailing period.
 - Prefer a scope when the touched area is clear.
 - Split unrelated changes into separate commits.
-- Use `build(papyrus)` for committed compiled Papyrus script refreshes.
+- Bundle committed Papyrus `.pex` refreshes with the `.psc` source changes that produced them.
+- Avoid `build(papyrus)` for standalone compiled-script refreshes unless the user explicitly requests an exceptional generated-output-only repair.
 - Use `chore(plugin)` when syncing a plugin file with existing changes.
 - Use `feat(esp)` when ESP record changes add or expose new behavior.
 - Use `docs(nexus)` for Nexus listing or permission copy, and `docs` without a scope for repo-facing documentation.
@@ -125,7 +126,6 @@ Good examples from this repository:
 
 ```text
 fix(interface): correct gold dragon soul revive limit
-build(papyrus): refresh compiled Iron Soul scripts
 feat(controller)!: migrate controller to SKSE plugin datastore; overhaul Character Journal; modernize persistence and runtime
 docs(nexus): update description and add Draugnarok permission
 chore(plugin): sync Iron Soul ESP with latest changes
