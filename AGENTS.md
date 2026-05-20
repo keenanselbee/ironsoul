@@ -10,7 +10,7 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
 - Do not revert or overwrite unrelated user changes.
-- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented SKSE plugin build automation and xEdit staged inspection below. External paths may otherwise be read or used as tool/import inputs only.
+- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented SKSE plugin build automation, xEdit staged inspection, and MO2 overwrite INI refresh below. External paths may otherwise be read or used as tool/import inputs only.
 - Keep temporary compile output or staging inside this repo, preferably under `.codex-temp`.
 - Treat `_reference/` as read-only reference material for the original Draugnarok and Respawn Soulslike Edition. Do not edit, stage, or commit anything inside it.
 - Follow `_docs/style-guide.md` for naming and formatting conventions.
@@ -105,12 +105,30 @@ _tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -R
 - Do not stage or commit the DLL from inside the script. If the repo DLL changes, commit it separately as `build(native): update SKSE plugin binary`.
 
 
+--- MO2 Overwrite INI Refresh ---
+=================================
+
+- Codex may run `_tools/refresh-overwrite-ini.ps1` when `SKSE/plugins/ironsoul.ini` changes or when the user explicitly asks to refresh the LoreRim+ Overwrite INI.
+- The script overwrites `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` from the repo INI, then forces these debug settings:
+
+```ini
+EnableDebug = 1
+EnableLogging = 1
+EnableLogNotifications = 1
+LogLevel = 3
+```
+
+- Do not manually edit the LoreRim+ Overwrite INI. Update the repo INI, then run the refresh tool.
+- If the refresh tool fails, leave the external overwrite INI untouched except for any partial write the tool already performed, and report the error.
+
+
 --- INI Configuration ---
 =========================
 
 - When adding, removing, or renaming public INI keys, update `SKSE/plugins/ironsoul.ini`.
 - Also update the native allowlist in `source/plugin/config.cpp`.
 - Also update the public `gini` listing in `Source/Scripts/IronSoulConsoleCommands.psc`.
+- After changing `SKSE/plugins/ironsoul.ini`, run `_tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled.
 
 
 --- Verification ---
