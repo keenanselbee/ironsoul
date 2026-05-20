@@ -4,6 +4,15 @@
 
 Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, and user-facing INI configuration.
 
+--- Command Speed Rules ---
+===========================
+
+- Zero-tool commands must not inspect files, run shell commands, check git status, summarize context, or add extra explanation.
+- `help` is the only zero-tool command. Reply immediately from the command list in the Keyword Commands section.
+- Direct-action commands should skip unrelated repo inspection, git status checks, diff reading, and planning. Execute only their defined workflow, then report the result.
+- Direct-action commands are `DLL`, `LOG`, `OINI`, `OINI2`, and `RINI2`.
+
+
 --- Working Rules ---
 =====================
 
@@ -129,6 +138,48 @@ LogLevel = 3
 - Also update the native allowlist in `source/plugin/config.cpp`.
 - Also update the public `gini` listing in `Source/Scripts/IronSoulConsoleCommands.psc`.
 - After changing `SKSE/plugins/ironsoul.ini`, run `_tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled.
+
+
+--- Keyword Commands ---
+========================
+
+Codex chat messages may trigger repo-specific keyword commands.
+
+- A keyword command triggers only when the entire user message, after trimming whitespace, is exactly one command word.
+- The only parameterized keyword command is `XEDIT: <question>`, which may include free-form question text after the colon.
+- `help` is the only lowercase command. All other commands are uppercase.
+- If an unknown uppercase single-word command is received, reply with `Unknown command. Type help.`
+- Commands must still follow all safety, staging, compile, build, xEdit, and external-path rules in this file.
+- Commands that modify external paths, refresh compiled artifacts, launch GUI tools, or create commits must explain the intended action and wait for explicit confirmation when the command definition says confirmation is required.
+
+`help` prints this command list quickly, alphabetically, with one short line per command:
+
+```text
+COMMIT   Execute the latest DIFF commit proposal.
+COMPILE  Compile all Papyrus source scripts and refresh only changed repo .pex files.
+DIFF     Show changed files and propose intelligent commit splits.
+DLL      Build and refresh SKSE/plugins/ironsoul.dll.
+LOG      Build _tools/ironsoul-combined.log, summarize it, then open it in VS Code.
+OINI     Open the repo INI in VS Code.
+OINI2    Open the LoreRim+ Overwrite INI in VS Code for inspection.
+RINI2    Refresh the LoreRim+ Overwrite INI from the repo INI.
+STATUS   Show clean/dirty git status and the recommended next action.
+XEDIT    Summarize the main plugin, or answer an XEDIT: question from a fresh ESP dump.
+```
+
+Command behavior:
+
+- `COMMIT`: Treat the `COMMIT` command as confirmation to execute the latest commit proposal produced by `DIFF`. Before staging, verify the worktree still matches that proposal. If no current `DIFF` proposal exists, or if the worktree changed since the proposal, run the `DIFF` behavior and stop instead of committing. When executing, stage only the proposed files for each commit, run `git diff --cached --check` before each commit, use the proposed messages, and finish with commit hashes and final status.
+- `COMPILE`: Enumerate every `.psc` file under `Source/Scripts`, then compile all of them with `_tools/compile-papyrus.ps1` to `.codex-temp\PapyrusCompile` first. Do not use `-RefreshRepoPex` for this command because that switch copies every successful target. If compilation succeeds, compare each generated `.pex` against `Scripts\<ScriptName>.pex` with SHA-256 hashes, then copy only missing or different repo `.pex` files. Leave existing repo `.pex` files untouched for failed scripts and report copied, unchanged, and failed scripts.
+- `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages. Use multiple commits when changes are independently revertible. State that `COMMIT` will execute this proposal if the worktree is unchanged.
+- `DLL`: Treat the `DLL` command itself as the explicit user request to refresh the repo DLL. State that `SKSE/plugins/ironsoul.dll` will be refreshed on success, then run `_tools/build-skse-plugin.ps1 -RefreshRepoDll` without asking for another chat confirmation.
+- `LOG`: Run `_tools/build-ironsoul-log.bat`, then summarize `_tools/ironsoul-combined.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\_tools\ironsoul-combined.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\_tools\ironsoul-combined.log"`.
+- `OINI`: Open `C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini` in VS Code. Use `code --reuse-window "C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini"`.
+- `OINI2`: Open `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` in VS Code for inspection only. Use `code --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. Do not manually edit the overwrite INI.
+- `RINI2`: Run `_tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled. Report any failure.
+- `STATUS`: Report whether the worktree is clean and recommend the next useful action based on changed file types.
+- `XEDIT`: Run `_tools/dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -StageInStockData`, summarize the plugin's major records and wiring from the dump, then suggest likely next changes. Do not edit or save plugin files.
+- `XEDIT: <question>`: Treat the text after the colon as the inspection question. Dump `Iron Soul - Dead God's Dream.esp` with `-StageInStockData` by default, or dump another repo `.esp`, `.esm`, or `.esl` only if the question clearly names it. Search the dump for relevant terms, answer with record signature, FormID, EditorID, and important field paths/values where possible, and say when SSEEdit64 GUI inspection is needed for confidence. Do not edit or save plugin files.
 
 
 --- Verification ---
