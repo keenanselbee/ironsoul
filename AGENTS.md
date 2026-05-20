@@ -105,7 +105,7 @@ _tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -R
 ====================================
 
 - Codex may run `_tools/build-skse-plugin.ps1` when the user explicitly requests SKSE plugin build verification or DLL refresh.
-- Before proposing or performing external project edits, warn exactly: `WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT`.
+- Warn exactly `WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT` only before proposing or performing external build project edits outside the documented source mirror, stale source cleanup, xmake build/config output, and DLL refresh workflow. Mirroring `Source/Plugin/**/*.cpp` and `Source/Plugin/**/*.h` to the external `src` directory and building the DLL do not count for this warning.
 - The script mirrors `Source/Plugin/**/*.cpp` and `Source/Plugin/**/*.h` to `G:\Modding\LoreRim\Dev\projects\ironsoul\src`, then builds with `G:\Modding\LoreRim\Dev\tools\xmake\xmake.exe`.
 - Default mode is verify-only. Verify-only builds must not update `SKSE/plugins/ironsoul.dll`.
 - DLL refresh is allowed only when explicitly requested, by running `_tools/build-skse-plugin.ps1 -RefreshRepoDll`.

@@ -46,8 +46,6 @@ function Assert-DirectoryExists([string]$Path, [string]$Label) {
     }
 }
 
-Write-Host "WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT"
-
 if ((Get-FullPath (Get-Location).Path) -ne (Get-FullPath $repo)) {
     Set-Location -LiteralPath $repo
 }
