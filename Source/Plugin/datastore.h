@@ -1,7 +1,7 @@
 #pragma once
+#include "datastore_internal.h"
 #include <cstdint>
 #include <string>
-#include <variant>
 #include <unordered_map>
 #include <mutex>
 #include <atomic>
@@ -50,25 +50,9 @@ namespace IronSoul
         static void FlushIfDirty();
 
     private:
-        using Value = std::variant<std::int32_t, std::string>;
-
-        struct FileHeaderV2
-        {
-            char magic[4];
-            std::uint32_t version;
-            std::uint32_t recordCount;
-            std::uint32_t payloadHash;
-            std::uint64_t sequence;
-        };
-
-        struct ParsedSnapshot
-        {
-            bool valid = false;
-            std::unordered_map<std::string, Value> data;
-            std::uint64_t sequence = 0;
-            std::uint32_t payloadHash = 0;
-            std::uint32_t recordCount = 0;
-        };
+        using Value = DataStoreInternal::Value;
+        using FileHeaderV2 = DataStoreInternal::FileHeaderV2;
+        using ParsedSnapshot = DataStoreInternal::ParsedSnapshot;
 
         static void Load();
         static ParsedSnapshot LoadFile(const std::wstring& path);
