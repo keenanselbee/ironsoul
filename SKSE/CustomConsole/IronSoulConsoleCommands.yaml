@@ -2,7 +2,7 @@ version: 1
 name: IronSoul
 alias: is
 script: IronSoulConsoleCommands
-help: Use `is help` to list available Iron Soul console commands. Inspect and edit Iron Soul values for the current character. Write/set commands require EnableDebug=1.
+help: Use `is help` to list available Iron Soul console commands and `is help a` for advanced/debug-gated commands. Character state write/reset/destructive commands and manual raid triggers require EnableDebug=1.
 subs:
   - name: Help
     alias: h
@@ -14,11 +14,19 @@ subs:
         type: String
         default: ""
         required: false
-        help: Optional help topic.
+        help: Optional help topic. Use a/advanced or h/hidden.
   - name: State
     alias: s
     func: GetIronSoulState
-    help: Prints GUID, preset, current tier, death count, and stored soul total.
+    help: Prints the Iron Soul state summary.
+  - name: DraugnarokState
+    alias: d
+    func: DraugnarokState
+    help: Prints the Draugnarok state summary.
+  - name: DraugnarokRaidChance
+    alias: rc
+    func: DraugnarokRaidChance
+    help: Calculates current Draugnarok raid chance.
   - name: SetTier
     alias: st
     func: SetTier
@@ -81,26 +89,84 @@ subs:
     alias: pd
     func: PurgeData
     help: Purges Iron Soul tracked data for all characters except the current character. Requires EnableDebug=1 and a second identical command within 10 seconds.
-  - name: GetIni
-    alias: gini
-    func: GetIni
-    help: Reads an integer key from IronSoul.ini (native cache).
+  - name: GetData
+    alias: gdat
+    func: GetData
+    help: "Gets current-character CharacterData values. Optional section: identity, core, luck, ui, soul, dsr, bosses, defiant, or journal. Requires EnableDebug=1."
+    args:
+      - name: section
+        alias: -s
+        type: String
+        default: ""
+        required: false
+        help: "Optional section: identity, core, luck, ui, soul, dsr, bosses, defiant, or journal."
+  - name: SetData
+    alias: sdat
+    func: SetData
+    help: Sets one low-level current-character CharacterData value without gameplay side effects. Requires EnableDebug=1.
     args:
       - name: key
         alias: -k
         type: String
         required: true
-        help: INI key name (case-insensitive).
-      - name: fallback
-        alias: -f
-        type: int
-        default: 0
-        required: false
-        help: Returned when the key is missing.
+        help: Friendly name or raw data key.
+      - name: value
+        alias: -v
+        type: String
+        required: true
+        help: Value to write.
+  - name: DraugnarokForceOn
+    alias: don
+    func: DraugnarokForceOn
+    help: Forces Draugnarok on for the current character. Requires EnableDebug=1.
+  - name: DraugnarokForceOff
+    alias: doff
+    func: DraugnarokForceOff
+    help: Forces Draugnarok off for the current character and stops managed raids. Requires EnableDebug=1.
+  - name: DraugnarokOverrideReset
+    alias: dreset
+    func: DraugnarokOverrideReset
+    help: Clears the current character's Draugnarok override. Requires EnableDebug=1.
+  - name: DraugnarokSmallRaid
+    alias: rsmall
+    func: DraugnarokSmallRaid
+    help: Triggers a Draugnarok small death squad immediately. Requires EnableDebug=1.
+  - name: DraugnarokServiceRaid
+    alias: rservice
+    func: DraugnarokServiceRaid
+    help: Triggers a Draugnarok service death squad immediately. Requires EnableDebug=1.
+  - name: DraugnarokTownRaid
+    alias: rtown
+    func: DraugnarokTownRaid
+    help: Triggers a Draugnarok town raid immediately. Requires EnableDebug=1.
+  - name: DraugnarokMediumRaid
+    alias: rmedium
+    func: DraugnarokMediumRaid
+    help: Triggers a Draugnarok medium death squad immediately. Requires EnableDebug=1.
+  - name: DraugnarokPillageRaid
+    alias: rpillage
+    func: DraugnarokPillageRaid
+    help: Triggers a Draugnarok pillage squad immediately. Requires EnableDebug=1.
+  - name: DraugnarokMinorCapitalRaid
+    alias: rminor
+    func: DraugnarokMinorCapitalRaid
+    help: Triggers a Draugnarok minor capital raid immediately. Requires EnableDebug=1.
+  - name: DraugnarokGateRaid
+    alias: rgate
+    func: DraugnarokGateRaid
+    help: Triggers a Draugnarok gate crasher raid immediately. Requires EnableDebug=1.
+  - name: DraugnarokCapitalRaid
+    alias: rcapital
+    func: DraugnarokCapitalRaid
+    help: Triggers a Draugnarok capital raid immediately. Requires EnableDebug=1.
+  - name: GetIni
+    alias: gini
+    func: GetIni
+    help: Lists ironsoul.ini options and effective preset-owned core values from the native cache.
   - name: SetIni
     alias: sini
     func: SetIni
-    help: Sets an integer INI key in native cache and optionally updates its existing IronSoul.ini entry. Requires EnableDebug=1.
+    help: Sets an INI key in native cache and optionally updates its existing ironsoul.ini entry. IronSoulPreset accepts values like 3+; Override-only keys require IronSoulPreset=0.
     args:
       - name: key
         alias: -k
@@ -109,9 +175,9 @@ subs:
         help: INI key name (case-insensitive).
       - name: value
         alias: -v
-        type: int
+        type: String
         required: true
-        help: Integer value to set.
+        help: Value to set. Use 1+, 2+, or 3+ for preset plus variants.
       - name: persistToIni
         alias: -p
         type: String
@@ -121,4 +187,4 @@ subs:
   - name: ReloadIni
     alias: rini
     func: ReloadIni
-    help: Reloads IronSoul.ini into the native config cache.
+    help: Reloads ironsoul.ini into the native config cache.
