@@ -61,20 +61,24 @@ Scriptname IronSoulController extends Quest
 ;
 ;                                                                Developed by Keenan Selbee.
 ;
-; =========================
 ; --- Table of Contents ---
 ; =========================
 
-; --- Gameplay Config (INI via SKSE plugin) + Logging ---
-; -------------------------------------------------------
-
+; --- Gameplay Config & Logging ---
+; ---------------------------------
 ; ReadBool()
 ; ReadIntRange()
+; NormalizeIronSoulPreset()
+; ClampLuckLevel()
+; GetPresetLuckLevel()
+; GetEffectiveLuckLevel()
+; ApplyPresetCoreSettings()
 ; LoadConfig()
-; ApplyPresetSettings()
-; ApplyCharacterPresetLock()
-; ResolveEffectiveSplashPreset()
+; ResolveSplashPreset()
 ; ApplyDynamicSplashForTier()
+; ResolveDraugrEyePreset()
+; ApplyDynamicDraugrEyesForPreset()
+; ApplyDynamicPresetAssetsForTier()
 ; LOG_ERR()
 ; LOG_INFO()
 ; LOG_DBG()
@@ -82,12 +86,12 @@ Scriptname IronSoulController extends Quest
 ; LogMsgSnapshot()
 ; LogSystemSnapshot()
 
-; --- Persistence (MainData + Co-save) ---
+; --- Persistence (MainData & Co-save) ---
 ; ----------------------------------------
-
 ; IsCanonicalSoulTier()
 ; IsNormalSoulTier()
 ; GetSoulBonusOrdinal()
+; GetMaxLuckForTierAtLevel()
 ; GetMaxLuckForTier()
 ; GetCurrentMaxLuck()
 ; IsManualTierOverrideActive()
@@ -105,6 +109,9 @@ Scriptname IronSoulController extends Quest
 ; GetKey()
 ; PersistGetInt()
 ; PersistSetInt()
+; ClampDraugnarokOverrideMode()
+; GetDraugnarokOverrideMode()
+; SetDraugnarokOverrideMode()
 ; SyncDeathAV()
 ; SetCurrentDeathCount()
 ; RemoveGuidTrackedData()
@@ -153,24 +160,21 @@ Scriptname IronSoulController extends Quest
 
 ; --- Respawn Integration ---
 ; ---------------------------
+; IsRespawnBlockedByTransform()
 ; HandleRespawn()
 ; ResolveRespawnQuest()
 ; IsRespawnEnabled()
 ; HandleDisableRespawn()
 
-; --- Luck + Cooldown (Respawn Resolution) ---
-; --------------------------------------------
+; --- Luck (Respawn Resolution) ---
+; ---------------------------------
 ; ComputeLuckRollD20()
 ; PerformLuckRoll()
-; LuckCooldownEnsureLoaded()
-; LuckCooldownMarkDirty()
-; LuckCooldownPersistIfDue()
-; LuckCooldownForcePersistNow()
+; LuckEnsureLoaded()
+; LuckMarkDirty()
+; LuckPersistIfDue()
+; LuckForcePersistNow()
 ; IsLuckActive()
-; IsCooldownModeActive()
-; IsCooldownReady()
-; ResetCooldown()
-; TickCooldownRegen()
 ; GetLuckValue()
 ; SetLuckValue()
 ; ResetLuck()
@@ -201,6 +205,8 @@ Scriptname IronSoulController extends Quest
 ; --- Soul Feats ---
 ; ------------------
 ; TryScheduleFeats()
+; ScheduleFeatUnlockSFX()
+; HandleFeatUnlockSFX()
 ; HandleFeats()
 ; HandleProgressionRelevantChange()
 ; MaybePlayDeathsPurgedAfterReset()
@@ -248,6 +254,7 @@ Scriptname IronSoulController extends Quest
 ; OpenTimedMessageSWF()
 ; OpenTimedMessageSWF_SFX()
 ; OpenTimedMessageSWF_KeyDismiss()
+; OpenTimedMessageSWF_KeyDismissTrackedSFX()
 ; OpenTimedMessageSWF_KeyDismiss_SFX()
 ; OpenTimedMessageSWF_KeyDismissIronIntro()
 ; ShouldShowIronIntro()
@@ -284,7 +291,9 @@ Scriptname IronSoulController extends Quest
 ; ----------------
 ; CanPlaySFX()
 ; IsSFXCategoryEnabled()
+; PlaySFXInstance()
 ; PlaySFX()
+; FadeOutSFXInstance()
 ; PickHeavyBreathingSFX()
 ; PickDragonSoulReviveCastSFX()
 ; PickDragonSoulReviveSFX()
@@ -293,15 +302,17 @@ Scriptname IronSoulController extends Quest
 
 ; --- Uninstall / Cleanup ---
 ; ---------------------------
+; ResolveDraugnarokQuest()
+; RefreshDraugnarokRuntimeOnLoad()
+; ApplyDraugnarokOverrideForCurrentCharacter()
 ; HandleUninstallMode()
 ; ReenableAfterUninstall()
 
 
-; ====================================
 ; --- Properties and Runtime State ---
 ; ====================================
 
-; Game.GetFormFromFile(0x000B12, "Iron Soul - Permadeath Lite.esp")
+; Game.GetFormFromFile(0x000B12, "Iron Soul - Dead God's Dream.esp")
 GlobalVariable Property IronSoul_DeathCount Auto
 
 Spell Property IronSoulOnDyingSpell Auto
@@ -320,13 +331,15 @@ Bool _respawnEnabled = True
 Bool _respawnMessageEnabled = True
 Bool _deathMessageEnabled = True
 Bool _dragonSoulReviveEnabled = True
+Bool _dragonSoulReviveTransformEnabled = True
 Int  _dragonSoulReviveLimit = 3
 Bool _dragonSoulReviveMessageEnabled = True
 Bool _dragonSoulIncreaseNotificationEnabled = True
-Bool _luckSystemEnabled = True
 Bool _characterJournalLogEnabled = True
+Int  _luckLevel = 5
 Int  _luckRollMessageMode = 1
 Bool _enableCharacterSheetCompatibility = False
+Bool _cosaveRecoveryBackupEnabled = True
 Bool _ironSoulIntroEnabled = True
 Bool _sfxEnabled = True
 Bool _musicFadeEnabled = True
@@ -335,6 +348,7 @@ Bool _deathSFXEnabled = True
 Bool _permadeathSFXEnabled = True
 Bool _respawnSFXEnabled = True
 Bool _defiantTransitionSFXEnabled = True
+Bool _chimTransitionSFXEnabled = True
 Bool _defiantResetSFXEnabled = True
 Bool _deathsPurgedSFXEnabled = True
 Bool _dragonSoulReviveCastSFXEnabled = True
@@ -365,7 +379,7 @@ Bool _soulFatigueEnabled = True
 Bool _dragonSoulAnticheatEnabled = True
 
 ; Luck / notifications
-Bool _luckCooldownReminderNotificationEnabled = True
+Bool _luckReminderNotificationEnabled = True
 Int _loadNotificationMode = 1 ; 0=off,1=default,2=no flavor,3=only flavor
 Float _luckTickAt = 0.0
 Bool _suppressLuckNotify = True ; suppress luck threshold notifications until first Heartbeat
@@ -408,6 +422,7 @@ Sound Property SFXDeath Auto
 Sound Property SFXPermadeath Auto
 Sound Property SFXRespawn Auto
 Sound Property SFXDefiantTransition Auto
+Sound Property SFXCHIMTransition Auto
 Sound Property SFXDefiantReset Auto
 Sound Property SFXDeathsPurged Auto
 Sound Property SFXDragonSoulReviveCast1 Auto
@@ -443,20 +458,20 @@ Quest Property MQ305 Auto
 Quest Property DLC1VQ08 Auto
 Quest Property DLC2MQ06 Auto
 
-; CHIM toggle (INI: 0/1)
-Int _CHIM = 0
+; Permadeath toggle (INI: 0/1)
+Bool _permadeathEnabled = True
 Int _IronSoulPreset = 0
 
-; Luck / Cooldown Persistence Gate
+; Luck Persistence Gate
 ; Script ticks every second; persists at most once per gate unless forced.
 Int _luckPersistGateSeconds = 60
 
-String _luckCooldownGuid = ""
-Int _luckCooldownLastSec = 0
-Int _luckCooldownPlayedTok = 0
-Int _luckCooldownNextPersistAt = 0
-Bool _luckCooldownLoaded = False
-Bool _luckCooldownDirty = False
+String _luckGuid = ""
+Int _luckLastSec = 0
+Int _luckPlayedTok = 0
+Int _luckNextPersistAt = 0
+Bool _luckLoaded = False
+Bool _luckDirty = False
 
 ; Last Luck roll inputs (for journaling on Luck-mode outcomes)
 Int _lastLuckRoll = 0
@@ -491,17 +506,18 @@ Bool _imageSpaceIsFinishing = False
 ; Tunables
 Int Property IRON_SOUL_MAX_LIVES = 10 AutoReadOnly
 Int Property DEFIANT_SOUL_MAX_LIVES = 20 AutoReadOnly
-Int Property DEFIANT_SOUL_MAX_LUCK = 50 AutoReadOnly
 Int Property LUCK_REGEN_SECONDS = 3600 AutoReadOnly ; Luck 0->maxLuck duration (60 minutes)
+Float DEFIANT_TRANSITION_SFX_SECONDS = 72.54
+Float CHIM_TRANSITION_SFX_SECONDS = 72.54
+Float TRANSITION_SFX_FADE_SECONDS = 1.0
 
 
-; =======================================================
 ; --- Gameplay Config (INI via SKSE plugin) + Logging ---
 ; =======================================================
 
 ; Read INI overrides via SKSE plugin (all optional):
-; Data\SKSE\Plugins\IronSoul.ini
-; File: Data\SKSE\Plugins\IronSoul.ini
+; Data\SKSE\plugins\ironsoul.ini
+; File: Data\SKSE\plugins\ironsoul.ini
 ; Sections are organizational only.
 Bool Function ReadBool(String configKey, Bool defaultValue)
     Int v = IronSoulNative.GetConfigInt(configKey, -1)
@@ -525,6 +541,67 @@ Int Function ReadIntRange(String configKey, Int defaultValue, Int minV, Int maxV
     return defaultValue
 EndFunction
 
+Int Function NormalizeIronSoulPreset(Int presetId)
+    if presetId >= 1 && presetId <= 3
+        return presetId
+    endif
+
+    return 0
+EndFunction
+
+Int Function ClampLuckLevel(Int luckLevel)
+    if luckLevel < 1
+        return 1
+    elseif luckLevel > 5
+        return 5
+    endif
+    return luckLevel
+EndFunction
+
+Int Function GetPresetLuckLevel(Int presetId)
+    presetId = NormalizeIronSoulPreset(presetId)
+    if presetId == 1
+        return 4
+    elseif presetId == 2
+        return 3
+    elseif presetId == 3
+        return 2
+    endif
+    return 5
+EndFunction
+
+Int Function GetEffectiveLuckLevel()
+    if _IronSoulPreset == 0
+        return ClampLuckLevel(IronSoulNative.GetConfigInt("LuckLevel", 5))
+    endif
+
+    Int luckLevel = GetPresetLuckLevel(_IronSoulPreset)
+    if IronSoulNative.GetIronSoulPresetPlus() >= 2
+        luckLevel -= 1
+    endif
+    return ClampLuckLevel(luckLevel)
+EndFunction
+
+Function ApplyPresetCoreSettings(Bool iniPermadeath, Bool iniDeathReset, Bool iniDefiantSoul)
+    if _IronSoulPreset == 1
+        _permadeathEnabled = False
+        _deathResetEnabled = True
+        _defiantSoulEnabled = True
+    elseif _IronSoulPreset == 2
+        _permadeathEnabled = True
+        _deathResetEnabled = True
+        _defiantSoulEnabled = True
+    elseif _IronSoulPreset == 3
+        _permadeathEnabled = True
+        _deathResetEnabled = False
+        _defiantSoulEnabled = False
+    else
+        _permadeathEnabled = iniPermadeath
+        _deathResetEnabled = iniDeathReset
+        _defiantSoulEnabled = iniDefiantSoul
+    endif
+EndFunction
+
 Function LoadConfig()
     ; Defaults (script defaults)
     _logEnabled = False
@@ -541,17 +618,19 @@ Function LoadConfig()
     _respawnEnabled = True
     _deathMessageEnabled = True
     _enableCharacterSheetCompatibility = False
+    _cosaveRecoveryBackupEnabled = True
     _dragonSoulReviveEnabled = True
+    _dragonSoulReviveTransformEnabled = True
     _dragonSoulReviveLimit = 3
     _soulBonusEnabled = True
     _characterJournalLogEnabled = True
     _uninstallMode = False
-    _CHIM = 0
+    _permadeathEnabled = True
     _IronSoulPreset = 0
 
     ; Luck / load notifications
-    _luckSystemEnabled = True
-    _luckCooldownReminderNotificationEnabled = True
+    _luckReminderNotificationEnabled = True
+    _luckLevel = 5
     _loadNotificationMode = 1
     _luckRollMessageMode = 1
 
@@ -570,6 +649,7 @@ Function LoadConfig()
     _permadeathSFXEnabled = True
     _respawnSFXEnabled = True
     _defiantTransitionSFXEnabled = True
+    _chimTransitionSFXEnabled = True
     _defiantResetSFXEnabled = True
     _deathsPurgedSFXEnabled = True
     _dragonSoulReviveCastSFXEnabled = True
@@ -580,12 +660,16 @@ Function LoadConfig()
     _respawnHeavyBreathingSFXEnabled = True
 
     ; Reads (INI via plugin)
+    _IronSoulPreset = NormalizeIronSoulPreset(ReadIntRange("IronSoulPreset", _IronSoulPreset, 0, 3))
+    _luckLevel = GetEffectiveLuckLevel()
+
     _logEnabled = ReadBool("EnableLogging", _logEnabled)
     _logLevel = ReadIntRange("LogLevel", _logLevel, 1, 3)
     _enableLogNotifications = ReadIntRange("EnableLogNotifications", _enableLogNotifications, 0, 1)
 
     _deathMessageEnabled = ReadFeatureEnabled("DeathMessage", True)
     _dragonSoulReviveEnabled = ReadFeatureEnabled("DragonSoulRevive", True)
+    _dragonSoulReviveTransformEnabled = ReadFeatureEnabled("DragonSoulReviveTransform", True)
     _dragonSoulReviveLimit = ReadIntRange("DragonSoulReviveLimit", _dragonSoulReviveLimit, 0, 3)
     _dragonSoulReviveMessageEnabled = ReadFeatureEnabled("DragonSoulReviveMessage", True)
     _respawnEnabled = ReadFeatureEnabled("Respawn", True)
@@ -593,20 +677,20 @@ Function LoadConfig()
     _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
 
     _soulBonusEnabled = ReadFeatureEnabled("SoulBonus", True)
-    _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournalLog", True)
+    _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournal", True)
     _uninstallMode = ReadBool("UninstallMode", _uninstallMode)
     _enableCharacterSheetCompatibility = ReadBool("EnableCharacterSheetCompatibility", _enableCharacterSheetCompatibility)
+    _cosaveRecoveryBackupEnabled = ReadFeatureEnabled("CosaveRecoveryBackup", True)
 
-    _IronSoulPreset = ReadIntRange("IronSoulPreset", _IronSoulPreset, 0, 3)
-    _CHIM = ReadIntRange("CHIM", _CHIM, 0, 1)
+    Bool iniPermadeath = ReadFeatureEnabled("Permadeath", True)
 
-    _luckSystemEnabled = ReadFeatureEnabled("LuckSystem", True)
-    _luckCooldownReminderNotificationEnabled = ReadFeatureEnabled("LuckCooldownReminderNotification", True)
+    _luckReminderNotificationEnabled = ReadFeatureEnabled("LuckReminderNotification", True)
     _loadNotificationMode = ReadIntRange("LoadNotificationMode", _loadNotificationMode, 0, 3)
     _luckRollMessageMode = ReadIntRange("LuckRollMessageMode", _luckRollMessageMode, 0, 2)
 
-    _deathResetEnabled = ReadFeatureEnabled("DeathReset", True)
-    _defiantSoulEnabled = ReadFeatureEnabled("DefiantSoul", True)
+    Bool iniDeathReset = ReadFeatureEnabled("DeathReset", True)
+    Bool iniDefiantSoul = ReadFeatureEnabled("DefiantSoul", True)
+    ApplyPresetCoreSettings(iniPermadeath, iniDeathReset, iniDefiantSoul)
     _soulFeatsEnabled = ReadFeatureEnabled("SoulFeats", True)
     _soulFatigueEnabled = ReadFeatureEnabled("SoulFatigue", True)
 
@@ -619,6 +703,7 @@ Function LoadConfig()
     _permadeathSFXEnabled = ReadFeatureEnabled("PermadeathSFX", True)
     _respawnSFXEnabled = ReadFeatureEnabled("RespawnSFX", True)
     _defiantTransitionSFXEnabled = ReadFeatureEnabled("DefiantTransitionSFX", True)
+    _chimTransitionSFXEnabled = ReadFeatureEnabled("CHIMTransitionSFX", True)
     _defiantResetSFXEnabled = ReadFeatureEnabled("DefiantResetSFX", True)
     _deathsPurgedSFXEnabled = ReadFeatureEnabled("DeathsPurgedSFX", True)
     _dragonSoulReviveCastSFXEnabled = ReadFeatureEnabled("DragonSoulReviveCastSFX", True)
@@ -631,48 +716,7 @@ Function LoadConfig()
     ResolveRespawnQuest()
 EndFunction
 
-Function ApplyPresetSettings(Int preset)
-    if preset == 1
-        _defiantSoulEnabled = True
-        _deathResetEnabled = True
-        _CHIM = 1
-    elseif preset == 2
-        _defiantSoulEnabled = True
-        _deathResetEnabled = True
-        _CHIM = 0
-    elseif preset == 3
-        _defiantSoulEnabled = False
-        _deathResetEnabled = False
-        _CHIM = 0
-    endif
-EndFunction
-
-Function ApplyCharacterPresetLock(Actor player, String guid)
-    if !player || guid == ""
-        return
-    endif
-
-    Int lockedPreset = PersistGetInt(player, GetKey(characterPreset, guid), 0)
-    if lockedPreset >= 1 && lockedPreset <= 3
-        ApplyPresetSettings(lockedPreset)
-        return
-    endif
-
-    if _IronSoulPreset >= 1 && _IronSoulPreset <= 3
-        PersistSetInt(player, GetKey(characterPreset, guid), _IronSoulPreset, True)
-        ApplyPresetSettings(_IronSoulPreset)
-        IronSoulNative.DataFlushIfDirty()
-    endif
-EndFunction
-
-Int Function ResolveEffectiveSplashPreset(Actor player, String guid)
-    if player && guid != ""
-        Int lockedPreset = PersistGetInt(player, GetKey(characterPreset, guid), 0)
-        if lockedPreset >= 1 && lockedPreset <= 3
-            return lockedPreset
-        endif
-    endif
-
+Int Function ResolveSplashPreset()
     if _IronSoulPreset >= 1 && _IronSoulPreset <= 3
         return _IronSoulPreset
     endif
@@ -680,8 +724,25 @@ Int Function ResolveEffectiveSplashPreset(Actor player, String guid)
     return 0
 EndFunction
 
-Function ApplyDynamicSplashForTier(Actor player, String guid, Int tierId)
-    IronSoulNative.ApplyDynamicSplash(tierId, ResolveEffectiveSplashPreset(player, guid))
+Function ApplyDynamicSplashForTier(Int tierId)
+    IronSoulNative.ApplyDynamicSplash(tierId, ResolveSplashPreset())
+EndFunction
+
+Int Function ResolveDraugrEyePreset()
+    if _IronSoulPreset >= 1 && _IronSoulPreset <= 3
+        return _IronSoulPreset
+    endif
+
+    return 0
+EndFunction
+
+Function ApplyDynamicDraugrEyesForPreset()
+    IronSoulNative.ApplyDynamicDraugrEyes(ResolveDraugrEyePreset())
+EndFunction
+
+Function ApplyDynamicPresetAssetsForTier(Int tierId)
+    ApplyDynamicSplashForTier(tierId)
+    ApplyDynamicDraugrEyesForPreset()
 EndFunction
 
 Int Function LOG_ERR()
@@ -715,6 +776,17 @@ Function LogMsg(Int level, String msg, Bool suppressNotify = False)
     else
         Debug.Trace("[IronSoul]" + " [ERR] " + msg)
     endif
+EndFunction
+
+Function LogExternalMsg(String source, Int level, String msg, Bool suppressNotify = False)
+    if source == ""
+        source = "External"
+    endif
+    if msg == ""
+        return
+    endif
+
+    LogMsg(level, "[" + source + "] " + msg, suppressNotify)
 EndFunction
 
 Function LogMsgSnapshot(Int level, String msg)
@@ -776,25 +848,28 @@ Function LogSystemSnapshot()
     LogMsgSnapshot(LOG_INFO(), "Config: Logging=" + _logEnabled \
         + " Level=" + _logLevel \
         + " Notify=" + _enableLogNotifications \
-        + " CHIM=" + _CHIM \
+        + " Preset=" + _IronSoulPreset \
+        + " Permadeath=" + _permadeathEnabled \
         + " UninstallMode=" + _uninstallMode \
         + " ModDisabled=" + _modDisabled)
 
     ; --- Systems ---
-    LogMsgSnapshot(LOG_INFO(), "Systems: Luck=" + (_luckSystemEnabled) \
+    LogMsgSnapshot(LOG_INFO(), "Systems: Luck=" + (IsLuckActive()) \
+        + " LuckLevel=" + _luckLevel \
         + " SoulBonus=" + (_soulBonusEnabled) \
         + " SoulFeats=" + (_soulFeatsEnabled) \
         + " DefiantSoul=" + (_defiantSoulEnabled) \
         + " DeathReset=" + (_deathResetEnabled) \
         + " DragonSoulRevive=" + (_dragonSoulReviveEnabled) \
+        + " DragonSoulReviveTransform=" + (_dragonSoulReviveTransformEnabled) \
         + " DragonSoulIncreaseNotify=" + (_dragonSoulIncreaseNotificationEnabled) \
         + " DragonSoulReviveLimit=" + _dragonSoulReviveLimit)
 
     ; --- Luck Persistence ---
-    LogMsgSnapshot(LOG_INFO(), "Luck: Loaded=" + _luckCooldownLoaded \
-        + " Dirty=" + _luckCooldownDirty \
-        + " LastSec=" + _luckCooldownLastSec \
-        + " NextPersistAt=" + _luckCooldownNextPersistAt)
+    LogMsgSnapshot(LOG_INFO(), "Luck: Loaded=" + _luckLoaded \
+        + " Dirty=" + _luckDirty \
+        + " LastSec=" + _luckLastSec \
+        + " NextPersistAt=" + _luckNextPersistAt)
 
     ; --- Player Snapshot ---
     Actor p = Game.GetPlayer()
@@ -825,15 +900,14 @@ Function LogSystemSnapshot()
 EndFunction
 
 
-; ========================================
 ; --- Persistence (MainData + Co-save) ---
 ; ========================================
 
 ;
 ; Model:
 ; - MainData (.dat via SKSE plugin) is authoritative.
-; - Co-save (StorageUtil) is written as backup.
-; - Reads check MainData first; missing keys fall back to co-save and heal MainData.
+; - Co-save (StorageUtil) can be written as backup when CosaveRecoveryBackup=1.
+; - Reads check MainData first; missing keys can fall back to co-save and heal MainData.
 ;
 ; Scope:
 ; - Controller invokes IronSoulNative.DataFlushIfDirty() at critical points and OnUpdateHeartbeat.
@@ -849,7 +923,7 @@ EndFunction
 ;
 ; Written to:
 ;   - MainData (authoritative)
-;   - Co-save (backup)
+;   - Co-save (backup, when CosaveRecoveryBackup=1)
 ;
 ; Notes:
 ; - Keys must be constructed via GetKey("IS_####", guid).
@@ -866,15 +940,12 @@ String Property characterGuid              = "IS_9975" AutoReadOnly
 ; Core lifecycle
 String Property deathCount                 = "IS_8155" AutoReadOnly
 String Property totalDeathCount            = "IS_9132" AutoReadOnly ; Lifetime true-death counter; never resets.
-String Property characterPreset            = "IS_6124" AutoReadOnly
+String Property draugnarokOverrideMode     = "IS_7341" AutoReadOnly ; Per-character Draugnarok override: 0 none, 1 force on, 2 force off.
 
-; Luck / Cooldown timing
-; NOTE: Luck mode and cooldown mode share the same timing keys below.
-; Interpretation depends on LuckSystem:
-; - LuckSystem=1: played time maps to Luck% (0..maxLuck)
-; - LuckSystem=0: played time maps to cooldown readiness (0..3600s)
-String Property luckLastSec                = "IS_7314" AutoReadOnly ; Luck/Cooldown: last real-time second anchor
-String Property luckPlayedToken            = "IS_7315" AutoReadOnly ; Luck/Cooldown: played-seconds token (encoded)
+; Luck timing
+; Played time maps to Luck% (0..maxLuck).
+String Property luckLastSec                = "IS_7314" AutoReadOnly ; Luck: last real-time second anchor
+String Property luckPlayedToken            = "IS_7315" AutoReadOnly ; Luck: played-seconds token (encoded)
 String Property luckNotifiedTier           = "IS_7316" AutoReadOnly ; Luck: last notified threshold tier
 
 ; Narrative / UI one-shots
@@ -950,28 +1021,96 @@ Int Function GetSoulBonusOrdinal(Int tier)
     return tier
 EndFunction
 
-Int Function GetMaxLuckForTier(Int tier)
-    ; Luck cap by soul tier:
-    ; CHIM=100, Defiant=50, Iron=80, Silver=85, Gold=90, Ebon=95, Platinum=99, Devour=100.
-    ; Live Defiant luck is resolved in GetCurrentMaxLuck() from the stored pre-Defiant tier, then capped.
+Int Function GetMaxLuckForTierAtLevel(Int tier, Int luckLevel)
+    luckLevel = ClampLuckLevel(luckLevel)
     if tier == TIER_CHIM
         return 100
     elseif tier == TIER_DEFIANT
-        return DEFIANT_SOUL_MAX_LUCK
+        if luckLevel == 1
+            return 25
+        elseif luckLevel == 2
+            return 30
+        elseif luckLevel == 3
+            return 35
+        elseif luckLevel == 4
+            return 40
+        endif
+        return 50
     elseif tier == TIER_IRON
+        if luckLevel == 1
+            return 50
+        elseif luckLevel == 2
+            return 60
+        elseif luckLevel == 3
+            return 70
+        elseif luckLevel == 4
+            return 75
+        endif
         return 80
     elseif tier == TIER_SILVER
+        if luckLevel == 1
+            return 55
+        elseif luckLevel == 2
+            return 65
+        elseif luckLevel == 3
+            return 75
+        elseif luckLevel == 4
+            return 80
+        endif
         return 85
     elseif tier == TIER_GOLD
+        if luckLevel == 1
+            return 60
+        elseif luckLevel == 2
+            return 70
+        elseif luckLevel == 3
+            return 80
+        elseif luckLevel == 4
+            return 85
+        endif
         return 90
     elseif tier == TIER_EBON
+        if luckLevel == 1
+            return 65
+        elseif luckLevel == 2
+            return 75
+        elseif luckLevel == 3
+            return 85
+        elseif luckLevel == 4
+            return 90
+        endif
         return 95
     elseif tier == TIER_PLATINUM
+        if luckLevel == 1
+            return 70
+        elseif luckLevel == 2
+            return 80
+        elseif luckLevel == 3
+            return 90
+        elseif luckLevel == 4
+            return 95
+        endif
         return 99
     elseif tier == TIER_DEVOUR
+        if luckLevel == 1
+            return 75
+        elseif luckLevel == 2
+            return 85
+        elseif luckLevel == 3
+            return 95
+        elseif luckLevel == 4
+            return 99
+        endif
         return 100
     endif
-    return 80
+    return GetMaxLuckForTierAtLevel(TIER_IRON, luckLevel)
+EndFunction
+
+Int Function GetMaxLuckForTier(Int tier)
+    ; Luck cap by soul tier and effective LuckLevel.
+    ; LuckLevel 5 preserves the original caps: Defiant=50, Iron=80, Silver=85, Gold=90, Ebon=95, Platinum=99, Devour/CHIM=100.
+    ; Live Defiant luck is resolved in GetCurrentMaxLuck() from the stored pre-Defiant tier, then capped by the Defiant row.
+    return GetMaxLuckForTierAtLevel(tier, _luckLevel)
 EndFunction
 
 Int Function GetCurrentMaxLuck(Actor player, String guid)
@@ -987,8 +1126,9 @@ Int Function GetCurrentMaxLuck(Actor player, String guid)
         if excessDeaths > 0
             maxLuck -= excessDeaths
         endif
-        if maxLuck > DEFIANT_SOUL_MAX_LUCK
-            maxLuck = DEFIANT_SOUL_MAX_LUCK
+        Int defiantMaxLuck = GetMaxLuckForTier(TIER_DEFIANT)
+        if maxLuck > defiantMaxLuck
+            maxLuck = defiantMaxLuck
         endif
         if maxLuck < 0
             maxLuck = 0
@@ -1101,7 +1241,7 @@ Int Function ResolveSoulTierTarget(Actor player, String guid, Int resolveMode, I
         Int defFeatReset = PersistGetInt(player, GetKey(defiantFeatUnlocked, guid), 0)
         if defFeatReset == 1 && deaths >= IRON_SOUL_MAX_LIVES
             if _defiantSoulEnabled
-                if _CHIM == 1 && deaths >= DEFIANT_SOUL_MAX_LIVES
+                if !_permadeathEnabled && deaths >= DEFIANT_SOUL_MAX_LIVES
                     return TIER_CHIM
                 endif
                 return TIER_DEFIANT
@@ -1109,7 +1249,7 @@ Int Function ResolveSoulTierTarget(Actor player, String guid, Int resolveMode, I
             defiantBlockedAtIronCap = True
         endif
 
-        if _CHIM == 1 && liveTier != TIER_DEVOUR && deaths >= IRON_SOUL_MAX_LIVES && !defiantBlockedAtIronCap
+        if !_permadeathEnabled && liveTier != TIER_DEVOUR && deaths >= IRON_SOUL_MAX_LIVES && !defiantBlockedAtIronCap
             return TIER_CHIM
         endif
 
@@ -1117,6 +1257,9 @@ Int Function ResolveSoulTierTarget(Actor player, String guid, Int resolveMode, I
 
     elseif resolveMode == TIER_TARGET_MODE_TRUE_DEATH
         if liveTier == TIER_DEVOUR
+            if !_permadeathEnabled && deaths >= IRON_SOUL_MAX_LIVES
+                return TIER_CHIM
+            endif
             return TIER_DEVOUR
         endif
 
@@ -1133,7 +1276,7 @@ Int Function ResolveSoulTierTarget(Actor player, String guid, Int resolveMode, I
             endif
         endif
 
-        if _CHIM == 1 && liveTier != TIER_DEVOUR && !chimActive
+        if !_permadeathEnabled && liveTier != TIER_DEVOUR && !chimActive
             Bool defiantBlockedAtIronCap = False
             if !defiantActive && deaths == IRON_SOUL_MAX_LIVES
                 defiantBlockedAtIronCap = (PersistGetInt(player, GetKey(defiantFeatUnlocked, guid), 0) == 1 && !_defiantSoulEnabled)
@@ -1149,6 +1292,9 @@ Int Function ResolveSoulTierTarget(Actor player, String guid, Int resolveMode, I
 
     elseif resolveMode == TIER_TARGET_MODE_LOAD_CATCHUP
         if liveTier == TIER_DEVOUR
+            if !_permadeathEnabled && deaths >= IRON_SOUL_MAX_LIVES
+                return TIER_CHIM
+            endif
             return TIER_DEVOUR
         endif
 
@@ -1167,7 +1313,7 @@ Int Function ResolveSoulTierTarget(Actor player, String guid, Int resolveMode, I
             endif
         endif
 
-        if _CHIM != 1 || chimActive || liveTier == TIER_DEVOUR
+        if _permadeathEnabled || chimActive || liveTier == TIER_DEVOUR
             return liveTier
         endif
 
@@ -1276,8 +1422,8 @@ Int Function PersistGetInt(Actor player, String dataKey, Int fallback)
     if direct != missingSentinel
         return direct
     endif
-    ; Only heal MainData from co-save if the value truly exists in co-save.
-    if StorageUtil.HasIntValue(player, dataKey)
+    ; Only heal MainData from co-save if the value truly exists in co-save and backups are enabled.
+    if _cosaveRecoveryBackupEnabled && StorageUtil.HasIntValue(player, dataKey)
         Int v = StorageUtil.GetIntValue(player, dataKey, fallback)
         IronSoulNative.DataSetIntIfChanged(dataKey, v)
         return v
@@ -1294,7 +1440,7 @@ Function PersistSetInt(Actor player, String dataKey, Int value, Bool useIfChange
     else
         IronSoulNative.DataSetInt(dataKey, value)
     endif
-    if player
+    if player && _cosaveRecoveryBackupEnabled
         ; Preserve co-save backup even for zero values: write when key is missing OR changed.
         if !StorageUtil.HasIntValue(player, dataKey)
             StorageUtil.SetIntValue(player, dataKey, value)
@@ -1305,6 +1451,46 @@ Function PersistSetInt(Actor player, String dataKey, Int value, Bool useIfChange
             endif
         endif
     endif
+EndFunction
+
+Int Function ClampDraugnarokOverrideMode(Int mode)
+    if mode < 0 || mode > 2
+        return 0
+    endif
+    return mode
+EndFunction
+
+Int Function GetDraugnarokOverrideMode(Actor player)
+    if !player
+        return 0
+    endif
+
+    String guid = GetTickGuid(player)
+    if guid == ""
+        return 0
+    endif
+
+    return ClampDraugnarokOverrideMode(PersistGetInt(player, GetKey(draugnarokOverrideMode, guid), 0))
+EndFunction
+
+Bool Function SetDraugnarokOverrideMode(Actor player, Int mode, Bool flushNow = True)
+    if mode < 0 || mode > 2
+        return False
+    endif
+    if !player
+        return False
+    endif
+
+    String guid = GetTickGuid(player)
+    if guid == ""
+        return False
+    endif
+
+    PersistSetInt(player, GetKey(draugnarokOverrideMode, guid), mode, True)
+    if flushNow
+        IronSoulNative.DataFlushIfDirty()
+    endif
+    return True
 EndFunction
 
 Function SyncDeathAV(Actor player, int deaths)
@@ -1349,7 +1535,7 @@ Function RemoveGuidTrackedData(Actor player, String guid, Bool deleteMainData = 
 
     RemoveGuidTrackedIntKey(player, guid, deathCount, deleteMainData, unsetCosave)
     RemoveGuidTrackedIntKey(player, guid, totalDeathCount, deleteMainData, unsetCosave)
-    RemoveGuidTrackedIntKey(player, guid, characterPreset, deleteMainData, unsetCosave)
+    RemoveGuidTrackedIntKey(player, guid, draugnarokOverrideMode, deleteMainData, unsetCosave)
     RemoveGuidTrackedIntKey(player, guid, luckLastSec, deleteMainData, unsetCosave)
     RemoveGuidTrackedIntKey(player, guid, luckPlayedToken, deleteMainData, unsetCosave)
     RemoveGuidTrackedIntKey(player, guid, luckNotifiedTier, deleteMainData, unsetCosave)
@@ -1394,7 +1580,7 @@ Function RemoveGuidTrackedIntKey(Actor player, String guid, String keyBase, Bool
         IronSoulNative.DataDeleteKey(dataKey)
     endif
 
-    if unsetCosave && player
+    if unsetCosave && player && _cosaveRecoveryBackupEnabled
         StorageUtil.UnsetIntValue(player, dataKey)
     endif
 EndFunction
@@ -1472,7 +1658,6 @@ Bool Function ResetCurrentCharacterData(Actor player, String guid)
     PersistSetInt(player, GetKey(defiantTrackedTier, guid), TIER_IRON, True)
     PersistSetInt(player, GetKey(luckNotifiedTier, guid), 4, True)
     RebaselineDragonSoulsLastSeen(player, guid)
-    ApplyCharacterPresetLock(player, guid)
 
     if !_uninstallMode && !_modDisabled
         if IronSoulOnDyingSpell && !player.HasSpell(IronSoulOnDyingSpell)
@@ -1481,7 +1666,7 @@ Bool Function ResetCurrentCharacterData(Actor player, String guid)
         SyncSoulPresentationAndStats(player, guid)
         ResolveRespawnQuest()
         UpdatePlayerProtectionState(player)
-        ApplyDynamicSplashForTier(player, guid, TIER_IRON)
+        ApplyDynamicPresetAssetsForTier(TIER_IRON)
         IronSoulNative.ApplyDynamicLevelWidget(TIER_IRON)
         QueueUpdate(FastPollSeconds)
     endif
@@ -1537,7 +1722,6 @@ Int Function PurgeHistoricalCharacterData(String currentGuid)
 EndFunction
 
 
-; ===========================
 ; --- Lifecycle & Runtime ---
 ; ===========================
 
@@ -1578,8 +1762,9 @@ Float _pendingLoadMessageStartedAt = 0.0
 
 ; Feats
 Bool _pendingFeats = False
-
 Float _featsAt = 0.0
+Sound _pendingFeatUnlockSFX = None
+Float _featUnlockSFXAt = 0.0
 
 ; Respawn Messaging
 Bool _pendingRespawnMenu = False
@@ -1593,7 +1778,7 @@ Event OnInit()
 
     if !IronSoulNative.IsAvailable()
         _modDisabled = True
-        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (IronSoul.dll) is missing.")
+        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (ironsoul.dll) is missing.")
         return
     endif
 
@@ -1603,8 +1788,8 @@ Event OnInit()
     RegisterMusicFadeBridge()
     IronSoulNative.StartHealthMonitor()
 
-    ; Update splash/lvlWidget for next game launch.
-    ApplyDynamicSplashForTier(None, "", TIER_IRON)
+    ; Update dynamic assets for next game launch.
+    ApplyDynamicPresetAssetsForTier(TIER_IRON)
     IronSoulNative.ApplyDynamicLevelWidget(TIER_IRON)
 
     LogMsg(LOG_INFO(), "IronSoulController: OnInit event fired")
@@ -1640,7 +1825,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
 
     if !IronSoulNative.IsAvailable()
         _modDisabled = True
-        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (IronSoul.dll) is missing.")
+        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (ironsoul.dll) is missing.")
         return
     endif
 
@@ -1679,11 +1864,11 @@ Function OnPlayerLoadGame(Bool isLoadGame)
 
     LogMsg(LOG_INFO(), "OnPlayerLoadGame: Player=" + name + " GUID=" + guid)
 
+    RefreshDraugnarokRuntimeOnLoad(player)
+
     if guid == ""
         LogMsg(LOG_INFO(), "OnPlayerLoadGame: GUID not ready")
     else
-        ApplyCharacterPresetLock(player, guid)
-
         ; Re-baseline Dragon Soul tracking on load so rollback/older-save loads never
         ; produce a fake positive delta from stale persisted last-seen state.
         Int _curSoulsLS = player.GetActorValue("DragonSouls") as Int
@@ -1747,7 +1932,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
 
     if IsDefiantSoulFatigueTerminal(player, guid)
         LogMsg(LOG_INFO(), "OnPlayerLoadGame: Defiant Soul Fatigue terminal state reached on load")
-        if _CHIM == 1 && soulTier != TIER_CHIM
+        if !_permadeathEnabled && soulTier != TIER_CHIM
             PromoteToCHIMTier(player, guid)
             ; Load-time CHIM promotion should remain in-session; only true-death CHIM transitions quit.
             PlayCHIMTransitionMessageSequenceSWF(soulTier, True, "0defiantpermadeathsoulfatigue")
@@ -1759,7 +1944,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         endif
     endif
 
-    ApplyDynamicSplashForTier(player, guid, soulTier)
+    ApplyDynamicPresetAssetsForTier(soulTier)
     IronSoulNative.ApplyDynamicLevelWidget(soulTier)
 
     ; Effective cap (CHIM tier is effectively unbounded).
@@ -1784,8 +1969,8 @@ Event OnUpdate()
             dt = nowRT - _dbgLastOnUpdateRealTime
         endif
         _dbgLastOnUpdateRealTime = nowRT
-        LogMsg(LOG_DBG(), "OnUpdate: fired dt=" + dt \
-            + " deathLocked=" + _deathEventLocked, True)
+        ; LogMsg(LOG_DBG(), "OnUpdate: fired dt=" + dt \
+        ;     + " deathLocked=" + _deathEventLocked, True)
     endif
     _updateQueued = False
     _updateQueuedDelay = 0.0
@@ -1800,12 +1985,10 @@ Event OnUpdate()
 
     Actor player = Game.GetPlayer()
 
-    ; Luck / Cooldown regen tick (menu-safe). Run early so menu time never advances.
+    ; Luck regen tick (menu-safe). Run early so menu time never advances.
     if _tickGuidValid
         if IsLuckActive()
             TickLuckRegen(player, _tickGuid)
-        elseif IsCooldownModeActive()
-            TickCooldownRegen(player, _tickGuid)
         endif
     endif
 
@@ -1821,6 +2004,7 @@ Event OnUpdate()
     OnUpdateHeartbeat(player)
 
     ; Soul Feats message handling (unlock jobs are scheduled on heartbeat cadence)
+    HandleFeatUnlockSFX(player)
     HandleFeats(player)
 
     ; Delayed respawn message
@@ -1860,10 +2044,10 @@ Function OnUpdateHeartbeat(Actor player)
             dtHB = nowRT - _dbgLastHeartbeatRealTime
         endif
         _dbgLastHeartbeatRealTime = nowRT
-        LogMsg(LOG_DBG(), "Heartbeat: dt=" + dtHB \
-            + " souls=" + (player.GetActorValue("DragonSouls") as Int) \
-            + " essential=" + player.IsEssential() \
-            + " deathLocked=" + _deathEventLocked, True)
+        ; LogMsg(LOG_DBG(), "Heartbeat: dt=" + dtHB \
+        ;     + " souls=" + (player.GetActorValue("DragonSouls") as Int) \
+        ;     + " essential=" + player.IsEssential() \
+        ;     + " deathLocked=" + _deathEventLocked, True)
     endif
 
     ; Use per-tick GUID cache
@@ -2047,7 +2231,7 @@ Bool Function BootstrapTick()
     endif
 
     _bootstrapActive = False
-    ApplyCharacterPresetLock(p, bguid)
+    ApplyDraugnarokOverrideForCurrentCharacter(p)
     LogMsg(LOG_INFO(), "BootstrapTick: GUID ready; bootstrap complete (" + bguid + ")")
 
     return False
@@ -2075,31 +2259,31 @@ Function TickLuckRegen(Actor player, String guid)
 
     Int nowSec = nowRT as Int
 
-    LuckCooldownEnsureLoaded(player, guid, nowSec)
+    LuckEnsureLoaded(player, guid, nowSec)
 
-    Int lastSec = _luckCooldownLastSec
-    Int playedTok = _luckCooldownPlayedTok
+    Int lastSec = _luckLastSec
+    Int playedTok = _luckPlayedTok
     Int played = DecodePlayed(playedTok)
 
     ; Initialize on first run so Luck starts at tier max on a new game.
     if lastSec <= 0 || playedTok <= 0
         played = LUCK_REGEN_SECONDS
-        _luckCooldownPlayedTok = EncodePlayed(nowSec, played)
-        _luckCooldownLastSec = nowSec
-        LuckCooldownMarkDirty()
+        _luckPlayedTok = EncodePlayed(nowSec, played)
+        _luckLastSec = nowSec
+        LuckMarkDirty()
         ; New game: suppress threshold reminder spam by marking max threshold as already notified.
         PersistSetInt(player, GetKey(luckNotifiedTier, guid), 4, True)
-        LuckCooldownPersistIfDue(player, guid, nowSec, True)
+        LuckPersistIfDue(player, guid, nowSec, True)
         return
     endif
 
     ; Menus pause luck regen: update anchor without advancing played time.
     if Utility.IsInMenuMode()
         if nowSec != lastSec
-            _luckCooldownLastSec = nowSec
-            LuckCooldownMarkDirty()
+            _luckLastSec = nowSec
+            LuckMarkDirty()
         endif
-        LuckCooldownPersistIfDue(player, guid, nowSec, False)
+        LuckPersistIfDue(player, guid, nowSec, False)
         return
     endif
 
@@ -2115,16 +2299,16 @@ Function TickLuckRegen(Actor player, String guid)
         if played > LUCK_REGEN_SECONDS
             played = LUCK_REGEN_SECONDS
         endif
-        _luckCooldownPlayedTok = EncodePlayed(nowSec, played)
-        _luckCooldownLastSec = nowSec
-        LuckCooldownMarkDirty()
+        _luckPlayedTok = EncodePlayed(nowSec, played)
+        _luckLastSec = nowSec
+        LuckMarkDirty()
     elseif nowSec != lastSec
-        _luckCooldownLastSec = nowSec
-        LuckCooldownMarkDirty()
+        _luckLastSec = nowSec
+        LuckMarkDirty()
     endif
 
     ; Persist at most once per 60s during normal regen.
-    LuckCooldownPersistIfDue(player, guid, nowSec, False)
+    LuckPersistIfDue(player, guid, nowSec, False)
 
     Int maxLuck = GetCurrentMaxLuck(player, guid)
     Int luckNow = GetLuckValue(player, guid)
@@ -2182,7 +2366,7 @@ Function RescheduleIfJobsRemain()
         _pendingLoadMessageStartedAt = 0.0
     endif
 
-    if _pendingDisableRespawn || _pendingLoadMessage || _deathEventLocked
+    if _pendingDisableRespawn || _pendingLoadMessage || _deathEventLocked || _pendingFeatUnlockSFX
         QueueUpdate(FastPollSeconds)
 
     else
@@ -2216,9 +2400,11 @@ Function ResetTransientState()
     _pendingLoadMessage = False
     _pendingDragonSoulsRebaseline = False
     _pendingFeats = False
+    _pendingFeatUnlockSFX = None
     _respawnWindowArmed = False
 
     _featsAt = 0.0
+    _featUnlockSFXAt = 0.0
     _loadMessageAt = 0.0
 
     ; Heartbeat / cadence timers are transient (GetCurrentRealTime can reset across reloads).
@@ -2249,13 +2435,13 @@ Function ResetTransientState()
     ; Quit latch is transient.
     _isQuitting = False
 
-    ; Luck/Cooldown session cache is transient; reset to avoid stale deltas across reloads.
-    _luckCooldownLoaded = False
-    _luckCooldownDirty = False
-    _luckCooldownGuid = ""
-    _luckCooldownLastSec = 0
-    _luckCooldownPlayedTok = 0
-    _luckCooldownNextPersistAt = 0
+    ; Luck session cache is transient; reset to avoid stale deltas across reloads.
+    _luckLoaded = False
+    _luckDirty = False
+    _luckGuid = ""
+    _luckLastSec = 0
+    _luckPlayedTok = 0
+    _luckNextPersistAt = 0
 
     ; Luck roll telemetry
     _lastLuckRoll = 0
@@ -2301,7 +2487,6 @@ Function RebaselineDragonSoulsLastSeen(Actor player, String guid, Int curSouls =
 EndFunction
 
 
-; ======================
 ; --- Death Handling ---
 ; ======================
 
@@ -2352,24 +2537,16 @@ Function HandlePlayerDying(Actor player, Actor caster)
         return
     endif
 
-    ; 2) Cooldown Mode (LuckSystem == 0)
-    if IsCooldownModeActive()
-        LogMsg(LOG_INFO(), "HandlePlayerDying: Cooldown mode")
-
-        if IsCooldownReady(player, guid)
-            LogMsg(LOG_INFO(), "HandlePlayerDying: Cooldown not active -> Respawn")
-            HandleRespawn(player, guid)
-        else
-            LogMsg(LOG_INFO(), "HandlePlayerDying: Cooldown active -> True Death")
-
-            TrueDeathAndQuit(player)
-        endif
-
+    ; Respawn's own script does not respawn transformed beast races; mirror that
+    ; behavior before Luck can route to Respawn.
+    if IsRespawnEnabled() && IsRespawnBlockedByTransform(player)
+        LogMsg(LOG_INFO(), "HandlePlayerDying: Respawn blocked while transformed race=" + player.GetRace())
+        TrueDeathAndQuit(player)
         _deathEventLocked = False
         return
     endif
 
-    ; 3) Luck Mode (LuckSystem == 1)
+    ; 2) Luck Mode
     if IsLuckActive()
         LogMsg(LOG_INFO(), "HandlePlayerDying: Luck mode")
 
@@ -2392,7 +2569,7 @@ Function HandlePlayerDying(Actor player, Actor caster)
         return
     endif
 
-    ; 4) Final fallback - no DSR, no luck, no cooldown
+    ; 3) Final fallback - no DSR or Luck
     LogMsg(LOG_INFO(), "HandlePlayerDying: Fallback True Death")
     TrueDeathAndQuit(player)
 
@@ -2466,15 +2643,11 @@ Function TrueDeathAndQuit(Actor player)
     SyncSoulPresentationAndStats(player, guid)
     Bool defiantFatigueTerminal = IsDefiantSoulFatigueTerminal(player, guid)
 
-    ; Luck/Cooldown reset: true-death milestone should consume the current cycle.
+    ; Luck reset: true-death milestone should consume the current cycle.
     if IsLuckActive()
         ResetLuck(player, guid)
-        LuckCooldownForcePersistNow(player, guid)
+        LuckForcePersistNow(player, guid)
         LogMsg(LOG_INFO(), "TrueDeathAndQuit: ResetLuck()")
-    elseif IsCooldownModeActive()
-        ResetCooldown(player, guid)
-        LuckCooldownForcePersistNow(player, guid)
-        LogMsg(LOG_INFO(), "TrueDeathAndQuit: ResetCooldown()")
     endif
 
     ; Non-luck true-death routes still need the fixed front-delay.
@@ -2513,7 +2686,6 @@ Function TrueDeathAndQuit(Actor player)
 
     ; Transition gating + CHIM/Defiant state.
     Bool chimActive = (soulTierTD == TIER_CHIM)
-    Bool devourActive = (soulTierTD == TIER_DEVOUR)
     Bool defiantActive = (soulTierTD == TIER_DEFIANT)
     Int transitionTier = ResolveSoulTierTarget(player, guid, TIER_TARGET_MODE_TRUE_DEATH, deathsNow, -1, soulTierTD)
 
@@ -2536,7 +2708,7 @@ Function TrueDeathAndQuit(Actor player)
         if _characterJournalLogEnabled
             JournalLogEvent("Soul fatigue overwhelms the body. Deaths: " + deathsNow + " / " + DEFIANT_SOUL_MAX_LIVES + ".")
         endif
-        if _CHIM == 1 && !chimActive
+        if !_permadeathEnabled && !chimActive
             PromoteToCHIMTier(player, guid)
             PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False, "0defiantpermadeathsoulfatigue")
             FinalizeAndQuit()
@@ -2548,8 +2720,8 @@ Function TrueDeathAndQuit(Actor player)
         return
     endif
 
-    ; CHIM transition sequence (10th death without Defiant transition, or 20th death in Defiant).
-    if !chimActive && !devourActive && transitionTier == TIER_CHIM
+    ; CHIM transition sequence (10th death without Defiant transition, 10th Devour death with Permadeath off, or 20th death in Defiant).
+    if !chimActive && transitionTier == TIER_CHIM
         LogMsg(LOG_INFO(), "HandleTrueDeath: CHIM Soul ACTIVATED (one-shot latch)")
         PromoteToCHIMTier(player, guid)
         PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False)
@@ -2557,22 +2729,7 @@ Function TrueDeathAndQuit(Actor player)
         return
     endif
 
-    if devourActive
-        if _characterJournalLogEnabled
-            if _suppressNextDefeatJournal
-                _suppressNextDefeatJournal = False
-            else
-                JournalLogEvent("Defeated. Deaths: " + deathsNow + " / ???.")
-            endif
-        endif
-        if _deathMessageEnabled
-            OpenTimedMessageSWF_SFX(ResolveDeathMessageMenu(soulTierTD, deathsNow), 6.0, SFXDeath, player, False)
-        endif
-        FinalizeAndQuit()
-        return
-    endif
-
-    ; CHIM tier: every death uses the dedicated CHIM death menu and exits.
+    ; CHIM tier: every death uses a random dedicated CHIM death menu and exits.
     if chimActive
         if _characterJournalLogEnabled
             if _suppressNextDefeatJournal
@@ -2582,7 +2739,7 @@ Function TrueDeathAndQuit(Actor player)
             endif
         endif
         if _deathMessageEnabled
-            OpenTimedMessageSWF_SFX("9chimdeath", 6.0, SFXDeath, player, False)
+            OpenTimedMessageSWF_SFX(ResolveDeathMessageMenu(soulTierTD, deathsNow), 6.0, SFXDeath, player, False)
         endif
         FinalizeAndQuit()
         return
@@ -2600,14 +2757,15 @@ Function TrueDeathAndQuit(Actor player)
     if _characterJournalLogEnabled
         if _suppressNextDefeatJournal
             _suppressNextDefeatJournal = False
-        elseif deathsNow != hardCap
+        elseif deathsNow < hardCap
             JournalLogEvent("Defeated. Deaths: " + deathsNow + " / " + hardCap + ".")
         endif
     endif
 
-    if deathsNow == hardCap
+    if deathsNow >= hardCap
         ; True permadeath scenario:
         ; - 10th death without Defiant/CHIM transition
+        ; - 10th Devour death when Permadeath is enabled
         ; - 20th death with Defiant active when CHIM transition is not taken
         JournalLogEvent("SOVNGARDE CLAIMS THE FALLEN DEAD. Deaths: " + deathsNow + " / " + hardCap + ".")
         OpenTimedMessageSWF_KeyDismiss_SFX(ResolvePermadeathMenu(soulTierTD), 55.0, 27.0, SFXPermadeath, player, False)
@@ -2653,11 +2811,11 @@ Function FinalizeAndQuit()
     _isQuitting = True
     _updateQueued = False
     IronSoulNative.StopHealthMonitor()
-    ; Flush luck/cooldown timing cache (write-gated) before quitting.
+    ; Flush luck timing cache (write-gated) before quitting.
     Actor p = Game.GetPlayer()
-    if p && _luckCooldownLoaded && _luckCooldownDirty && _luckCooldownGuid != ""
+    if p && _luckLoaded && _luckDirty && _luckGuid != ""
         Int nowSec = Utility.GetCurrentRealTime() as Int
-        LuckCooldownPersistIfDue(p, _luckCooldownGuid, nowSec, True)
+        LuckPersistIfDue(p, _luckGuid, nowSec, True)
     endif
 
     UnregisterForUpdate()
@@ -2677,11 +2835,11 @@ Function FinalizeAndQuitMainMenu()
     _isQuitting = True
     _updateQueued = False
     IronSoulNative.StopHealthMonitor()
-    ; Flush luck/cooldown timing cache (write-gated) before quitting.
+    ; Flush luck timing cache (write-gated) before quitting.
     Actor p = Game.GetPlayer()
-    if p && _luckCooldownLoaded && _luckCooldownDirty && _luckCooldownGuid != ""
+    if p && _luckLoaded && _luckDirty && _luckGuid != ""
         Int nowSec = Utility.GetCurrentRealTime() as Int
-        LuckCooldownPersistIfDue(p, _luckCooldownGuid, nowSec, True)
+        LuckPersistIfDue(p, _luckGuid, nowSec, True)
     endif
     UnregisterForUpdate()
 
@@ -2697,7 +2855,7 @@ EndFunction
 ; Returns the death cap used for load enforcement and notifications:
 ;  - Iron Soul: 10
 ;  - Defiant Soul: 20
-;  - Devour Soul: effectively unbounded
+;  - Devour Soul: 10
 ;  - CHIM Soul: effectively unbounded
 Int Function GetEffectiveMaxLives(Actor player, String guid)
     if !player || guid == ""
@@ -2705,7 +2863,7 @@ Int Function GetEffectiveMaxLives(Actor player, String guid)
     endif
     Int tierNow = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
 
-    if tierNow == TIER_CHIM || tierNow == TIER_DEVOUR
+    if tierNow == TIER_CHIM
         return 2147483647
     endif
 
@@ -2717,7 +2875,6 @@ Int Function GetEffectiveMaxLives(Actor player, String guid)
 EndFunction
 
 
-; ==========================
 ; --- Dragon Soul Revive ---
 ; ==========================
 
@@ -2736,20 +2893,24 @@ Function HandleDragonSoulRevive(Actor target, Actor caster, String guid)
 
     LogMsg(LOG_INFO(), "HandleDragonSoulRevive: Target=" + Target + " Caster=" + Caster + " GUID=" + guid)
 
-    Target.DamageAV("DragonSouls", 1.0)
+    Int soulTierDSR = TIER_IRON
+    if guid != ""
+        soulTierDSR = PersistGetInt(target, GetKey(soulTierIndex, guid), TIER_IRON)
+    endif
+
+    if soulTierDSR != TIER_DEVOUR
+        Target.DamageAV("DragonSouls", 1.0)
+    endif
 
     if _dragonSoulReviveLimit > 0 && guid != ""
-        Int soulTierDSR = PersistGetInt(target, GetKey(soulTierIndex, guid), TIER_IRON)
-        if soulTierDSR != TIER_CHIM
-            SyncDSRLimitState(target, guid)
-            Int dsrPlayedNow = PersistGetInt(target, GetKey(dsrLimitPlayedSec, guid), 0)
-            Int recentUsesBeforeRecord = CompactDSRLimitUses(target, guid, dsrPlayedNow)
-            if recentUsesBeforeRecord == (_dragonSoulReviveLimit - 1)
-                LogMsg(LOG_DBG(), "HandleDragonSoulRevive: revive reached rolling cap limit=" + _dragonSoulReviveLimit, True)
-            endif
-            RecordDSRLimitUse(target, guid, dsrPlayedNow)
-            IronSoulNative.DataFlushIfDirty()
+        SyncDSRLimitState(target, guid)
+        Int dsrPlayedNow = PersistGetInt(target, GetKey(dsrLimitPlayedSec, guid), 0)
+        Int recentUsesBeforeRecord = CompactDSRLimitUses(target, guid, dsrPlayedNow)
+        if recentUsesBeforeRecord == (_dragonSoulReviveLimit - 1)
+            LogMsg(LOG_DBG(), "HandleDragonSoulRevive: revive reached rolling cap limit=" + _dragonSoulReviveLimit, True)
         endif
+        RecordDSRLimitUse(target, guid, dsrPlayedNow)
+        IronSoulNative.DataFlushIfDirty()
     endif
 
     ;Utility.Wait(1.0)
@@ -2938,11 +3099,6 @@ Function SyncDSRLimitState(Actor player, String guid)
         return
     endif
 
-    Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
-    if soulTier == TIER_CHIM
-        return
-    endif
-
     Int nowSec = Utility.GetCurrentRealTime() as Int
     Int lastSec = PersistGetInt(player, GetKey(dsrLimitLastSec, guid), 0)
     Int playedSec = PersistGetInt(player, GetKey(dsrLimitPlayedSec, guid), 0)
@@ -3063,7 +3219,7 @@ Bool Function IsDSRAvailable(Actor player, String guid)
     if !_dragonSoulReviveEnabled
         return False
     endif
-    if BeastList && BeastList.HasForm(player.GetRace())
+    if !_dragonSoulReviveTransformEnabled && BeastList && BeastList.HasForm(player.GetRace())
         return False
     endif
     if player.IsBleedingOut()
@@ -3072,17 +3228,17 @@ Bool Function IsDSRAvailable(Actor player, String guid)
     if player.IsEssential()
         return False
     endif
+    Int soulTier = TIER_IRON
+    if guid != ""
+        soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
+    endif
+
     Float souls = player.GetAV("DragonSouls")
-    if souls < 1.0
+    if souls < 1.0 && soulTier != TIER_DEVOUR
         return False
     endif
 
     if _dragonSoulReviveLimit == 0 || guid == ""
-        return True
-    endif
-
-    Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
-    if soulTier == TIER_CHIM
         return True
     endif
 
@@ -3098,7 +3254,6 @@ Bool Function IsDSRAvailable(Actor player, String guid)
 EndFunction
 
 
-; ===========================
 ; --- Respawn Integration ---
 ; ===========================
 
@@ -3107,6 +3262,19 @@ EndFunction
 ; If Config.Respawn=0 or the quest cannot be resolved via GetFormFromFile,
 ; Respawn integration is treated as disabled (fail-closed).
 ;
+
+Bool Function IsRespawnBlockedByTransform(Actor player)
+    if !player || !BeastList
+        return False
+    endif
+
+    Race currentRace = player.GetRace()
+    if !currentRace
+        return False
+    endif
+
+    return BeastList.HasForm(currentRace)
+EndFunction
 
 Function HandleRespawn(Actor player, String guid)
 
@@ -3119,16 +3287,17 @@ Function HandleRespawn(Actor player, String guid)
         TrueDeathAndQuit(player)
         return
     endif
+    if IsRespawnBlockedByTransform(player)
+        LogMsg(LOG_INFO(), "HandleRespawn: Respawn blocked while transformed race=" + player.GetRace())
+        TrueDeathAndQuit(player)
+        return
+    endif
 
-    ; Luck / Cooldown reset
+    ; Luck reset
     if IsLuckActive()
         ResetLuck(player, guid)
-        LuckCooldownForcePersistNow(player, guid)
+        LuckForcePersistNow(player, guid)
         LogMsg(LOG_INFO(), "HandleRespawn: Resetting luck")
-    elseif IsCooldownModeActive()
-        ResetCooldown(player, guid)
-        LuckCooldownForcePersistNow(player, guid)
-        LogMsg(LOG_INFO(), "HandleRespawn: Resetting cooldown")
     endif
 
     LogMsg(LOG_INFO(), "HandleRespawn: Begin respawn")
@@ -3281,14 +3450,12 @@ Bool Function HandleDisableRespawn(Actor player)
 EndFunction
 
 
-; ============================================
-; --- Luck + Cooldown (Respawn Resolution) ---
-; ============================================
+; --- Luck (Respawn Resolution) ---
+; =================================
 
 ;
 ; Luck is tied to Respawn integration. If Respawn is unavailable/disabled, Luck is treated as inactive.
-; Luck mode (LuckSystem=1): roll vs Luck%, then Luck resets to 0 on respawn/true death and regenerates over 60 minutes.
-; Cooldown mode (LuckSystem=0): no roll; respawn only when the 60-minute cooldown is ready.
+; Luck rolls vs current Luck%, then resets to 0 on respawn/true death and regenerates over 60 minutes.
 
 Int Function ComputeLuckRollD20(Int luck, Int roll100)
     ; Maps luck (0..100, tier-capped at runtime) and roll100 (1..100) into a D20 display roll (1..20).
@@ -3317,12 +3484,11 @@ EndFunction
 
 Bool Function PerformLuckRoll(Actor player, String guid)
     ; PerformLuckRoll
-    ; Luck mode: roll vs derived Luck% (0..maxLuck)
-    ; Cooldown mode: no roll (returns False)
+    ; Rolls vs derived Luck% (0..maxLuck)
     ;
     ; Returns:
     ;   True  -> Luck success (router should respawn)
-    ;   False -> Luck failed OR luck inactive OR cooldown mode
+    ;   False -> Luck failed OR luck inactive
 
     if !player || guid == ""
         LogMsg(LOG_ERR(), "PerformLuckRoll: Invalid args (player None or GUID empty) -> FAIL")
@@ -3337,17 +3503,11 @@ Bool Function PerformLuckRoll(Actor player, String guid)
         return False
     endif
 
-    ; Cooldown mode: no roll.
-    if IsCooldownModeActive()
-        LogMsg(LOG_INFO(), "PerformLuckRoll: Cooldown mode active (LuckSystem=0) -> No roll")
-        return False
-    endif
-
     Utility.Wait(0.5)
 
     ; Ensure cached timing state is loaded so GetLuckValue uses accurate session values.
     Int nowSec = Utility.GetCurrentRealTime() as Int
-    LuckCooldownEnsureLoaded(player, guid, nowSec)
+    LuckEnsureLoaded(player, guid, nowSec)
 
     Int luck = GetLuckValue(player, guid) ; derived [0..maxLuck]
     if luck < 0
@@ -3364,7 +3524,7 @@ Bool Function PerformLuckRoll(Actor player, String guid)
     ; If luck failed (including luck==0), consume/reset the current chance.
     if !success
         ResetLuck(player, guid)
-        LuckCooldownForcePersistNow(player, guid)
+        LuckForcePersistNow(player, guid)
     endif
 
     ; LuckRollMessageMode: 0=off, 1=D20 roll then result, 2=result only.
@@ -3429,52 +3589,52 @@ Bool Function PerformLuckRoll(Actor player, String guid)
 
 EndFunction
 
-Function LuckCooldownEnsureLoaded(Actor player, String guid, Int nowSec)
-    ; Loads Luck/Cooldown state into script variables once per GUID per session.
-    ; IMPORTANT: Regen ticks must use cached _luckCooldownLastSec/_luckCooldownPlayedTok so delta math remains correct while writes are gated.
+Function LuckEnsureLoaded(Actor player, String guid, Int nowSec)
+    ; Loads Luck state into script variables once per GUID per session.
+    ; IMPORTANT: Regen ticks must use cached _luckLastSec/_luckPlayedTok so delta math remains correct while writes are gated.
     if !player || guid == ""
         return
     endif
-    if !_luckCooldownLoaded || _luckCooldownGuid != guid
-        _luckCooldownGuid = guid
-        _luckCooldownLastSec = PersistGetInt(player, GetKey(luckLastSec, guid), 0)
-        _luckCooldownPlayedTok = PersistGetInt(player, GetKey(luckPlayedToken, guid), 0)
-        _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
-        _luckCooldownLoaded = True
-        _luckCooldownDirty = False
-        LogMsg(LOG_DBG(), "LuckCooldownEnsureLoaded: Loaded state for GUID=" + guid + " (lastSec=" + _luckCooldownLastSec + ", playedTok=" + _luckCooldownPlayedTok + ")")
+    if !_luckLoaded || _luckGuid != guid
+        _luckGuid = guid
+        _luckLastSec = PersistGetInt(player, GetKey(luckLastSec, guid), 0)
+        _luckPlayedTok = PersistGetInt(player, GetKey(luckPlayedToken, guid), 0)
+        _luckNextPersistAt = nowSec + _luckPersistGateSeconds
+        _luckLoaded = True
+        _luckDirty = False
+        LogMsg(LOG_DBG(), "LuckEnsureLoaded: Loaded state for GUID=" + guid + " (lastSec=" + _luckLastSec + ", playedTok=" + _luckPlayedTok + ")")
     endif
 EndFunction
 
-Function LuckCooldownMarkDirty()
-    _luckCooldownDirty = True
+Function LuckMarkDirty()
+    _luckDirty = True
 EndFunction
 
-Function LuckCooldownPersistIfDue(Actor player, String guid, Int nowSec, Bool force)
-    ; Persists cached Luck/Cooldown timing keys (luckPlayedToken + luckLastSec) with a 60s gate.
+Function LuckPersistIfDue(Actor player, String guid, Int nowSec, Bool force)
+    ; Persists cached Luck timing keys (luckPlayedToken + luckLastSec) with a 60s gate.
     if !player || guid == ""
         return
     endif
-    if !_luckCooldownLoaded || _luckCooldownGuid != guid
+    if !_luckLoaded || _luckGuid != guid
         return
     endif
-    if !_luckCooldownDirty && !force
+    if !_luckDirty && !force
         return
     endif
-    if !force && nowSec < _luckCooldownNextPersistAt
+    if !force && nowSec < _luckNextPersistAt
         return
     endif
 
-    PersistSetInt(player, GetKey(luckPlayedToken, guid), _luckCooldownPlayedTok, True)
-    PersistSetInt(player, GetKey(luckLastSec, guid), _luckCooldownLastSec, True)
+    PersistSetInt(player, GetKey(luckPlayedToken, guid), _luckPlayedTok, True)
+    PersistSetInt(player, GetKey(luckLastSec, guid), _luckLastSec, True)
 
-    _luckCooldownDirty = False
-    _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
+    _luckDirty = False
+    _luckNextPersistAt = nowSec + _luckPersistGateSeconds
 EndFunction
 
-Function LuckCooldownForcePersistNow(Actor player, String guid)
+Function LuckForcePersistNow(Actor player, String guid)
     Int nowSec = Utility.GetCurrentRealTime() as Int
-    LuckCooldownPersistIfDue(player, guid, nowSec, True)
+    LuckPersistIfDue(player, guid, nowSec, True)
     IronSoulNative.DataFlushIfDirty()
 EndFunction
 
@@ -3482,146 +3642,7 @@ Bool Function IsLuckActive()
     if !IsRespawnEnabled()
         return False
     endif
-    return _luckSystemEnabled
-EndFunction
-
-Bool Function IsCooldownModeActive()
-    ; Cooldown mode is used when LuckSystem=0.
-    ; Respawn is only possible when the 60-minute cooldown has fully regenerated.
-    if !IsRespawnEnabled()
-        return False
-    endif
-    if _luckSystemEnabled
-        return False
-    endif
     return True
-EndFunction
-
-Bool Function IsCooldownReady(Actor player, String guid)
-    if !player || guid == ""
-        return False
-    endif
-    if !IsCooldownModeActive()
-        return False
-    endif
-
-    ; Prefer cached state (writes may be gated).
-    if _luckCooldownLoaded && _luckCooldownGuid == guid
-        Int playedTokC = _luckCooldownPlayedTok
-        if playedTokC <= 0
-            return True
-        endif
-        Int playedC = DecodePlayed(playedTokC)
-        return (playedC >= LUCK_REGEN_SECONDS)
-    endif
-
-    Int playedTok = PersistGetInt(player, GetKey(luckPlayedToken, guid), 0)
-    if playedTok <= 0
-        ; New game/uninitialized: start as ready.
-        return True
-    endif
-
-    Int played = DecodePlayed(playedTok)
-    return (played >= LUCK_REGEN_SECONDS)
-EndFunction
-
-Function ResetCooldown(Actor player, String guid)
-    ; Arms the cooldown at 0 seconds played (i.e., respawn unavailable until it regenerates).
-    ; Edge event: force persist immediately.
-    if !player || guid == ""
-        return
-    endif
-    Int nowSec = (Utility.GetCurrentRealTime() as Int)
-
-    ; Keep session state in script variables.
-    _luckCooldownGuid = guid
-    _luckCooldownLastSec = nowSec
-    _luckCooldownPlayedTok = EncodePlayed(nowSec, 0)
-    _luckCooldownLoaded = True
-    _luckCooldownDirty = True
-    _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
-
-    LuckCooldownPersistIfDue(player, guid, nowSec, True)
-
-    ; Match Luck mode behavior: new cooldown cycle should re-emit recovery threshold notifications.
-    PersistSetInt(player, GetKey(luckNotifiedTier, guid), 0, True)
-EndFunction
-
-Function TickCooldownRegen(Actor player, String guid)
-    ; Advances the 60-minute respawn cooldown (0 -> ready) while NOT in menus.
-    ; Uses the same timing keys as Luck regen (luckLastSec + luckPlayedToken).
-    ; Updates state every second in script variables; persists at most once per 60s (unless forced).
-    if !player || guid == ""
-        return
-    endif
-    if !IsCooldownModeActive()
-        return
-    endif
-
-    Float nowRT = Utility.GetCurrentRealTime()
-    if nowRT < _luckTickAt
-        _luckTickAt = nowRT
-    endif
-    if (nowRT - _luckTickAt) < 1.0
-        return
-    endif
-    _luckTickAt = nowRT
-
-    Int nowSec = nowRT as Int
-
-    LuckCooldownEnsureLoaded(player, guid, nowSec)
-
-    Int lastSec = _luckCooldownLastSec
-    Int playedTok = _luckCooldownPlayedTok
-    Int played = DecodePlayed(playedTok)
-
-    ; Initialize on first run so cooldown starts "ready" on a new game.
-    if lastSec <= 0 || playedTok <= 0
-        played = LUCK_REGEN_SECONDS
-        _luckCooldownPlayedTok = EncodePlayed(nowSec, played)
-        _luckCooldownLastSec = nowSec
-        LuckCooldownMarkDirty()
-        ; New game: suppress threshold reminder spam by marking max threshold as already notified.
-        PersistSetInt(player, GetKey(luckNotifiedTier, guid), 4, True)
-        LuckCooldownPersistIfDue(player, guid, nowSec, True)
-        return
-    endif
-
-    ; Menus pause cooldown regen: update anchor without advancing played time.
-    if Utility.IsInMenuMode()
-        if nowSec != lastSec
-            _luckCooldownLastSec = nowSec
-            LuckCooldownMarkDirty()
-        endif
-        LuckCooldownPersistIfDue(player, guid, nowSec, False)
-        return
-    endif
-
-    Int delta = nowSec - lastSec
-    if delta < 0
-        delta = 0
-    elseif delta > 60
-        delta = 60
-    endif
-
-    if delta > 0
-        played += delta
-        if played > LUCK_REGEN_SECONDS
-            played = LUCK_REGEN_SECONDS
-        endif
-        _luckCooldownPlayedTok = EncodePlayed(nowSec, played)
-        _luckCooldownLastSec = nowSec
-        LuckCooldownMarkDirty()
-    elseif nowSec != lastSec
-        _luckCooldownLastSec = nowSec
-        LuckCooldownMarkDirty()
-    endif
-
-    LuckCooldownPersistIfDue(player, guid, nowSec, False)
-    Int maxLuck = GetCurrentMaxLuck(player, guid)
-    Int luckNow = GetLuckValue(player, guid)
-    MaybeNotifyLuckThreshold(player, guid, luckNow, maxLuck)
-    LogMsg(LOG_DBG(), "TickCooldownRegen: Cooldown: " + played + " / " + LUCK_REGEN_SECONDS)
 EndFunction
 
 Int Function GetLuckValue(Actor player, String guid)
@@ -3634,14 +3655,14 @@ Int Function GetLuckValue(Actor player, String guid)
     if maxLuck <= 0
         return 0
     endif
-    if !IsLuckActive() && !IsCooldownModeActive()
+    if !IsLuckActive()
         return maxLuck
     endif
 
     Int playedTok = 0
 
-    if _luckCooldownLoaded && _luckCooldownGuid == guid
-        playedTok = _luckCooldownPlayedTok
+    if _luckLoaded && _luckGuid == guid
+        playedTok = _luckPlayedTok
     else
         playedTok = PersistGetInt(player, GetKey(luckPlayedToken, guid), 0)
     endif
@@ -3673,14 +3694,14 @@ Int Function GetLuckValue(Actor player, String guid)
 EndFunction
 
 Int Function SetLuckValue(Actor player, String guid, Int targetLuck)
-    ; Sets luck to an explicit value [0..maxLuck] by updating shared Luck/Cooldown timing state.
+    ; Sets luck to an explicit value [0..maxLuck] by updating Luck timing state.
     ; Uses a deterministic ceil mapping so GetLuckValue reads back the requested integer value.
     if !player || guid == ""
         return -1
     endif
 
     Int nowSec = Utility.GetCurrentRealTime() as Int
-    LuckCooldownEnsureLoaded(player, guid, nowSec)
+    LuckEnsureLoaded(player, guid, nowSec)
 
     Int maxLuck = GetCurrentMaxLuck(player, guid)
 
@@ -3701,14 +3722,14 @@ Int Function SetLuckValue(Actor player, String guid, Int targetLuck)
         playedSec = LUCK_REGEN_SECONDS
     endif
 
-    _luckCooldownGuid = guid
-    _luckCooldownLastSec = nowSec
-    _luckCooldownPlayedTok = EncodePlayed(nowSec, playedSec)
-    _luckCooldownLoaded = True
-    _luckCooldownDirty = True
-    _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
+    _luckGuid = guid
+    _luckLastSec = nowSec
+    _luckPlayedTok = EncodePlayed(nowSec, playedSec)
+    _luckLoaded = True
+    _luckDirty = True
+    _luckNextPersistAt = nowSec + _luckPersistGateSeconds
 
-    LuckCooldownPersistIfDue(player, guid, nowSec, True)
+    LuckPersistIfDue(player, guid, nowSec, True)
 
     ; Match threshold-notification state to the newly applied luck value.
     Int tierNow = LuckTier(clampedLuck, maxLuck)
@@ -3729,14 +3750,14 @@ Function ResetLuck(Actor player, String guid)
     Int nowSec = Utility.GetCurrentRealTime() as Int
 
     ; Keep session state in script variables.
-    _luckCooldownGuid = guid
-    _luckCooldownLastSec = nowSec
-    _luckCooldownPlayedTok = EncodePlayed(nowSec, 0)
-    _luckCooldownLoaded = True
-    _luckCooldownDirty = True
-    _luckCooldownNextPersistAt = nowSec + _luckPersistGateSeconds
+    _luckGuid = guid
+    _luckLastSec = nowSec
+    _luckPlayedTok = EncodePlayed(nowSec, 0)
+    _luckLoaded = True
+    _luckDirty = True
+    _luckNextPersistAt = nowSec + _luckPersistGateSeconds
 
-    LuckCooldownPersistIfDue(player, guid, nowSec, True)
+    LuckPersistIfDue(player, guid, nowSec, True)
 
     LogMsg(LOG_INFO(), "ResetLuck: Luck set to 0; regen timer armed (played=0/" + LUCK_REGEN_SECONDS + "s)")
 
@@ -3791,21 +3812,21 @@ Int Function EncodePlayed(Int nowSec, Int playedSec)
 EndFunction
 
 
-; =========================
 ; --- Character Journal ---
 ; =========================
 
 ;
 ; Controller forwards journal lines to the SKSE plugin, which appends
 ; them to:
-;   Data\SKSE\Plugins\IronSoulCharacterJournal.log
+;   Data\SKSE\plugins\ironsoul-character-journal.log
 ;
 ; Line format:
-;   <CharacterName> | Day X: <Event text...>
+;   <CharacterName> [DifficultyLabel] | Day X: <Event text...>
+;   <CharacterName> | Day X: <Event text...> when no difficulty label is active.
 ;
 ; IMPORTANT:
 ; - Papyrus MUST pass only: "Day X: <Event text...>"
-; - The SKSE plugin prepends: "<CharacterName> | " automatically.
+; - The SKSE plugin prepends: "<CharacterName> [DifficultyLabel] | " automatically.
 ;
 ; Day numbering:
 ; - "Day X" is computed from the character's persisted journal start day (stored once per GUID).
@@ -3835,10 +3856,10 @@ Function JournalLogEvent(String eventText)
     ; - Computes Day X from the persisted journal start day (stored once per GUID).
     ; - Ensures the opener prints once per GUID before the first event line.
     ; - Sends only: "Day X: <Event text...>" to IronSoulNative.LogJournalEntry().
-    ; - The SKSE plugin prepends "<CharacterName> | " automatically.
+    ; - The SKSE plugin prepends the character name and optional difficulty label automatically.
 
     if !_characterJournalLogEnabled
-        LogMsg(LOG_DBG(), "JournalLogEvent: Skipped (CharacterJournalLog=0)")
+        LogMsg(LOG_DBG(), "JournalLogEvent: Skipped (CharacterJournal=0)")
         return
     endif
     if eventText == ""
@@ -3875,6 +3896,17 @@ Function JournalLogEvent(String eventText)
     String line = "Day " + dayIdx + ": " + eventText
     LogMsg(LOG_DBG(), "JournalLogEvent: WRITE -> " + line)
     IronSoulNative.LogJournalEntry(line)
+EndFunction
+
+Function JournalLogExternalEvent(String source, String eventText)
+    if source == ""
+        source = "External"
+    endif
+    if eventText == ""
+        return
+    endif
+
+    JournalLogEvent(source + ": " + eventText)
 EndFunction
 
 ; Luck outcome journaling (Luck-mode only)
@@ -3948,7 +3980,6 @@ Int Function JournalEnsureStartDay(Actor player, String guid)
 EndFunction
 
 
-; =======================
 ; --- Identity & GUID ---
 ; =======================
 
@@ -3959,7 +3990,6 @@ EndFunction
 ; Pipe-delimited global GUID index used only for rare co-save recovery.
 String Property _guidIndexKey = "G.U.INDEX" Auto Hidden
 
-; ---------------------------------
 ; --- Plugin-backed GUID system ---
 ; ---------------------------------
 
@@ -4108,7 +4138,6 @@ String Function GetTickGuid(Actor player)
 
     String g = EnsureGuid(player)
     if g != ""
-        ApplyCharacterPresetLock(player, g)
         _tickGuid = g
         _tickGuidValid = True
         return g
@@ -4594,7 +4623,6 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 EndFunction
 
 
-; ==================
 ; --- Soul Feats ---
 ; ==================
 
@@ -4605,6 +4633,34 @@ EndFunction
 ; Soul Bonus / Soul Fatigue stats are applied directly by this controller.
 ; Soul tier spells are synced separately for magic-effect menu visibility.
 ; Defiant activation is represented by tier 1.
+
+Function ScheduleFeatUnlockSFX(Sound sfx, Float nowRT)
+    if !sfx
+        _pendingFeatUnlockSFX = None
+        _featUnlockSFXAt = 0.0
+        return
+    endif
+
+    _pendingFeatUnlockSFX = sfx
+    _featUnlockSFXAt = nowRT + 2.2
+EndFunction
+
+Function HandleFeatUnlockSFX(Actor player)
+    if !_pendingFeatUnlockSFX
+        return
+    endif
+    if Utility.GetCurrentRealTime() < _featUnlockSFXAt
+        return
+    endif
+    if !player
+        return
+    endif
+
+    Sound sfx = _pendingFeatUnlockSFX
+    _pendingFeatUnlockSFX = None
+    _featUnlockSFXAt = 0.0
+    PlaySFX(sfx, player)
+EndFunction
 
 Function TryScheduleFeats(Actor player)
     ; Schedules feats evaluation when an unlock may be available.
@@ -4645,6 +4701,9 @@ Function TryScheduleFeats(Actor player)
         if _featsAt < (nowRT + 4.0)
             _featsAt = nowRT + 4.0
         endif
+        if _defiantSoulEnabled
+            ScheduleFeatUnlockSFX(SFXFeatDefiant, nowRT)
+        endif
         return
     endif
 
@@ -4658,6 +4717,7 @@ Function TryScheduleFeats(Actor player)
             if _featsAt < (nowRT + 4.0)
                 _featsAt = nowRT + 4.0
             endif
+            ScheduleFeatUnlockSFX(ResolveSoulFeatUnlockSFX(desiredTier), nowRT)
             return
         endif
 
@@ -4674,6 +4734,7 @@ Function TryScheduleFeats(Actor player)
                 if _featsAt < (nowRT + 4.0)
                     _featsAt = nowRT + 4.0
                 endif
+                ScheduleFeatUnlockSFX(ResolveSoulFeatUnlockSFX(curTier), nowRT)
                 return
             endif
 
@@ -4684,6 +4745,7 @@ Function TryScheduleFeats(Actor player)
                 if _featsAt < (nowRT + 4.0)
                     _featsAt = nowRT + 4.0
                 endif
+                ScheduleFeatUnlockSFX(ResolveSoulFeatUnlockSFX(curTier), nowRT)
                 return
             endif
 
@@ -4694,6 +4756,7 @@ Function TryScheduleFeats(Actor player)
                 if _featsAt < (nowRT + 4.0)
                     _featsAt = nowRT + 4.0
                 endif
+                ScheduleFeatUnlockSFX(ResolveSoulFeatUnlockSFX(curTier), nowRT)
                 return
             endif
 
@@ -4704,6 +4767,7 @@ Function TryScheduleFeats(Actor player)
                 if _featsAt < (nowRT + 4.0)
                     _featsAt = nowRT + 4.0
                 endif
+                ScheduleFeatUnlockSFX(ResolveSoulFeatUnlockSFX(curTier), nowRT)
                 return
             endif
 
@@ -4714,6 +4778,7 @@ Function TryScheduleFeats(Actor player)
                 if _featsAt < (nowRT + 4.0)
                     _featsAt = nowRT + 4.0
                 endif
+                ScheduleFeatUnlockSFX(ResolveSoulFeatUnlockSFX(curTier), nowRT)
                 return
             endif
         endif
@@ -4772,7 +4837,7 @@ Function HandleFeats(Actor player)
             if _characterJournalLogEnabled
                 JournalLogEvent(AppendTotalDeathsToJournalEntry(player, guid, "Soul Feat achieved: Defiant Soul unlocked."))
             endif
-            OpenTimedMessageSWF_KeyDismiss_SFX(ResolveDefiantFeatUnlockMenu(), 30.0, 8.0, SFXFeatDefiant, player)
+            OpenTimedMessageSWF_KeyDismiss(ResolveDefiantFeatUnlockMenu(), 30.0, 8.0)
             if deathsPurgedThisPass
                 MaybePlayDeathsPurgedAfterReset(player, deaths)
             endif
@@ -4797,8 +4862,8 @@ Function HandleFeats(Actor player)
             endif
             SyncLuckNotifiedTierToCurrent(player, guid)
 
-            ; Update splash/lvlWidget for next game launch.
-            ApplyDynamicSplashForTier(player, guid, desiredTier)
+            ; Update dynamic assets for next game launch.
+            ApplyDynamicPresetAssetsForTier(desiredTier)
             IronSoulNative.ApplyDynamicLevelWidget(desiredTier)
 
             if _characterJournalLogEnabled
@@ -4824,7 +4889,7 @@ Function HandleFeats(Actor player)
             Int shownD = PersistGetInt(player, GetKey(tierMsgShownDevour, guid), 0)
             if shownD != 1
                 LogMsg(LOG_INFO(), "HandleFeats: Showing Devour Soul feat unlock message (one-shot); locking out lower-tier messages")
-                OpenTimedMessageSWF_KeyDismiss_SFX(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0, ResolveSoulFeatUnlockSFX(curTier), player)
+                OpenTimedMessageSWF_KeyDismiss(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0)
                 if deathsPurgedThisPass
                     MaybePlayDeathsPurgedAfterReset(player, deaths)
                 endif
@@ -4836,7 +4901,7 @@ Function HandleFeats(Actor player)
             Int shownA = PersistGetInt(player, GetKey(tierMsgShownPlatinum, guid), 0)
             if shownA != 1
                 LogMsg(LOG_INFO(), "HandleFeats: Showing Platinum Soul feat unlock message (one-shot); locking out lower-tier messages")
-                OpenTimedMessageSWF_KeyDismiss_SFX(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0, ResolveSoulFeatUnlockSFX(curTier), player)
+                OpenTimedMessageSWF_KeyDismiss(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0)
                 if deathsPurgedThisPass
                     MaybePlayDeathsPurgedAfterReset(player, deaths)
                 endif
@@ -4848,7 +4913,7 @@ Function HandleFeats(Actor player)
             Int shownP = PersistGetInt(player, GetKey(tierMsgShownEbon, guid), 0)
             if shownP != 1
                 LogMsg(LOG_INFO(), "HandleFeats: Showing Ebon Soul feat unlock message (one-shot); locking out Silver/Gold messages")
-                OpenTimedMessageSWF_KeyDismiss_SFX(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0, ResolveSoulFeatUnlockSFX(curTier), player)
+                OpenTimedMessageSWF_KeyDismiss(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0)
                 if deathsPurgedThisPass
                     MaybePlayDeathsPurgedAfterReset(player, deaths)
                 endif
@@ -4860,7 +4925,7 @@ Function HandleFeats(Actor player)
             Int shownG = PersistGetInt(player, GetKey(tierMsgShownGold, guid), 0)
             if shownG != 1
                 LogMsg(LOG_INFO(), "HandleFeats: Showing Gold Soul feat unlock message (one-shot)")
-                OpenTimedMessageSWF_KeyDismiss_SFX(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0, ResolveSoulFeatUnlockSFX(curTier), player)
+                OpenTimedMessageSWF_KeyDismiss(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0)
                 if deathsPurgedThisPass
                     MaybePlayDeathsPurgedAfterReset(player, deaths)
                 endif
@@ -4872,7 +4937,7 @@ Function HandleFeats(Actor player)
             Int shownS = PersistGetInt(player, GetKey(tierMsgShownSilver, guid), 0)
             if shownS != 1
                 LogMsg(LOG_INFO(), "HandleFeats: Showing Silver Soul feat unlock message (one-shot)")
-                OpenTimedMessageSWF_KeyDismiss_SFX(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0, ResolveSoulFeatUnlockSFX(curTier), player)
+                OpenTimedMessageSWF_KeyDismiss(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0)
                 if deathsPurgedThisPass
                     MaybePlayDeathsPurgedAfterReset(player, deaths)
                 endif
@@ -4955,7 +5020,14 @@ String Function ResolveSoulFeatUnlockMenu(Actor player, String guid, Int soulTie
             PersistSetInt(player, GetKey(tierMsgShownPlatinum, guid), 1, True)
             PersistSetInt(player, GetKey(tierMsgShownDevour, guid), 1, True)
         endif
-        return SwfNoBonus("6devourfeatunlock")
+        if !_soulBonusEnabled && !_dragonSoulReviveEnabled
+            return "6devourfeatunlocknobonusnodsr"
+        elseif !_soulBonusEnabled
+            return "6devourfeatunlocknobonus"
+        elseif !_dragonSoulReviveEnabled
+            return "6devourfeatunlocknodsr"
+        endif
+        return "6devourfeatunlock"
 
     elseif unlockTier == TIER_PLATINUM
         if consumeState
@@ -5246,7 +5318,6 @@ Bool Function IsMolagBalDefeatedVigilant(Actor player, String guid)
 EndFunction
 
 
-; ====================
 ; --- Defiant Soul ---
 ; ====================
 
@@ -5351,7 +5422,7 @@ Function TryResetFromDefiant(Actor player, String guid)
     SyncLuckNotifiedTierToCurrent(player, guid)
     SyncSoulPresentationAndStats(player, guid)
 
-    ApplyDynamicSplashForTier(player, guid, targetTier)
+    ApplyDynamicPresetAssetsForTier(targetTier)
     IronSoulNative.ApplyDynamicLevelWidget(targetTier)
 
     if _characterJournalLogEnabled
@@ -5385,7 +5456,6 @@ String Function SoulTierLabel(Int tier)
 EndFunction
 
 
-; =================================
 ; --- Soul Bonus / Soul Fatigue ---
 ; =================================
 
@@ -5725,7 +5795,6 @@ Function SyncSoulPresentationAndStats(Actor player, String guid)
 EndFunction
 
 
-; ======================
 ; --- UI & Messaging ---
 ; ======================
 
@@ -5823,6 +5892,84 @@ Function OpenTimedMessageSWF_KeyDismiss(String menuName, Float maxDuration = 6.0
 
     if restoreMusic && AudioCategoryMUS && _musicFadeEnabled
         IronSoulNative.MusicFadeIn(AudioCategoryMUS, 2.0)
+    endif
+
+EndFunction
+
+Function OpenTimedMessageSWF_KeyDismissTrackedSFX(String menuName, Float maxDuration = 6.0, Float minDismissSeconds = 6.0, Bool restoreMusic = True, Int sfxInstance = -1, Float sfxStartedAt = 0.0, Float sfxSeconds = 0.0)
+    if menuName == ""
+        return
+    endif
+
+    ; Clamp so we never hang or no-op.
+    if maxDuration <= 0.0
+        maxDuration = 0.1
+    endif
+    if minDismissSeconds < 0.0
+        minDismissSeconds = 0.0
+    endif
+    if minDismissSeconds > maxDuration
+        minDismissSeconds = maxDuration
+    endif
+
+    if AudioCategoryMUS && _musicFadeEnabled
+        Float menuMusicVol2 = Utility.GetINIFloat("fVal3:AudioMenu")
+        if menuMusicVol2 < 0.0 || menuMusicVol2 > 1.0
+            menuMusicVol2 = 1.0
+        endif
+        IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol2)
+    endif
+
+    UI.CloseCustomMenu()
+
+    _keyDismissPressed = False
+    _keyDismissActive  = False
+
+    UI.OpenCustomMenu(menuName, 0)
+
+    ; Minimum on-screen time.
+    if minDismissSeconds > 0.0
+        Utility.WaitMenuMode(minDismissSeconds)
+    endif
+
+    ; Arm dismissal-on-key for the remainder window.
+    Float remaining = maxDuration - minDismissSeconds
+    Bool dismissedByKey = False
+    if remaining > 0.0
+        _keyDismissPressed = False
+        _keyDismissActive  = True
+        RegisterForAllKeys()
+
+        ; Poll in short chunks so we can react quickly to keypress.
+        while remaining > 0.0 && !_keyDismissPressed
+            Utility.WaitMenuMode(0.10)
+            remaining -= 0.10
+        endwhile
+
+        dismissedByKey = _keyDismissPressed
+        _keyDismissActive = False
+        UnregisterForAllKeys()
+    endif
+
+    UI.CloseCustomMenu()
+
+    if restoreMusic
+        if dismissedByKey
+            FadeOutSFXInstance(sfxInstance, TRANSITION_SFX_FADE_SECONDS)
+        elseif sfxInstance >= 0 && sfxStartedAt > 0.0 && sfxSeconds > 0.0
+            Float elapsedSFX = Utility.GetCurrentRealTime() - sfxStartedAt
+            if elapsedSFX < 0.0
+                elapsedSFX = 0.0
+            endif
+            Float remainingSFX = sfxSeconds - elapsedSFX
+            if remainingSFX > 0.0
+                Utility.Wait(remainingSFX)
+            endif
+        endif
+
+        if AudioCategoryMUS && _musicFadeEnabled
+            IronSoulNative.MusicFadeIn(AudioCategoryMUS, 2.0)
+        endif
     endif
 
 EndFunction
@@ -6179,10 +6326,10 @@ EndFunction
 
 String Function ResolveDeathMessageMenu(Int soulTier, Int deathsNow)
     if soulTier == TIER_DEVOUR
-        return "6devourdeath"
+        return "6devourdeath" + deathsNow
     endif
     if soulTier == TIER_CHIM
-        return "9chimdeath"
+        return "9chimdeath" + Utility.RandomInt(1, 9)
     endif
     if soulTier == TIER_DEFIANT
         return "0defiantdeath" + deathsNow
@@ -6192,7 +6339,7 @@ EndFunction
 
 String Function ResolvePermadeathMenu(Int soulTier)
     if soulTier == TIER_DEVOUR
-        return "6devourdeath"
+        return "6devourpermadeath"
     endif
     if soulTier == TIER_CHIM
         return "9chimdeath"
@@ -6219,10 +6366,6 @@ String Function ResolveDSRMenu(Actor player, String guid)
 
     ; Read persisted state
     Int soulTier = PersistGetInt(player, GetKey(soulTierIndex, guid), TIER_IRON)
-
-    if soulTier == TIER_CHIM
-        return "9chimdragonsoulrevive"
-    endif
 
     String baseMenu = TierMenuPrefix(soulTier) + "dragonsoulrevive"
 
@@ -6346,11 +6489,10 @@ Function MaybeNotifyLuckThreshold(Actor player, String guid, Int luck, Int maxLu
     if !player || guid == ""
         return
     endif
-    ; Intentional: cooldown mode shares this notification path to surface respawn-readiness progress.
-    if !IsLuckActive() && !IsCooldownModeActive()
+    if !IsLuckActive()
         return
     endif
-    if !_luckCooldownReminderNotificationEnabled
+    if !_luckReminderNotificationEnabled
         return
     endif
 
@@ -6499,8 +6641,8 @@ Function PromoteToCHIMTier(Actor player, String guid)
     SyncLuckNotifiedTierToCurrent(player, guid)
     SyncSoulPresentationAndStats(player, guid)
 
-    ; Update splash/lvlWidget for next game launch.
-    ApplyDynamicSplashForTier(player, guid, TIER_CHIM)
+    ; Update dynamic assets for next game launch.
+    ApplyDynamicPresetAssetsForTier(TIER_CHIM)
     IronSoulNative.ApplyDynamicLevelWidget(TIER_CHIM)
 
     Int chimLogged = PersistGetInt(player, GetKey(journalCHIMLogged, guid), 0)
@@ -6530,8 +6672,8 @@ Function PromoteToDefiantTier(Actor player, String guid, Int storedTier = -1)
     SyncLuckNotifiedTierToCurrent(player, guid)
     SyncSoulPresentationAndStats(player, guid)
 
-    ; Update splash/lvlWidget for next game launch.
-    ApplyDynamicSplashForTier(player, guid, TIER_DEFIANT)
+    ; Update dynamic assets for next game launch.
+    ApplyDynamicPresetAssetsForTier(TIER_DEFIANT)
     IronSoulNative.ApplyDynamicLevelWidget(TIER_DEFIANT)
 
     IronSoulNative.DataFlushIfDirty()
@@ -6568,7 +6710,14 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
     UI.CloseCustomMenu()
     FadeMusicForTransitionSequence()
 
-    PlaySFX(SFXDefiantTransition, player)
+    Int transitionSFXInstance = -1
+    Float transitionSFXStartedAt = 0.0
+    if restoreMusicAfterIntro
+        transitionSFXStartedAt = Utility.GetCurrentRealTime()
+        transitionSFXInstance = PlaySFXInstance(SFXCHIMTransition, player)
+    else
+        PlaySFX(SFXCHIMTransition, player)
+    endif
 
     UI.OpenCustomMenu(m1First, 0)
     Utility.WaitMenuMode(4.0)
@@ -6593,7 +6742,11 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
     UI.OpenCustomMenu(m0, 0)
     Utility.WaitMenuMode(0.5)
 
-    OpenTimedMessageSWF_KeyDismiss(m3, 30.0, 5.0, restoreMusicAfterIntro)
+    if restoreMusicAfterIntro
+        OpenTimedMessageSWF_KeyDismissTrackedSFX(m3, 30.0, 5.0, True, transitionSFXInstance, transitionSFXStartedAt, CHIM_TRANSITION_SFX_SECONDS)
+    else
+        OpenTimedMessageSWF_KeyDismiss(m3, 30.0, 5.0, False)
+    endif
 EndFunction
 
 ; Defiant transition sequence
@@ -6614,7 +6767,14 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
     UI.CloseCustomMenu()
     FadeMusicForTransitionSequence()
 
-    PlaySFX(SFXDefiantTransition, player)
+    Int transitionSFXInstance = -1
+    Float transitionSFXStartedAt = 0.0
+    if restoreMusicAfterIntro
+        transitionSFXStartedAt = Utility.GetCurrentRealTime()
+        transitionSFXInstance = PlaySFXInstance(SFXDefiantTransition, player)
+    else
+        PlaySFX(SFXDefiantTransition, player)
+    endif
 
     ; Show permadeath tier 1
     UI.OpenCustomMenu(m1, 0)
@@ -6646,7 +6806,11 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
     Utility.WaitMenuMode(0.5)
 
     ; Defiant intro
-    OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro)
+    if restoreMusicAfterIntro
+        OpenTimedMessageSWF_KeyDismissTrackedSFX(m3, 60.0, 10.0, True, transitionSFXInstance, transitionSFXStartedAt, DEFIANT_TRANSITION_SFX_SECONDS)
+    else
+        OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, False)
+    endif
 EndFunction
 
 Function PlayDefiantResetMessageSequenceSWF(Actor player, String endingMenu, Int deathsBeforeReset = 0, Bool restoreMusicAfterIntro = True)
@@ -6668,14 +6832,6 @@ Function PlayDefiantResetMessageSequenceSWF(Actor player, String endingMenu, Int
 
     UI.OpenCustomMenu(m1, 0)
     Utility.WaitMenuMode(4.0)
-    UI.CloseCustomMenu()
-
-    UI.OpenCustomMenu(m0, 0)
-    Utility.WaitMenuMode(0.25)
-    UI.CloseCustomMenu()
-
-    UI.OpenCustomMenu(m1, 0)
-    Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
 
     UI.OpenCustomMenu(m0, 0)
@@ -6735,9 +6891,28 @@ Function UnregisterForAllKeys()
 EndFunction
 
 
-; ================
 ; --- Sound FX ---
 ; ================
+
+; Hidden optional [Sound] toggles. These default to 1 and are intentionally
+; omitted from the shipped INI. Add any key below to ironsoul.ini under [Sound]
+; and set it to 0 to disable that specific SFX.
+;
+; DeathSFX = 1
+; DeathsPurgedSFX = 1
+; CHIMTransitionSFX = 1
+; DefiantResetSFX = 1
+; DefiantTransitionSFX = 1
+; DragonSoulReviveCastSFX = 1
+; DragonSoulReviveSFX = 1
+; FeatUnlockSFX = 1
+; IronIntroSFX = 1
+; LuckOutcomeSFX = 1
+; LuckRollSFX = 1
+; PermadeathSFX = 1
+; RespawnHeavyBreathingSFX = 1
+; RespawnSFX = 1
+; SlowMoSFX = 1
 
 Bool Function CanPlaySFX()
     if !_sfxEnabled
@@ -6767,6 +6942,8 @@ Bool Function IsSFXCategoryEnabled(Sound sfx)
         return _respawnSFXEnabled
     elseif sfx == SFXDefiantTransition
         return _defiantTransitionSFXEnabled
+    elseif sfx == SFXCHIMTransition
+        return _chimTransitionSFXEnabled
     elseif sfx == SFXDefiantReset
         return _defiantResetSFXEnabled
     elseif sfx == SFXDeathsPurged
@@ -6799,6 +6976,42 @@ Function PlaySFX(Sound sfx, Actor source)
         return
     endif
     sfx.Play(source)
+EndFunction
+
+Int Function PlaySFXInstance(Sound sfx, Actor source)
+    if !CanPlaySFX()
+        return -1
+    endif
+    if !sfx || !source
+        return -1
+    endif
+    if !IsSFXCategoryEnabled(sfx)
+        return -1
+    endif
+    return sfx.Play(source)
+EndFunction
+
+Function FadeOutSFXInstance(Int instanceId, Float seconds = 1.0)
+    if instanceId < 0
+        return
+    endif
+    if seconds <= 0.0
+        Sound.StopInstance(instanceId)
+        return
+    endif
+
+    Int steps = 10
+    Float stepCount = steps as Float
+    Float stepTime = seconds / stepCount
+    Int i = steps
+    while i > 0
+        Float volume = ((i - 1) as Float) / stepCount
+        Sound.SetInstanceVolume(instanceId, volume)
+        Utility.Wait(stepTime)
+        i -= 1
+    endwhile
+
+    Sound.StopInstance(instanceId)
 EndFunction
 
 Sound Function PickHeavyBreathingSFX(Actor player)
@@ -6962,9 +7175,52 @@ Event OnMusicFadeSetVolume(String eventName, String strArg, Float numArg, Form s
 EndEvent
 
 
-; ===========================
 ; --- Uninstall / Cleanup ---
 ; ===========================
+
+_DS_DN_Draugnarok Function ResolveDraugnarokQuest()
+    ; 0x000D63 in Draugnarok.esp (_DS_Draugnarok_Main), with integrated fallback.
+    Quest q = Game.GetFormFromFile(0x00000D63, "Draugnarok.esp") as Quest
+    if !q
+        q = Game.GetFormFromFile(0x00000D63, "Iron Soul - Dead God's Dream.esp") as Quest
+    endif
+    return q as _DS_DN_Draugnarok
+EndFunction
+
+Function RefreshDraugnarokRuntimeOnLoad(Actor player)
+    _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
+    if !draugnarok
+        return
+    endif
+
+    ; Replaces the old _DS_DN_Player MCM-alias load hook.
+    draugnarok.InitStuff()
+
+    if !player
+        return
+    endif
+
+    Int mode = GetDraugnarokOverrideMode(player)
+    if mode != 0
+        draugnarok.ApplyDraugnarokOverrideMode(mode)
+    endif
+EndFunction
+
+Function ApplyDraugnarokOverrideForCurrentCharacter(Actor player)
+    if !player
+        return
+    endif
+
+    Int mode = GetDraugnarokOverrideMode(player)
+    if mode == 0
+        return
+    endif
+
+    _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
+    if draugnarok
+        draugnarok.ApplyDraugnarokOverrideMode(mode)
+    endif
+EndFunction
 
 ;
 ; When UninstallMode=1 in config:
@@ -6983,6 +7239,12 @@ Function HandleUninstallMode(Actor player)
 
     ; Ensure no per-tick loop remains active while disabled.
     UnregisterForUpdate()
+
+    SetDraugnarokOverrideMode(player, 2, True)
+    _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
+    if draugnarok
+        draugnarok.ApplyDraugnarokOverrideMode(2)
+    endif
 
     ; Strip controller-owned Soul Bonus / Soul Fatigue spells and OnDying hook immediately.
     ClearSoulPresentationSpells(player)
@@ -7021,6 +7283,12 @@ Function ReenableAfterUninstall(Actor player)
     ; Reset transient jobs/caches so nothing resumes half-armed.
     ResetTransientState()
     ResolveRespawnQuest()
+
+    SetDraugnarokOverrideMode(player, 0, True)
+    _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
+    if draugnarok
+        draugnarok.ApplyDraugnarokOverrideMode(0)
+    endif
 
     ; Restore OnDying Spell
     if IronSoulOnDyingSpell && !player.HasSpell(IronSoulOnDyingSpell)
