@@ -163,7 +163,7 @@ LOG      Build _tools/ironsoul-combined.log, summarize it, then open it in VS Co
 OINI     Open the repo INI in VS Code.
 OINI2    Open the LoreRim+ Overwrite INI in VS Code for inspection.
 RINI2    Refresh the LoreRim+ Overwrite INI from the repo INI.
-STATUS   Show clean/dirty git status and the recommended next action.
+STATUS   Assess project direction and repo health, then recommend next work.
 XEDIT    Summarize the main plugin, or answer an XEDIT: question from a fresh ESP dump.
 ```
 
@@ -177,7 +177,7 @@ Command behavior:
 - `OINI`: Open `C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini` in VS Code. Use `code --reuse-window "C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini"`.
 - `OINI2`: Open `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` in VS Code for inspection only. Use `code --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. Do not manually edit the overwrite INI.
 - `RINI2`: Run `_tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled. Report any failure.
-- `STATUS`: Report whether the worktree is clean and recommend the next useful action based on changed file types.
+- `STATUS`: Run a read-only project direction and health check. Do not edit files, stage, commit, refresh generated artifacts, build, compile, launch GUI tools, or open files. Read `README.md` first; its Current TODO and ROADMAP sections are the primary direction source. Also read any separate `ROADMAP*` or `TODO*` files if they exist, plus meaningful repo TODO/FIXME markers. Check expected repo structure, key automation scripts, and required external tools/paths from this file for missing or broken pieces. Treat git as background context only: mention uncommitted changes, unpushed commits, or recent commits only when they affect project health, block likely next work, or explain current direction. Report project direction, health issues, risks, and the most likely next work in priority order.
 - `XEDIT`: Run `_tools/dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -StageInStockData`, summarize the plugin's major records and wiring from the dump, then suggest likely next changes. Do not edit or save plugin files.
 - `XEDIT: <question>`: Treat the text after the colon as the inspection question. Dump `Iron Soul - Dead God's Dream.esp` with `-StageInStockData` by default, or dump another repo `.esp`, `.esm`, or `.esl` only if the question clearly names it. Search the dump for relevant terms, answer with record signature, FormID, EditorID, and important field paths/values where possible, and say when SSEEdit64 GUI inspection is needed for confidence. Do not edit or save plugin files.
 
