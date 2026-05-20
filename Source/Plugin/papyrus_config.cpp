@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "papyrus_config.h"
 #include "papyrus_common.h"
-#include "papyrus_musicfade.h"
+#include "papyrus_runtime.h"
 #include "config.h"
 
 namespace IronSoul::Papyrus::Config
@@ -31,7 +31,7 @@ namespace
     static bool ReloadConfig(RE::StaticFunctionTag*)
     {
         IronSoul::Config::Load();
-        IronSoul::Papyrus::MusicFade::RefreshMusicVolumeOverrideCache();
+        IronSoul::Papyrus::Runtime::RefreshRuntimeConfigCaches();
         return true;
     }
 }

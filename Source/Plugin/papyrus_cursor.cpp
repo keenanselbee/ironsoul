@@ -7,17 +7,17 @@ namespace IronSoul::Papyrus::Cursor
 {
 namespace
 {
-        struct CursorSuppressState
-        {
-            std::mutex lock;
-            std::uint8_t suppressStep{ 0 };  // 0=idle, 1=moved-right, 2=hidden+offscreen-right
-            bool savedPosValid{ false };
-            bool savedVisibilityValid{ false };
-            bool savedVisible{ true };
-            float savedPosX{ 0.0f };
-            float savedPosY{ 0.0f };
-        };
-        CursorSuppressState g_cursorSuppressState;
+    struct CursorSuppressState
+    {
+        std::mutex lock;
+        std::uint8_t suppressStep{ 0 };  // 0=idle, 1=moved-right, 2=hidden+offscreen-right
+        bool savedPosValid{ false };
+        bool savedVisibilityValid{ false };
+        bool savedVisible{ true };
+        float savedPosX{ 0.0f };
+        float savedPosY{ 0.0f };
+    };
+    CursorSuppressState g_cursorSuppressState;
 
     static void SuppressCursor(RE::StaticFunctionTag*, bool a_suppress)
     {

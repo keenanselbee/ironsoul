@@ -7,6 +7,5 @@ namespace RE::BSScript
 
 namespace IronSoul::Papyrus::MusicFade
 {
-    void RefreshMusicVolumeOverrideCache();
     void Register(RE::BSScript::IVirtualMachine* a_vm);
 }

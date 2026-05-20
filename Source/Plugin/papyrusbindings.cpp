@@ -9,6 +9,7 @@
 #include "papyrus_healthmonitor.h"
 #include "papyrus_journal.h"
 #include "papyrus_musicfade.h"
+#include "papyrus_runtime.h"
 
 namespace IronSoul::Papyrus
 {
@@ -20,9 +21,11 @@ namespace IronSoul::Papyrus
             return false;
         }
 
-        MusicFade::RefreshMusicVolumeOverrideCache();
+        Runtime::RefreshRuntimeConfigCaches();
 
         const bool ok = papyrus->Register([](RE::BSScript::IVirtualMachine* a_vm) {
+            // Preserve the old registration order: LogJournalEntry sits between
+            // the core availability probe and identity helpers.
             Core::RegisterAvailability(a_vm);
             Journal::Register(a_vm);
             Core::RegisterIdentity(a_vm);
