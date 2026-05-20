@@ -14,6 +14,7 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Keep temporary compile output or staging inside this repo, preferably under `.codex-temp`.
 - Do not rebuild `SKSE/plugins/ironsoul.dll`; the user will handle SKSE plugin builds.
 - Treat `_reference/` as read-only reference material for the original Draugnarok and Respawn Soulslike Edition. Do not edit, stage, or commit anything inside it.
+- Codex may modify `G:\Modding\LoreRim\Dev\projects\ironsoul` only for SKSE plugin build verification. Before proposing or performing those edits, warn exactly: `WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT`. Do not copy rebuilt DLLs back into this repo unless explicitly requested.
 - Follow `_docs/style-guide.md` for naming and formatting conventions.
 
 
