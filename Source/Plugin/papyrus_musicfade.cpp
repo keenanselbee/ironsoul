@@ -105,27 +105,6 @@ namespace
             }
         }
 
-        static bool SleepCancelable(std::atomic<std::uint64_t>& a_tokenSource, std::uint64_t a_token, std::chrono::duration<float> a_totalSleep)
-        {
-            constexpr auto kSlice = std::chrono::milliseconds(10);
-            const auto endAt = std::chrono::steady_clock::now() + a_totalSleep;
-
-            while (true) {
-                if (a_tokenSource.load() != a_token) {
-                    return false;
-                }
-
-                const auto now = std::chrono::steady_clock::now();
-                if (now >= endAt) {
-                    return true;
-                }
-
-                const auto remaining = endAt - now;
-                const auto waitFor = remaining < kSlice ? remaining : kSlice;
-                std::this_thread::sleep_for(waitFor);
-            }
-        }
-
         static void StartMusicFade(RE::FormID a_categoryFormID, float a_targetVolume, float a_seconds)
         {
             if (a_categoryFormID == 0) {
