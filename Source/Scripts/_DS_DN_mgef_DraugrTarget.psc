@@ -1,0 +1,1 @@
+Scriptname _DS_DN_mgef_DraugrTarget extends activemagiceffect  

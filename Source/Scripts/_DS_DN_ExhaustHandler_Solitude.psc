@@ -1,0 +1,1 @@
+Scriptname _DS_DN_ExhaustHandler_Solitude extends _DS_DN_ExhaustHandler  
