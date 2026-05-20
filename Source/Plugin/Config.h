@@ -12,7 +12,7 @@ namespace IronSoul::Config
 	void SetInfoGateArmed(bool armed);
 	bool ShouldEmitInfoLog();
 
-	// Reads Data/SKSE/Plugins/IronSoul.ini
+	// Reads Data/SKSE/plugins/ironsoul.ini
 	void Load();
 
 	// Gets an int value by key. Returns fallback if missing/invalid.
@@ -22,8 +22,14 @@ namespace IronSoul::Config
 	// invalid, non-allowlisted, or missing keys.
 	std::int32_t GetAllowedInt(std::string_view key, std::int32_t fallback = 0);
 
+	// Returns 1 when IronSoulPreset was configured with a plus suffix, otherwise 0.
+	std::int32_t GetIronSoulPresetPlus();
+
 	// Sets an int value in the in-memory config cache.
-	// When persistToIni is true, updates an existing key=value line in IronSoul.ini.
+	// When persistToIni is true, updates an existing key=value line in ironsoul.ini.
 	// Returns false when key is invalid, not allowlisted, missing from INI, or write fails.
 	bool SetInt(std::string_view key, std::int32_t value, bool persistToIni = true);
+
+	// Sets a config value from text. IronSoulPreset accepts values like "3+".
+	bool SetString(std::string_view key, std::string_view value, bool persistToIni = true);
 }

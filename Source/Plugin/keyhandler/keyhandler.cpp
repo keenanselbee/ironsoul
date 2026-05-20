@@ -1,5 +1,5 @@
 #include "keyhandler.h"
-#include "../Config.h"
+#include "../config.h"
 
 KeyHandler* KeyHandler::GetSingleton()
 {

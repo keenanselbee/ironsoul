@@ -1,5 +1,5 @@
 #include "pch.h"
-#include "PathUtil.h"
+#include "pathutil.h"
 
 namespace fs = std::filesystem;
 
@@ -30,7 +30,7 @@ namespace IronSoul::PathUtil
 
     fs::path GetSksePluginsDir()
     {
-        static const fs::path cachedSksePluginsDir = GetDataRoot() / L"SKSE" / L"Plugins";
+        static const fs::path cachedSksePluginsDir = GetDataRoot() / L"SKSE" / L"plugins";
         return cachedSksePluginsDir;
     }
 }

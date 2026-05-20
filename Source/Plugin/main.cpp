@@ -1,15 +1,18 @@
 #include "pch.h"
 #include "plugin.h"
-#include "PathUtil.h"
-#include "PapyrusBindings.h"
-#include "Config.h"
-#include "DataStore.h"
+#include "pathutil.h"
+#include "papyrusbindings.h"
+#include "config.h"
+#include "datastore.h"
 
 namespace fs = std::filesystem;
 
 namespace IronSoul
 {
-	// Minimal: set up plugin logging to SKSE log dir /IronSoul.log
+	// Minimal: set up plugin logging to SKSE log dir /ironsoul.log
+
+	// --- Logging ---
+	// ===============
 	static void InitializeLogging()
 	{
 		auto dirOpt = logger::log_directory();
@@ -23,7 +26,7 @@ namespace IronSoul
 
 #ifdef NDEBUG
 		// Use the default plugin log name your docs expect.
-		const fs::path logPath = logDir / "IronSoul.log";
+		const fs::path logPath = logDir / "ironsoul.log";
 		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true);  // truncate on launch
 		auto log = std::make_shared<spdlog::logger>("global log", std::move(sink));
 		spdlog::set_default_logger(std::move(log));
@@ -38,20 +41,26 @@ namespace IronSoul
 		spdlog::flush_on(spdlog::level::warn);
 	}
 
+	// --- Directory Setup ---
+	// =======================
+
 	static void EnsureDirectories()
 	{
-		// Where IronSoul.ini and the character journal live:
-		// Data/SKSE/Plugins
+		// Where ironsoul.ini and the character journal live:
+		// Data/SKSE/plugins
 		const fs::path pluginsDir = IronSoul::PathUtil::GetSksePluginsDir();
 
 		std::error_code ec;
 		fs::create_directories(pluginsDir, ec);
 		if (ec) {
-			logger::warn("Iron Soul: could not create Data/SKSE/Plugins: {}", pluginsDir.string());
+			logger::warn("Iron Soul: could not create Data/SKSE/plugins: {}", pluginsDir.string());
 		}
 	}
 }
 
+
+// --- SKSE Load ---
+// =================
 extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_skse)
 {
 	REL::Module::reset();

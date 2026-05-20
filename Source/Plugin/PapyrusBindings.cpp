@@ -1,9 +1,9 @@
 #include "pch.h"
-#include "DataStore.h"
-#include "PapyrusBindings.h"
-#include "Config.h"
-#include "JournalLog.h"
-#include "PathUtil.h"
+#include "datastore.h"
+#include "papyrusbindings.h"
+#include "config.h"
+#include "journal.h"
+#include "pathutil.h"
 
 #include <random>
 #include <format>
@@ -22,9 +22,12 @@
 
 namespace IronSoul::Papyrus
 {
+    // --- Native State ---
+    // ====================
+
     // Script name that owns the global native functions.
     // In Papyrus you will call:
-    //   IronSoulNative.LogJournalEntry(msg)  (plugin will prepend "Name | ")
+    //   IronSoulNative.LogJournalEntry(msg)  (plugin will prepend "Name [A+] | " when a preset label is active)
     //   int v = IronSoulNative.GetConfigInt("SomeKey", 0)
     static constexpr const char* kScriptName = "IronSoulNative";
     static constexpr const char* kMusicFadeSetVolumeEvent = "IronSoul_MusicFadeSetVolume";
@@ -36,6 +39,9 @@ namespace IronSoul::Papyrus
     {
         return IronSoul::Config::GetInt("SlowMoOnDeath", 1) == 1;
     }
+
+    // --- Runtime State ---
+    // =====================
     namespace
     {
         struct MusicFadeState
@@ -116,7 +122,7 @@ namespace IronSoul::Papyrus
         };
         CursorSuppressState g_cursorSuppressState;
 
-        static constexpr const char* kPluginName = "Iron Soul - Permadeath Lite.esp";
+        static constexpr const char* kPluginName = "Iron Soul - Dead God's Dream.esp";
         static constexpr std::array<RE::FormID, 4> kSlowMoLocalFormIDs{
             0x000216,
             0x000217,
@@ -139,6 +145,9 @@ namespace IronSoul::Papyrus
             auto* ui = RE::UI::GetSingleton();
             return ui && ui->GameIsPaused();
         }
+
+        // --- Music Fade Runtime ---
+        // ==========================
 
         static void RefreshMusicVolumeOverrideCache()
         {
@@ -319,6 +328,9 @@ namespace IronSoul::Papyrus
                 logger::warn("SlowMoSFX: Play failed");
             }
         }
+
+        // --- Health Monitor Runtime ---
+        // ==============================
 
         static void StopHealthMonitorInternal()
         {
@@ -730,6 +742,9 @@ namespace IronSoul::Papyrus
         return {};
     }
 
+    // --- Core Native Bindings ---
+    // ============================
+
     static bool IsAvailable(RE::StaticFunctionTag*)
     {
         // Simple probe to confirm the Iron Soul SKSE plugin is loaded and Papyrus natives are registered.
@@ -742,6 +757,9 @@ namespace IronSoul::Papyrus
         return IronSoul::DataStore::IsInitialized();
     }
 
+    // --- Journal Bindings ---
+    // ========================
+
     static void LogJournalEntry(RE::StaticFunctionTag*, std::string a_message)
     {
         // Papyrus supplies the full event text (including punctuation).
@@ -752,17 +770,56 @@ namespace IronSoul::Papyrus
             return;  // nothing to log
         }
 
-        IronSoul::JournalLog::AppendLine(name + " | " + msg);
+        std::string difficultyLabel;
+        const auto preset = IronSoul::Config::GetAllowedInt("IronSoulPreset", 0);
+        if (preset >= 1 && preset <= 3) {
+            if (preset == 1) {
+                difficultyLabel = "[D]";
+            } else if (preset == 2) {
+                difficultyLabel = "[H]";
+            } else {
+                difficultyLabel = "[A]";
+            }
+
+            auto plusCount = IronSoul::Config::GetIronSoulPresetPlus();
+            if (plusCount < 0) {
+                plusCount = 0;
+            } else if (plusCount > 2) {
+                plusCount = 2;
+            }
+            if (plusCount > 0) {
+                difficultyLabel.insert(difficultyLabel.size() - 1, static_cast<std::size_t>(plusCount), '+');
+            }
+        }
+
+        std::string prefix = name;
+        if (!difficultyLabel.empty()) {
+            prefix += " " + difficultyLabel;
+        }
+        IronSoul::Journal::AppendLine(prefix + " | " + msg);
     }
 
-	static std::int32_t GetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_fallback)
-	{
-		return IronSoul::Config::GetAllowedInt(a_key, a_fallback);
-	}
+    // --- Config Bindings ---
+    // =======================
+
+    static std::int32_t GetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_fallback)
+    {
+        return IronSoul::Config::GetAllowedInt(a_key, a_fallback);
+    }
+
+    static std::int32_t GetIronSoulPresetPlus(RE::StaticFunctionTag*)
+    {
+        return IronSoul::Config::GetIronSoulPresetPlus();
+    }
 
     static bool SetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_value, bool a_persistToIni)
     {
         return IronSoul::Config::SetInt(a_key, a_value, a_persistToIni);
+    }
+
+    static bool SetConfigString(RE::StaticFunctionTag*, std::string a_key, std::string a_value, bool a_persistToIni)
+    {
+        return IronSoul::Config::SetString(a_key, a_value, a_persistToIni);
     }
 
     static bool ReloadConfig(RE::StaticFunctionTag*)
@@ -771,6 +828,9 @@ namespace IronSoul::Papyrus
         RefreshMusicVolumeOverrideCache();
         return true;
     }
+
+    // --- DataStore Bindings ---
+    // ==========================
 
     static int32_t DataGetInt(RE::StaticFunctionTag*, std::string a_key, int32_t a_fallback)
     {
@@ -789,9 +849,19 @@ namespace IronSoul::Papyrus
         return IronSoul::DataStore::SetIntIfChanged(a_key, a_value);
     }
 
+    static bool DataSetIntChecked(RE::StaticFunctionTag*, std::string a_key, int32_t a_value)
+    {
+        return IronSoul::DataStore::SetIntChecked(a_key, a_value);
+    }
+
     static std::string DataGetString(RE::StaticFunctionTag*, std::string a_key, std::string a_fallback)
     {
         return IronSoul::DataStore::GetString(a_key, a_fallback);
+    }
+
+    static std::string DataGetCharacterData(RE::StaticFunctionTag*, std::string a_guid, std::string a_section)
+    {
+        return IronSoul::DataStore::GetCharacterData(a_guid, a_section);
     }
 
     static void DataSetString(RE::StaticFunctionTag*, std::string a_key, std::string a_value)
@@ -810,6 +880,11 @@ namespace IronSoul::Papyrus
         return IronSoul::DataStore::SetStringIfChanged(a_key, a_value);
     }
 
+    static bool DataSetStringChecked(RE::StaticFunctionTag*, std::string a_key, std::string a_value)
+    {
+        return IronSoul::DataStore::SetStringChecked(a_key, a_value);
+    }
+
     static bool DataHasKey(RE::StaticFunctionTag*, std::string a_key)
     {
         return IronSoul::DataStore::HasKey(a_key);
@@ -824,6 +899,9 @@ namespace IronSoul::Papyrus
     {
         IronSoul::DataStore::FlushIfDirty();
     }
+
+    // --- Dynamic Asset Helpers ---
+    // =============================
 
 
     static std::optional<const wchar_t*> ResolveDynamicSplashTierToken(std::int32_t a_tierId)
@@ -852,7 +930,7 @@ namespace IronSoul::Papyrus
 
     static std::int32_t NormalizeDynamicSplashPreset(std::int32_t a_presetId)
     {
-        if (a_presetId == 2 || a_presetId == 3) {
+        if (a_presetId == 1 || a_presetId == 2 || a_presetId == 3) {
             return a_presetId;
         }
 
@@ -867,7 +945,10 @@ namespace IronSoul::Papyrus
         }
 
         std::wstring file = L"splash";
-        const auto preset = NormalizeDynamicSplashPreset(a_presetId);
+        auto preset = NormalizeDynamicSplashPreset(a_presetId);
+        if (a_tierId == 9 && preset > 1) {
+            preset = 0;
+        }
         if (preset != 0) {
             file += std::to_wstring(preset);
         }
@@ -901,69 +982,231 @@ namespace IronSoul::Papyrus
         }
     }
 
-    static void ApplyDynamicSplash(RE::StaticFunctionTag*, std::int32_t a_tierId, std::int32_t a_presetId)
+    static std::int32_t NormalizeDynamicDraugrEyePreset(std::int32_t a_presetId)
     {
-        // Guardrail: respect INI gate too (even if controller also checks).
-        // DynamicSplash=0 disables; default 1 means enabled.
-        if (IronSoul::Config::GetInt("DynamicSplash", 1) == 0) {
-            return;
+        if (a_presetId == 1 || a_presetId == 2 || a_presetId == 3) {
+            return a_presetId;
         }
 
+        return 0;
+    }
+
+    static const wchar_t* ResolveDynamicDraugrEyeSuffix(std::int32_t a_presetId)
+    {
+        switch (NormalizeDynamicDraugrEyePreset(a_presetId)) {
+        case 1:
+            return L"BLUE";
+        case 2:
+            return L"PURPLE";
+        case 3:
+            return L"RED";
+        default:
+            return L"ORIGINAL";
+        }
+    }
+
+    static std::int32_t NormalizeDynamicAssetMode(std::int32_t a_mode)
+    {
+        if (a_mode == 0 || a_mode == 2) {
+            return a_mode;
+        }
+
+        return 1;
+    }
+
+    static std::filesystem::path GetBackupPath(const std::filesystem::path& a_dst)
+    {
+        return a_dst.parent_path() / std::filesystem::path(a_dst.stem().wstring() + L"BACKUP" + a_dst.extension().wstring());
+    }
+
+    static bool EnsureBackupBeforeReplace(const std::filesystem::path& a_dst, const char* a_context)
+    {
+        namespace fs = std::filesystem;
+
+        const fs::path backup = GetBackupPath(a_dst);
+        if (fs::exists(backup)) {
+            return true;
+        }
+
+        if (!fs::exists(a_dst)) {
+            if (InfoLoggingEnabled()) {
+                logger::info("{}: live file missing, skipped backup/replacement: {}", a_context, a_dst.string());
+            }
+            return false;
+        }
+
+        std::error_code ec;
+        fs::create_directories(backup.parent_path(), ec);
+        if (ec) {
+            logger::error("{}: backup directory creation failed '{}' (ec={})", a_context, backup.parent_path().string(), ec.value());
+            return false;
+        }
+
+        fs::copy_file(a_dst, backup, fs::copy_options::none, ec);
+        if (ec) {
+            logger::error("{}: backup failed '{}' -> '{}' (ec={})", a_context, a_dst.string(), backup.string(), ec.value());
+            return false;
+        }
+
+        if (InfoLoggingEnabled()) {
+            logger::info("{}: backed up '{}' -> '{}'", a_context, a_dst.string(), backup.string());
+        }
+        return true;
+    }
+
+    static bool CopyFileReplacing(const std::filesystem::path& a_src, const std::filesystem::path& a_dst, const char* a_context)
+    {
+        namespace fs = std::filesystem;
+
+        std::error_code ec;
+        fs::create_directories(a_dst.parent_path(), ec);
+        if (ec) {
+            logger::warn("{}: create_directories failed: {} (ec={})", a_context, a_dst.parent_path().string(), ec.value());
+            ec.clear();
+        }
+
+        fs::path tmp = a_dst;
+        tmp += L".tmp";
+
+        fs::copy_file(a_src, tmp, fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            logger::error("{}: copy failed '{}' -> '{}' (ec={})", a_context, a_src.string(), tmp.string(), ec.value());
+            return false;
+        }
+
+        ec.clear();
+        fs::rename(tmp, a_dst, ec);
+        if (ec) {
+            ec.clear();
+            fs::copy_file(a_src, a_dst, fs::copy_options::overwrite_existing, ec);
+            if (ec) {
+                logger::error("{}: overwrite failed '{}' -> '{}' (ec={})", a_context, a_src.string(), a_dst.string(), ec.value());
+                ec.clear();
+                fs::remove(tmp, ec);
+                return false;
+            }
+            ec.clear();
+            fs::remove(tmp, ec);
+        }
+
+        return true;
+    }
+
+    static bool CopyVariantWithBackup(const std::filesystem::path& a_src, const std::filesystem::path& a_dst, const char* a_context)
+    {
+        namespace fs = std::filesystem;
+
+        if (!fs::exists(a_src)) {
+            if (InfoLoggingEnabled()) {
+                logger::info("{}: source missing, skipped: {}", a_context, a_src.string());
+            }
+            return false;
+        }
+
+        if (!EnsureBackupBeforeReplace(a_dst, a_context)) {
+            return false;
+        }
+
+        return CopyFileReplacing(a_src, a_dst, a_context);
+    }
+
+    static bool RestoreBackupIfPresent(const std::filesystem::path& a_dst, const char* a_context)
+    {
+        namespace fs = std::filesystem;
+
+        const fs::path backup = GetBackupPath(a_dst);
+        if (!fs::exists(backup)) {
+            if (InfoLoggingEnabled()) {
+                logger::info("{}: backup missing, skipped restore: {}", a_context, backup.string());
+            }
+            return false;
+        }
+
+        return CopyFileReplacing(backup, a_dst, a_context);
+    }
+
+    // --- Dynamic Asset Bindings ---
+    // ==============================
+
+    static void ApplyDynamicDraugrEyes(RE::StaticFunctionTag*, std::int32_t a_presetId)
+    {
+        static constexpr const wchar_t* kTargets[] = {
+            L"meshes\\actors\\draugr\\character assets\\fxdraugrmaleeyes.nif",
+            L"meshes\\actors\\draugr\\character assets\\fxdraugrfemaleeyes.nif"
+        };
+
+        const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicDraugrEyes", 1));
+        const std::int32_t preset = NormalizeDynamicDraugrEyePreset(a_presetId);
+
+        try {
+            namespace fs = std::filesystem;
+
+            const wchar_t* suffix = L"BACKUP";
+            if (mode != 0) {
+                suffix = (mode == 2 || preset == 0) ? L"ORIGINAL" : ResolveDynamicDraugrEyeSuffix(preset);
+            }
+            bool copiedAny = false;
+
+            for (auto* target : kTargets) {
+                const fs::path dst = IronSoul::PathUtil::GetDataRoot() / fs::path(target);
+                if (mode == 0) {
+                    if (RestoreBackupIfPresent(dst, "ApplyDynamicDraugrEyes")) {
+                        copiedAny = true;
+                    }
+                    continue;
+                }
+
+                const fs::path src = dst.parent_path() / fs::path(dst.stem().wstring() + suffix + dst.extension().wstring());
+
+                if (CopyVariantWithBackup(src, dst, "ApplyDynamicDraugrEyes")) {
+                    copiedAny = true;
+                    if (InfoLoggingEnabled()) {
+                        logger::info("ApplyDynamicDraugrEyes: applied '{}' -> '{}'", src.string(), dst.string());
+                    }
+                }
+            }
+
+            if (InfoLoggingEnabled()) {
+                logger::info("ApplyDynamicDraugrEyes: mode={} presetId={} suffix={} copiedAny={}", mode, a_presetId, fs::path(suffix).string(), copiedAny ? 1 : 0);
+            }
+        }
+        catch (const std::exception& e) {
+            logger::error("ApplyDynamicDraugrEyes: exception: {}", e.what());
+        }
+    }
+
+    static void ApplyDynamicSplash(RE::StaticFunctionTag*, std::int32_t a_tierId, std::int32_t a_presetId)
+    {
         // Plugin performs the file copy.
         try {
             namespace fs = std::filesystem;
 
-            const auto file = ResolveDynamicSplashFile(a_tierId, a_presetId);
-            if (!file) {
-                logger::warn("ApplyDynamicSplash: invalid tierId={}", a_tierId);
-                return;
+            std::wstring file = L"splash1iron.png";
+            const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicSplash", 1));
+            if (mode == 1) {
+                const auto resolved = ResolveDynamicSplashFile(a_tierId, a_presetId);
+                if (!resolved) {
+                    logger::warn("ApplyDynamicSplash: invalid tierId={}", a_tierId);
+                    return;
+                }
+                file = *resolved;
             }
 
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
-            const fs::path src = ifaceDir / fs::path(*file);
+            const fs::path src = ifaceDir / fs::path(file);
             const fs::path dst = ifaceDir / L"splash.png";
-            const fs::path tmp = ifaceDir / L"splash.png.tmp";
 
-            if (!fs::exists(src)) {
-                logger::warn("ApplyDynamicSplash: source missing: {}", src.string());
+            if (mode == 0) {
+                RestoreBackupIfPresent(dst, "ApplyDynamicSplash");
                 return;
             }
 
-            // Ensure directory exists (should, but safe).
-            std::error_code ec;
-            fs::create_directories(ifaceDir, ec);
-            if (ec) {
-                logger::warn("ApplyDynamicSplash: create_directories failed: {} (ec={})", ifaceDir.string(), ec.value());
-                // Continue anyway; copy may still succeed if dir already exists.
-                ec.clear();
-            }
-
-            // Copy to temp, then move into place. If move-over fails, fall back to overwrite copy.
-            fs::copy_file(src, tmp, fs::copy_options::overwrite_existing, ec);
-            if (ec) {
-                logger::error("ApplyDynamicSplash: copy failed '{}' -> '{}' (ec={})", src.string(), tmp.string(), ec.value());
+            if (!CopyVariantWithBackup(src, dst, "ApplyDynamicSplash")) {
                 return;
-            }
-
-            ec.clear();
-            fs::rename(tmp, dst, ec);
-            if (ec) {
-                ec.clear();
-                fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
-                if (ec) {
-                    logger::error("ApplyDynamicSplash: overwrite failed '{}' -> '{}' (ec={})", src.string(), dst.string(), ec.value());
-                    // Best-effort cleanup
-                    ec.clear();
-                    fs::remove(tmp, ec);
-                    return;
-                }
-                // Best-effort cleanup: if rename failed, tmp may still exist.
-                ec.clear();
-                fs::remove(tmp, ec);
             }
 
             if (InfoLoggingEnabled()) {
-                logger::info("ApplyDynamicSplash: applied tierId={} presetId={} ('{}' -> '{}')", a_tierId, a_presetId, src.string(), dst.string());
+                logger::info("ApplyDynamicSplash: applied tierId={} presetId={} mode={} ('{}' -> '{}')", a_tierId, a_presetId, mode, src.string(), dst.string());
             }
         }
         catch (const std::exception& e) {
@@ -1002,63 +1245,48 @@ namespace IronSoul::Papyrus
 
     static void ApplyDynamicLevelWidget(RE::StaticFunctionTag*, std::int32_t a_tierId)
     {
-        // Hard-gate via INI (global).
-        if (IronSoul::Config::GetInt("DynamicLevelWidget", 1) == 0) {
-            return;
-        }
-
-        if (!DynamicLevelWidgetAssetsPresent()) {
-            return;
-        }
-
         try {
             namespace fs = std::filesystem;
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
-            const auto file = ResolveDynamicLevelWidgetFile(a_tierId);
-            if (!file) {
-                logger::warn("ApplyDynamicLevelWidget: invalid tierId={}", a_tierId);
-                return;
-            }
 
-            const fs::path src = ifaceDir / *file;
-            const fs::path dst = ifaceDir / L"lvlWidget.swf";
-            const fs::path tmp = ifaceDir / L"lvlWidget.swf.tmp";
-
-            std::error_code ec;
-            fs::create_directories(ifaceDir, ec);
-            ec.clear();
-
-            fs::copy_file(src, tmp, fs::copy_options::overwrite_existing, ec);
-            if (ec) {
-                logger::error("ApplyDynamicLevelWidget: copy failed '{}' -> '{}' (ec={})", src.string(), tmp.string(), ec.value());
-                return;
-            }
-
-            ec.clear();
-            fs::rename(tmp, dst, ec);
-            if (ec) {
-                ec.clear();
-                fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
-                if (ec) {
-                    logger::error("ApplyDynamicLevelWidget: overwrite failed '{}' -> '{}' (ec={})", src.string(), dst.string(), ec.value());
-                    // Best-effort cleanup.
-                    ec.clear();
-                    fs::remove(tmp, ec);
+            const wchar_t* file = L"lvlWidget1iron.swf";
+            const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicLevelWidget", 1));
+            if (mode == 1) {
+                if (!DynamicLevelWidgetAssetsPresent()) {
                     return;
                 }
-                // Best-effort cleanup: if rename failed, tmp may still exist.
-                ec.clear();
-                fs::remove(tmp, ec);
+
+                const auto resolved = ResolveDynamicLevelWidgetFile(a_tierId);
+                if (!resolved) {
+                    logger::warn("ApplyDynamicLevelWidget: invalid tierId={}", a_tierId);
+                    return;
+                }
+                file = *resolved;
+            }
+
+            const fs::path src = ifaceDir / file;
+            const fs::path dst = ifaceDir / L"lvlWidget.swf";
+
+            if (mode == 0) {
+                RestoreBackupIfPresent(dst, "ApplyDynamicLevelWidget");
+                return;
+            }
+
+            if (!CopyVariantWithBackup(src, dst, "ApplyDynamicLevelWidget")) {
+                return;
             }
 
             if (InfoLoggingEnabled()) {
-                logger::info("ApplyDynamicLevelWidget: applied tierId={} ('{}' -> '{}')", a_tierId, src.string(), dst.string());
+                logger::info("ApplyDynamicLevelWidget: applied tierId={} mode={} ('{}' -> '{}')", a_tierId, mode, src.string(), dst.string());
             }
         }
         catch (const std::exception& e) {
             logger::error("ApplyDynamicLevelWidget: exception: {}", e.what());
         }
     }
+
+    // --- Music Fade Bindings ---
+    // ===========================
 
     static void MusicFadeOut(RE::StaticFunctionTag*, RE::BGSSoundCategory* a_musicCategory, float a_seconds, float a_menuVolume)
     {
@@ -1163,6 +1391,9 @@ namespace IronSoul::Papyrus
         StartMusicFade(formID, target, a_seconds);
     }
 
+    // --- Health Monitor Bindings ---
+    // ===============================
+
     static void StartHealthMonitor(RE::StaticFunctionTag*)
     {
         StartHealthMonitorInternal();
@@ -1172,6 +1403,9 @@ namespace IronSoul::Papyrus
     {
         StopHealthMonitorInternal();
     }
+
+    // --- Cursor Suppression Binding ---
+    // ==================================
 
     static void SuppressCursor(RE::StaticFunctionTag*, bool a_suppress)
     {
@@ -1302,6 +1536,9 @@ namespace IronSoul::Papyrus
         });
     }
 
+    // --- Native Registration ---
+    // ===========================
+
     bool Register()
     {
         auto* papyrus = SKSE::GetPapyrusInterface();
@@ -1319,8 +1556,11 @@ namespace IronSoul::Papyrus
             a_vm->RegisterFunction("GetPlayerName", kScriptName, GetPlayerName);
             a_vm->RegisterFunction("GenerateGuidUnique", kScriptName, GenerateGuidUnique);
             a_vm->RegisterFunction("GetConfigInt", kScriptName, GetConfigInt);
+            a_vm->RegisterFunction("GetIronSoulPresetPlus", kScriptName, GetIronSoulPresetPlus);
             a_vm->RegisterFunction("SetConfigInt", kScriptName, SetConfigInt);
+            a_vm->RegisterFunction("SetConfigString", kScriptName, SetConfigString);
             a_vm->RegisterFunction("ReloadConfig", kScriptName, ReloadConfig);
+            a_vm->RegisterFunction("ApplyDynamicDraugrEyes", kScriptName, ApplyDynamicDraugrEyes);
             a_vm->RegisterFunction("ApplyDynamicSplash", kScriptName, ApplyDynamicSplash);
             a_vm->RegisterFunction("ApplyDynamicLevelWidget", kScriptName, ApplyDynamicLevelWidget);
             a_vm->RegisterFunction("MusicFadeOut", kScriptName, MusicFadeOut);
@@ -1331,9 +1571,12 @@ namespace IronSoul::Papyrus
             a_vm->RegisterFunction("DataGetInt", kScriptName, DataGetInt);
             a_vm->RegisterFunction("DataSetInt", kScriptName, DataSetInt);
             a_vm->RegisterFunction("DataSetIntIfChanged", kScriptName, DataSetIntIfChanged);
+            a_vm->RegisterFunction("DataSetIntChecked", kScriptName, DataSetIntChecked);
             a_vm->RegisterFunction("DataGetString", kScriptName, DataGetString);
+            a_vm->RegisterFunction("DataGetCharacterData", kScriptName, DataGetCharacterData);
             a_vm->RegisterFunction("DataSetString", kScriptName, DataSetString);
             a_vm->RegisterFunction("DataSetStringIfChanged", kScriptName, DataSetStringIfChanged);
+            a_vm->RegisterFunction("DataSetStringChecked", kScriptName, DataSetStringChecked);
             a_vm->RegisterFunction("DataHasKey", kScriptName, DataHasKey);
             a_vm->RegisterFunction("DataDeleteKey", kScriptName, DataDeleteKey);
             a_vm->RegisterFunction("DataFlushIfDirty", kScriptName, DataFlushIfDirty);

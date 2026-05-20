@@ -30,12 +30,15 @@ namespace IronSoul
         static std::int32_t GetInt(const std::string& key, std::int32_t fallback);
         static bool         SetInt(const std::string& key, std::int32_t value);
         static bool         SetIntIfChanged(const std::string& key, std::int32_t value);
+        static bool         SetIntChecked(const std::string& key, std::int32_t value);
         static bool         SetIntBatch(const IntBatch4& writes);
         static bool         SetIntBatch(const IntBatch5& writes);
 
         static std::string  GetString(const std::string& key, const std::string& fallback);
         static bool         SetString(const std::string& key, const std::string& value);
         static bool         SetStringIfChanged(const std::string& key, const std::string& value);
+        static bool         SetStringChecked(const std::string& key, const std::string& value);
+        static std::string  GetCharacterData(const std::string& guid, const std::string& section);
 
         static bool HasKey(const std::string& key);
         // Sets an integer value ONLY if the key does not already exist.

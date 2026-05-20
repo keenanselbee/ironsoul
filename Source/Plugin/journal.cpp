@@ -1,17 +1,17 @@
 #include "pch.h"
 
-#include "JournalLog.h"
-#include "PathUtil.h"
+#include "journal.h"
+#include "pathutil.h"
 
 namespace fs = std::filesystem;
 
-namespace IronSoul::JournalLog
+namespace IronSoul::Journal
 {
 	static std::mutex g_mutex;
 
 	static fs::path GetLogPath()
 	{
-		return IronSoul::PathUtil::GetSksePluginsDir() / L"IronSoulCharacterJournal.log";
+		return IronSoul::PathUtil::GetSksePluginsDir() / L"ironsoul-character-journal.log";
 	}
 
 	void AppendLine(std::string_view line)
@@ -28,7 +28,7 @@ namespace IronSoul::JournalLog
 
 		std::ofstream out(logPath, std::ios::out | std::ios::app);
 		if (!out.is_open()) {
-			logger::warn("Iron Soul: could not open IronSoulCharacterJournal.log for append: {}", logPath.string());
+			logger::warn("Iron Soul: could not open ironsoul-character-journal.log for append: {}", logPath.string());
 			return;
 		}
 

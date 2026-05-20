@@ -1,6 +1,6 @@
 #include "pch.h"
-#include "Config.h"
-#include "PathUtil.h"
+#include "config.h"
+#include "pathutil.h"
 #include <atomic>
 #include <unordered_set>
 #include <vector>
@@ -9,12 +9,16 @@ namespace fs = std::filesystem;
 
 namespace IronSoul::Config
 {
+	// --- Logging State ---
+	// =====================
+
 	static std::mutex g_mutex;
 	static std::atomic_bool g_infoGateArmed{ false };
 	static std::atomic_bool g_enableInfoLoggingCached{ false };
 
 	// Store case-insensitive keys (lowercased). Values are int32.
 	static std::unordered_map<std::string, std::int32_t> g_ints;
+	static std::int32_t g_ironSoulPresetPlus = 0;
 
 	static bool IsInfoLoggingEnabledLocked()
 	{
@@ -52,6 +56,9 @@ namespace IronSoul::Config
 		}
 		return g_enableInfoLoggingCached.load(std::memory_order_acquire);
 	}
+
+	// --- Parsing Helpers ---
+	// =======================
 
 	static inline void TrimInPlace(std::string& s)
 	{
@@ -185,9 +192,65 @@ namespace IronSoul::Config
 		}
 	}
 
+	struct ParsedConfigValue
+	{
+		std::int32_t value = 0;
+		std::int32_t ironSoulPresetPlus = 0;
+		std::string canonicalText;
+	};
+
+	static std::optional<ParsedConfigValue> ParseIronSoulPresetValue(std::string_view s)
+	{
+		std::string text(s);
+		TrimInPlace(text);
+		UnquoteIfWrapped(text);
+
+		std::int32_t plusCount = 0;
+		while (!text.empty() && text.back() == '+') {
+			++plusCount;
+			if (plusCount > 2) {
+				return std::nullopt;
+			}
+			text.pop_back();
+			TrimInPlace(text);
+		}
+
+		auto parsed = ParseIntStrict(text);
+		if (!parsed.has_value() || *parsed < 0 || *parsed > 3) {
+			return std::nullopt;
+		}
+		if (plusCount > 0 && *parsed == 0) {
+			return std::nullopt;
+		}
+
+		ParsedConfigValue out;
+		out.value = *parsed;
+		out.ironSoulPresetPlus = plusCount;
+		out.canonicalText = std::to_string(out.value);
+		out.canonicalText.append(static_cast<std::size_t>(out.ironSoulPresetPlus), '+');
+		return out;
+	}
+
+	static std::optional<ParsedConfigValue> ParseConfigValueForKey(const std::string& keyLower, std::string_view valueText)
+	{
+		if (keyLower == "ironsoulpreset") {
+			return ParseIronSoulPresetValue(valueText);
+		}
+
+		auto parsed = ParseIntStrict(valueText);
+		if (!parsed.has_value()) {
+			return std::nullopt;
+		}
+
+		ParsedConfigValue out;
+		out.value = *parsed;
+		out.canonicalText = std::to_string(out.value);
+		return out;
+	}
+
 	static fs::path GetIniPath()
 	{
-		return IronSoul::PathUtil::GetSksePluginsDir() / L"IronSoul.ini";
+		return IronSoul::PathUtil::GetSksePluginsDir() / L"ironsoul.ini";
 	}
 
 	static void EnsureDirExists(const fs::path& a_path)
@@ -198,6 +261,9 @@ namespace IronSoul::Config
 			logger::warn("Iron Soul: could not create ini directory: {}", a_path.parent_path().string());
 		}
 	}
+
+	// --- Public Reads ---
+	// ====================
 
 	int GetInt(std::string_view key, int defaultValue)
 	{
@@ -230,25 +296,53 @@ namespace IronSoul::Config
 		return true;
 	}
 
+	// --- Allowlist and Canonical Keys ---
+	// ====================================
+
 	static const std::unordered_set<std::string>& AllowedConfigKeys()
 	{
 		static const std::unordered_set<std::string> kAllowed = {
 			"enablelogging",
 			"loglevel",
 			"enablelognotifications",
+			"draugrthreatlevel",
+			"draugnaroksystem",
+			"draugnarokbaseintervalhours",
+			"draugnarokcooldownintervals",
+			"draugnarokforcecleanupintervals",
+			"draugnarokgatepressureintervals",
+			"draugnarokjournalmode",
+			"draugnaroklevelprogression",
+			"draugnaroknotificationmode",
+			"draugnarokvisiblequest",
+			"draugnarokweathermode",
+			"raidsmall",
+			"raidservice",
+			"raidtown",
+			"raidmedium",
+			"raidpillage",
+			"raidminorcapital",
+			"raidgate",
+			"raidcapital",
+			"roadencounters",
+			"wildernessencounters",
 			"deathmessage",
 			"dragonsoulrevive",
+			"dragonsoulrevivetransform",
 			"dragonsoulrevivemessage",
 			"dragonsoulrevivelimit",
+			"dynamicdraugreyes",
 			"dynamicsplash",
 			"dynamiclevelwidget",
-			"characterjournallog",
+			"characterjournal",
 			"ironsoulintro",
-			"lucksystem",
-			"luckcooldownremindernotification",
+			"lucklevel",
+			"luckremindernotification",
 			"sfx",
 			"musicfade",
 			"musicvolumeoverride",
+			"cosaverecoverybackup",
+			"mirrordatabackup",
 			"cursorhide",
 			"slowmoondeath",
 			"slowmosfx",
@@ -257,6 +351,7 @@ namespace IronSoul::Config
 			"permadeathsfx",
 			"respawnsfx",
 			"defianttransitionsfx",
+			"chimtransitionsfx",
 			"defiantresetsfx",
 			"deathspurgedsfx",
 			"dragonsoulrevivecastsfx",
@@ -278,7 +373,7 @@ namespace IronSoul::Config
 			"dragonsoulanticheat",
 			"dragonsoulincreasenotification",
 			"ironsoulpreset",
-			"chim",
+			"permadeath",
 			"enabledebug",
 			"enablecharactersheetcompatibility"
 		};
@@ -327,11 +422,35 @@ namespace IronSoul::Config
 		return static_cast<int>(it->second);
 	}
 
-	static bool ReplaceIniIntForExistingKey(const fs::path& iniPath, const std::string& targetKeyLower, std::int32_t value)
+	std::int32_t GetIronSoulPresetPlus()
+	{
+		std::lock_guard lock(g_mutex);
+		return g_ironSoulPresetPlus;
+	}
+
+	// --- INI Updates ---
+	// ===================
+
+	static void UpsertConfigValueLocked(const std::string& keyLower, const ParsedConfigValue& parsed)
+	{
+		g_ints[keyLower] = parsed.value;
+		for (auto& [k, v] : g_ints) {
+			if (k.size() > keyLower.size() + 1 &&
+				k.compare(k.size() - keyLower.size(), keyLower.size(), keyLower) == 0 &&
+				k[k.size() - keyLower.size() - 1] == '.') {
+				v = parsed.value;
+			}
+		}
+		if (keyLower == "ironsoulpreset") {
+			g_ironSoulPresetPlus = parsed.ironSoulPresetPlus;
+		}
+	}
+
+	static bool ReplaceIniValueForExistingKey(const fs::path& iniPath, const std::string& targetKeyLower, const std::string& valueText)
 	{
 		std::ifstream in(iniPath, std::ios::in);
 		if (!in.is_open()) {
-			logger::error("Iron Soul: SetInt could not open INI for read: {}", iniPath.string());
+			logger::error("Iron Soul: SetConfig could not open INI for read: {}", iniPath.string());
 			return false;
 		}
 
@@ -378,7 +497,7 @@ namespace IronSoul::Config
 								}
 							}
 
-							std::string newLine = line.substr(0, start) + keyPart + "=" + std::to_string(value);
+							std::string newLine = line.substr(0, start) + keyPart + "=" + valueText;
 							if (!commentPart.empty()) {
 								const std::size_t cStart = commentPart.find_first_not_of(" \t");
 								if (cStart != std::string::npos) {
@@ -397,19 +516,19 @@ namespace IronSoul::Config
 		}
 
 		if (!in.good() && !in.eof()) {
-			logger::error("Iron Soul: SetInt encountered read error for {}", iniPath.string());
+			logger::error("Iron Soul: SetConfig encountered read error for {}", iniPath.string());
 			return false;
 		}
 
 		if (!anyMatched) {
-			logger::warn("Iron Soul: SetInt rejected key '{}' because no existing INI entry was found", targetKeyLower);
+			logger::warn("Iron Soul: SetConfig rejected key '{}' because no existing INI entry was found", targetKeyLower);
 			return false;
 		}
 
 		const fs::path tmpPath = iniPath.wstring() + L".tmp";
 		std::ofstream out(tmpPath, std::ios::out | std::ios::trunc);
 		if (!out.is_open()) {
-			logger::error("Iron Soul: SetInt could not open temp INI for write: {}", tmpPath.string());
+			logger::error("Iron Soul: SetConfig could not open temp INI for write: {}", tmpPath.string());
 			return false;
 		}
 
@@ -419,7 +538,7 @@ namespace IronSoul::Config
 			out << ln << '\n';
 		}
 		if (!out.good()) {
-			logger::error("Iron Soul: SetInt failed while writing temp INI: {}", tmpPath.string());
+			logger::error("Iron Soul: SetConfig failed while writing temp INI: {}", tmpPath.string());
 			return false;
 		}
 		out.close();
@@ -430,7 +549,7 @@ namespace IronSoul::Config
 			ec.clear();
 			fs::copy_file(tmpPath, iniPath, fs::copy_options::overwrite_existing, ec);
 			if (ec) {
-				logger::error("Iron Soul: SetInt failed replacing INI '{}' (ec={})", iniPath.string(), ec.value());
+				logger::error("Iron Soul: SetConfig failed replacing INI '{}' (ec={})", iniPath.string(), ec.value());
 				ec.clear();
 				fs::remove(tmpPath, ec);
 				return false;
@@ -441,6 +560,9 @@ namespace IronSoul::Config
 
 		return true;
 	}
+
+	// --- Public Writes ---
+	// =====================
 
 	bool SetInt(std::string_view key, std::int32_t value, bool persistToIni)
 	{
@@ -460,16 +582,14 @@ namespace IronSoul::Config
 		}
 
 		const std::string keyLower = *canonicalKey;
+		auto parsed = ParseConfigValueForKey(keyLower, std::to_string(value));
+		if (!parsed.has_value()) {
+			logger::warn("Iron Soul: SetInt rejected invalid config value for key '{}' (value={})", EscapeForLog(keyText), value);
+			return false;
+		}
 
 		if (!persistToIni) {
-			g_ints[keyLower] = value;
-			for (auto& [k, v] : g_ints) {
-				if (k.size() > keyLower.size() + 1 &&
-					k.compare(k.size() - keyLower.size(), keyLower.size(), keyLower) == 0 &&
-					k[k.size() - keyLower.size() - 1] == '.') {
-					v = value;
-				}
-			}
+			UpsertConfigValueLocked(keyLower, *parsed);
 			RefreshInfoLoggingCacheLocked();
 			return true;
 		}
@@ -477,30 +597,77 @@ namespace IronSoul::Config
 		const fs::path iniPath = GetIniPath();
 		EnsureDirExists(iniPath);
 
-		if (!ReplaceIniIntForExistingKey(iniPath, keyLower, value)) {
+		if (!ReplaceIniValueForExistingKey(iniPath, keyLower, parsed->canonicalText)) {
 			return false;
 		}
 
-		g_ints[keyLower] = value;
-		for (auto& [k, v] : g_ints) {
-			if (k.size() > keyLower.size() + 1 &&
-				k.compare(k.size() - keyLower.size(), keyLower.size(), keyLower) == 0 &&
-				k[k.size() - keyLower.size() - 1] == '.') {
-				v = value;
-			}
-		}
+		UpsertConfigValueLocked(keyLower, *parsed);
 		RefreshInfoLoggingCacheLocked();
 
 		if (ShouldEmitInfoLogLocked()) {
-			logger::info("Iron Soul: INI key updated {}={} ({})", keyLower, value, iniPath.string());
+			logger::info("Iron Soul: INI key updated {}={} ({})", keyLower, parsed->canonicalText, iniPath.string());
 		}
 		return true;
 	}
+
+	bool SetString(std::string_view key, std::string_view value, bool persistToIni)
+	{
+		std::lock_guard lock(g_mutex);
+
+		std::string keyText(key);
+		TrimInPlace(keyText);
+		if (!IsValidConfigKey(keyText)) {
+			logger::warn("Iron Soul: SetString rejected invalid config key '{}'", EscapeForLog(keyText));
+			return false;
+		}
+
+		auto canonicalKey = CanonicalizeAllowedKey(keyText);
+		if (!canonicalKey.has_value()) {
+			logger::warn("Iron Soul: SetString rejected non-allowlisted config key '{}'", EscapeForLog(keyText));
+			return false;
+		}
+
+		const std::string keyLower = *canonicalKey;
+		auto parsed = ParseConfigValueForKey(keyLower, value);
+		if (!parsed.has_value()) {
+			logger::warn(
+				"Iron Soul: SetString rejected invalid config value for key '{}' (raw='{}')",
+				EscapeForLog(keyText),
+				EscapeForLog(value)
+			);
+			return false;
+		}
+
+		if (!persistToIni) {
+			UpsertConfigValueLocked(keyLower, *parsed);
+			RefreshInfoLoggingCacheLocked();
+			return true;
+		}
+
+		const fs::path iniPath = GetIniPath();
+		EnsureDirExists(iniPath);
+
+		if (!ReplaceIniValueForExistingKey(iniPath, keyLower, parsed->canonicalText)) {
+			return false;
+		}
+
+		UpsertConfigValueLocked(keyLower, *parsed);
+		RefreshInfoLoggingCacheLocked();
+
+		if (ShouldEmitInfoLogLocked()) {
+			logger::info("Iron Soul: INI key updated {}={} ({})", keyLower, parsed->canonicalText, iniPath.string());
+		}
+		return true;
+	}
+
+	// --- Load ---
+	// ============
 
 	void Load()
 	{
 		std::lock_guard lock(g_mutex);
 		g_ints.clear();
+		g_ironSoulPresetPlus = 0;
 		RefreshInfoLoggingCacheLocked();
 
 		const fs::path iniPath = GetIniPath();
@@ -508,7 +675,7 @@ namespace IronSoul::Config
 
 		std::ifstream in(iniPath, std::ios::in);
 		if (!in.is_open()) {
-			logger::warn("Iron Soul: IronSoul.ini not found at {} (using defaults/fallbacks)", iniPath.string());
+			logger::warn("Iron Soul: ironsoul.ini not found at {} (using defaults/fallbacks)", iniPath.string());
 			if (ShouldEmitInfoLogLocked()) {
 				logger::info("Iron Soul: INI path={}", iniPath.string());
 			}
@@ -573,10 +740,10 @@ namespace IronSoul::Config
 
 			std::string keyLower = ToLowerCopy(key);
 
-			auto parsed = ParseIntStrict(val);
+			auto parsed = ParseConfigValueForKey(keyLower, val);
 			if (!parsed.has_value()) {
 				logger::warn(
-					"Iron Soul: invalid int for key '{}' in IronSoul.ini (raw='{}')",
+					"Iron Soul: invalid config value for key '{}' in ironsoul.ini (raw='{}')",
 					key,
 					EscapeForLog(val)
 				);
@@ -588,26 +755,29 @@ namespace IronSoul::Config
 			// Always log each setting + value (INFO)
 			if (ShouldEmitInfoLogLocked()) {
 				if (!currentSection.empty()) {
-					logger::info("Iron Soul: INI [{}] {}={}", currentSection, key, *parsed);
+					logger::info("Iron Soul: INI [{}] {}={}", currentSection, key, parsed->canonicalText);
 				} else {
-					logger::info("Iron Soul: INI {}={}", key, *parsed);
+					logger::info("Iron Soul: INI {}={}", key, parsed->canonicalText);
 				}
 			}
 
 			// Insert raw key (lowercased)
 			{
-				auto [it, inserted] = g_ints.emplace(keyLower, *parsed);
+				auto [it, inserted] = g_ints.emplace(keyLower, parsed->value);
 				if (inserted) {
 					++insertedRaw;
 				} else {
 					++dupRaw;
-					if (it->second != *parsed) {
+					if (it->second != parsed->value) {
 						logger::warn(
 							"Iron Soul: duplicate key '{}' overwrote previous value {} -> {}",
-							key, it->second, *parsed
+							key, it->second, parsed->value
 						);
-						it->second = *parsed;
+						it->second = parsed->value;
 					}
+				}
+				if (keyLower == "ironsoulpreset") {
+					g_ironSoulPresetPlus = parsed->ironSoulPresetPlus;
 				}
 			}
 
@@ -617,13 +787,13 @@ namespace IronSoul::Config
 				sectionKey.reserve(currentSectionKeyLower.size() + 1 + keyLower.size());
 				sectionKey.append(currentSectionKeyLower).append(".").append(keyLower);
 
-				auto [it2, inserted2] = g_ints.emplace(sectionKey, *parsed);
+				auto [it2, inserted2] = g_ints.emplace(sectionKey, parsed->value);
 				if (inserted2) {
 					++insertedQualified;
 				} else {
 					++dupQualified;
-					if (it2->second != *parsed) {
-						it2->second = *parsed;
+					if (it2->second != parsed->value) {
+						it2->second = parsed->value;
 					}
 				}
 			}
@@ -633,7 +803,7 @@ namespace IronSoul::Config
 
 		// Accurate summary
 		if (ShouldEmitInfoLogLocked()) {
-			logger::info("Iron Soul: loaded {} int settings from IronSoul.ini", settingsParsed);
+			logger::info("Iron Soul: loaded {} int settings from ironsoul.ini", settingsParsed);
 			logger::info("Iron Soul: lookup keys inserted: raw={} qualified={} (total map entries={})",
 				insertedRaw, insertedQualified, g_ints.size());
 		}
@@ -646,4 +816,4 @@ namespace IronSoul::Config
 			logger::info("Iron Soul: INI path={}", iniPath.string());
 		}
 	}
-}	
+}
