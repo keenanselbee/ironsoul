@@ -8,7 +8,7 @@ It combines [b]Dragon Soul Revive[/b], [b]True Death[/b], and [b]Optional Respaw
 [heading][color=#e69138]What Works Without Respawn[/color][/heading]
 [list]
 [*]Per-character death tracking and persistent identity
-[*]Dragon Soul Revive (when you have Dragon Souls available)
+[*]Dragon Soul Revive (when you have Dragon Souls available, or freely with Devour Soul)
 [*]True Death flow and tier-aware death/permadeath presentation
 [*]Tiered UI/audio presentation, logging, and persistence systems
 [/list]
@@ -16,9 +16,8 @@ It combines [b]Dragon Soul Revive[/b], [b]True Death[/b], and [b]Optional Respaw
 [heading][color=#e69138]Core Death Lifecycle[/color][/heading]
 On death, Iron Soul resolves outcomes in this order:
 [list]
-[*][b]Dragon Soul Revive[/b] (highest priority): if valid, consumes 1 Dragon Soul and revives you.
-[*][b]Cooldown Mode[/b] (when LuckSystem=0 and Optional Respawn Integration is active): no roll, respawn is only allowed when cooldown is ready.
-[*][b]Luck Mode[/b] (when LuckSystem=1 and Optional Respawn Integration is active): roll against current Luck; success respawns, failure becomes True Death.
+[*][b]Dragon Soul Revive[/b] (highest priority): if valid, consumes 1 Dragon Soul and revives you. Devour Soul revives this way for free, even with no Dragon Souls available.
+[*][b]Luck Mode[/b] (when Optional Respawn Integration is active): roll against current Luck; success respawns, failure becomes True Death.
 [*][b]True Death[/b] fallback: records death, shows tier-appropriate death/permadeath messaging, and exits the session.
 [/list]
 
@@ -29,30 +28,21 @@ On death, Iron Soul resolves outcomes in this order:
 [*]When integration is active, Iron Soul uses respawn-window protections, respawn messaging, and post-respawn state recovery.
 [/list]
 
-[heading][color=#e69138]Luck Mode vs Cooldown Mode[/color][/heading]
-Both modes are tied to [b]Optional Respawn Integration[/b].
+[heading][color=#e69138]Luck Mode[/color][/heading]
+Luck is tied to [b]Optional Respawn Integration[/b].
 
-[b]Luck Mode[/b] ([b]LuckSystem=1[/b])
 [list]
 [*]Each eligible death rolls against your current Luck value.
 [*]Luck resets on respawn and on True Death.
 [*]Luck regenerates from 0 to max over [b]60 minutes real time[/b].
-[*]Menu time does not advance Luck/Cooldown progression.
-[/list]
-
-[b]Cooldown Mode[/b] ([b]LuckSystem=0[/b])
-[list]
-[*]No luck roll is performed.
-[*]Respawn is only available when the [b]60 minute cooldown[/b] is fully recovered.
-[*]Cooldown resets on respawn and on True Death.
-[*]Uses the same real-time/menu-safe timing model as Luck Mode.
+[*]Menu time does not advance Luck progression.
 [/list]
 
 [heading][color=#e69138]Progression and Death Caps[/color][/heading]
 [list]
 [*]Default [b]Iron[/b] cap is 10 deaths.
 [*][b]Defiant[/b] cap is 100 deaths (when Defiant is unlocked and activated).
-[*][b]Devour[/b] unlocks at 50 Dragon Souls obtained, raises max Luck to 100, and removes permadeath.
+[*][b]Devour[/b] unlocks at 50 Dragon Souls obtained, raises max Luck to 100, and makes Dragon Soul Revive free.
 [*][b]CHIM[/b] tier removes practical cap limits (optional via INI).
 [/list]
 
@@ -63,7 +53,7 @@ Both modes are tied to [b]Optional Respawn Integration[/b].
 [*]Gold: 20 Dragon Souls obtained.
 [*]Ebon: defeat Alduin or Harkon.
 [*]Platinum: defeat Miraak or Molag Bal (Vigilant-supported path).
-[*]Devour: 50 Dragon Souls obtained (lifetime tracked total). Unlocking Devour suppresses lower-tier unlock messages and prevents further organic CHIM promotion.
+[*]Devour: 50 Dragon Souls obtained (lifetime tracked total). Unlocking Devour suppresses lower-tier unlock messages and makes Dragon Soul Revive consume no souls.
 [/list]
 
 [heading][color=#e69138]Persistence and Integrity[/color][/heading]
@@ -80,13 +70,12 @@ Iron Soul includes optional support for [b][url=https://www.nexusmods.com/skyrim
 When enabled, total deaths are mirrored to actor value [b]DEPRECATED05[/b] for Character Sheet display compatibility.
 
 [heading][color=#e69138]Configuration Highlights[/color][/heading]
-Config path: [b]Data/SKSE/Plugins/IronSoul.ini[/b]
+Config path: [b]Data/SKSE/plugins/ironsoul.ini[/b]
 
 [list]
 [*][b]Respawn[/b]: turn Optional Respawn Integration on/off.
-[*][b]LuckSystem[/b]: switch between Luck Mode (1) and Cooldown Mode (0).
 [*][b]DragonSoulRevive[/b]: turn Dragon Soul Revive on/off.
-[*][b]DeathMessage[/b], [b]RespawnMessage[/b], [b]LoadNotificationMode[/b], [b]LuckRollMessageMode[/b]: control message/UI behavior.
+[*][b]DeathMessage[/b], [b]RespawnMessage[/b], [b]LoadNotificationMode[/b], [b]LuckReminderNotification[/b], [b]LuckRollMessageMode[/b]: control message/UI behavior.
 [*][b]SoulFeats[/b], [b]DeathReset[/b], [b]SoulBonus[/b], [b]SoulFatigue[/b]: control progression and stat-modifier behavior.
 [*][b]DefiantResetSFX[/b], [b]DeathsPurgedSFX[/b]: control reset-related SFX behavior.
 [*][b]DragonSoulAnticheat[/b]: controls anti-cheat filtering for Dragon Soul gain deltas.
@@ -97,7 +86,7 @@ Config path: [b]Data/SKSE/Plugins/IronSoul.ini[/b]
 
 [heading][color=#e69138]Uninstallation[/color][/heading]
 [list]
-[*]Set [b]UninstallMode=1[/b] in IronSoul.ini.
+[*]Set [b]UninstallMode=1[/b] in ironsoul.ini.
 [*]Load your save and wait for the uninstall confirmation.
 [*]Save, then remove the mod (or leave it installed in disabled state).
 [/list]
