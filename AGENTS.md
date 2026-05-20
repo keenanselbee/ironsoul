@@ -10,11 +10,9 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
 - Do not revert or overwrite unrelated user changes.
-- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul`. External paths may be read or used as tool/import inputs only.
+- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented SKSE plugin build automation below. External paths may otherwise be read or used as tool/import inputs only.
 - Keep temporary compile output or staging inside this repo, preferably under `.codex-temp`.
-- Do not rebuild `SKSE/plugins/ironsoul.dll`; the user will handle SKSE plugin builds.
 - Treat `_reference/` as read-only reference material for the original Draugnarok and Respawn Soulslike Edition. Do not edit, stage, or commit anything inside it.
-- Codex may modify `G:\Modding\LoreRim\Dev\projects\ironsoul` only for SKSE plugin build verification. Before proposing or performing those edits, warn exactly: `WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT`. Do not copy rebuilt DLLs back into this repo unless explicitly requested.
 - Follow `_docs/style-guide.md` for naming and formatting conventions.
 
 
@@ -114,13 +112,25 @@ if ($exitCode -eq 0 -and (Test-Path -LiteralPath $compiledPex)) {
 ```
 
 
+--- SKSE Plugin Build Automation ---
+====================================
+
+- Codex may run `_tools/build-skse-plugin.ps1` when the user explicitly requests SKSE plugin build verification or DLL refresh.
+- Before proposing or performing external project edits, warn exactly: `WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT`.
+- The script mirrors `Source/Plugin/**/*.cpp` and `Source/Plugin/**/*.h` to `G:\Modding\LoreRim\Dev\projects\ironsoul\src`, then builds with `G:\Modding\LoreRim\Dev\tools\xmake\xmake.exe`.
+- Default mode is verify-only. Verify-only builds must not update `SKSE/plugins/ironsoul.dll`.
+- DLL refresh is allowed only when explicitly requested, by running `_tools/build-skse-plugin.ps1 -RefreshRepoDll`.
+- DLL refresh must copy only the successful release output from `G:\Modding\LoreRim\Dev\projects\ironsoul\build\windows\x64\release\IronSoul.dll` to `SKSE/plugins/ironsoul.dll`.
+- Do not copy debug DLLs or any external build output other than the release DLL.
+- Do not stage or commit the DLL from inside the script. If the repo DLL changes, commit it separately as `build(native): update SKSE plugin binary`.
+
+
 --- INI Configuration ---
 =========================
 
 - When adding, removing, or renaming public INI keys, update `SKSE/plugins/ironsoul.ini`.
 - Also update the native allowlist in `source/plugin/config.cpp`.
 - Also update the public `gini` listing in `Source/Scripts/IronSoulConsoleCommands.psc`.
-- Do not rebuild `SKSE/plugins/ironsoul.dll`; the user will handle SKSE plugin builds.
 
 
 --- Verification ---
