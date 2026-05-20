@@ -34,7 +34,7 @@ Commits often need a body when they touch:
 - SKSE plugin source under `Source/Plugin` or `source/plugin`.
 - Persistence, INI keys, Papyrus/native contracts, death flow, tier progression, journal/data storage, or generated runtime outputs.
 
-Subject-only commits are fine for simple Papyrus or plugin fixes where the subject says enough. They are also fine for straightforward docs, asset moves, UI/audio refreshes, native DLL build refreshes, and narrow housekeeping. Papyrus compiled output needs source context and should not be committed by itself.
+Subject-only commits are fine for simple Papyrus or plugin fixes where the subject says enough. They are also fine for straightforward docs, asset moves, UI/audio refreshes, and narrow housekeeping. Compiled output needs source context and should not be committed by itself unless the user explicitly requests a generated-output-only repair.
 
 When a body is useful, prefer this shape:
 
@@ -56,6 +56,14 @@ Group a core script with another file only when the companion is part of the sam
 - A new imported subsystem, such as Draugnarok, may group its related scripts together.
 
 Keep matching compiled `.pex` outputs with the `.psc` source commit that required the compile. Do not make standalone Papyrus compiled-output commits when no Papyrus source changed.
+
+
+--- Native Output Grouping ---
+==============================
+
+Keep `SKSE/plugins/ironsoul.dll` with the `Source/Plugin` source commit that required the rebuild. Native output should normally travel with the source change that produced it, not as a separate build-only commit.
+
+Use a standalone `build(native): update SKSE plugin binary` commit only when the user explicitly asks for a DLL-only refresh or generated-output-only repair. If a commit only normalizes DLL path casing, use `chore(native)` and include the rebuilt DLL bytes in that same casing commit.
 
 
 --- Types ---
@@ -114,6 +122,8 @@ Leave the scope off when the change is naturally repo-wide or too small to name 
 - Split unrelated changes into separate commits.
 - Bundle committed Papyrus `.pex` refreshes with the `.psc` source changes that produced them.
 - Avoid `build(papyrus)` for standalone compiled-script refreshes unless the user explicitly requests an exceptional generated-output-only repair.
+- Bundle committed native DLL refreshes with the `Source/Plugin` source changes that produced them.
+- Avoid standalone `build(native)` commits unless the user explicitly requests a DLL-only refresh or generated-output-only repair.
 - Use `chore(plugin)` when syncing a plugin file with existing changes.
 - Use `feat(esp)` when ESP record changes add or expose new behavior.
 - Use `docs(nexus)` for Nexus listing or permission copy, and `docs` without a scope for repo-facing documentation.
