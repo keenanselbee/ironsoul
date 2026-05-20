@@ -4,3 +4,5 @@ skyrimse.ppj
 SkyrimSE.code-workspace
 .codex-temp/
 Tools/IronSoulLogGenerator/Papyrus_IronSoul.log
+SKSE/plugins/IronSoulCharacterJournal.log
+SKSE/plugins/ironsoul-character-journal.log
