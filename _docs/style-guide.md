@@ -137,7 +137,6 @@ IronSoul_QF_DraugnarokCapitalRaidWhiterun.psc
 - Use `PascalCase` for functions and types when matching the existing plugin style.
 - Use `g_` prefixes for file-static global state where the surrounding file already does.
 - Use lowercase file names with no dashes for Iron Soul C++ source/header files, e.g. `config.cpp`, `datastore.h`, and `papyrusbindings.cpp`.
-- External copied API headers may keep upstream casing, e.g. `PrismaUI_API.h`.
 - Keep comments concise and behavior-focused.
 - Use divider headers for larger C++ sections when the file grows enough to need navigation.
 
