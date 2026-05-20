@@ -60,9 +60,9 @@ Set-Location -LiteralPath $repo
 - Additional Draugnarok quest/location source scripts also live in `Source/Scripts`.
 - SKSE sources must appear before stock sources in the import list.
 - PapyrusUtil sources are required for helpers such as `StorageUtil` and `JsonUtil`.
-- When changing `.psc` files, compile the changed script with the Skyrim SE Papyrus compiler when available.
-- Compile to `.codex-temp\PapyrusCompile` first.
-- If the compile succeeds and the expected `.pex` exists, replace the matching file in `Scripts`.
+- When changing `.psc` files, compile the changed script with `_tools/compile-papyrus.ps1` when available.
+- Default compile mode writes only to `.codex-temp\PapyrusCompile`.
+- Use `_tools/compile-papyrus.ps1 <ScriptName.psc> -RefreshRepoPex` only when the compiled repo `Scripts\<ScriptName>.pex` should be refreshed.
 - If compilation fails, leave the existing `.pex` untouched and report the compiler errors.
 - When adding, removing, or renaming functions in `Source/Scripts/IronSoulController.psc`, update that script's table of contents.
 
@@ -80,35 +80,12 @@ Imports:  C:\Repositories\Iron Soul\Source\Scripts
 If SKSE imports are missing or ordered after stock sources, functions such as `GetINIFloat`, `GetName`, `RegisterForKey`, `UnregisterForKey`, `RegisterForModEvent`, and `UnregisterForModEvent` may fail to resolve.
 
 
---- Papyrus Compile Example ---
-===============================
+--- Papyrus Compile Automation ---
+==================================
 
 ```powershell
-$repo = "C:\Repositories\Iron Soul"
-$script = "IronSoulController.psc"
-$compiler = "G:\Modding\LoreRim\Tools\Papyrus Compiler\PapyrusCompiler.exe"
-$flags = "G:\Modding\LoreRim\Update\Stock Game\Data\Source\Scripts\TESV_Papyrus_Flags.flg"
-$skse = "G:\Modding\LoreRim\Mod Organizer\mods\Skyrim Script Extender (SKSE64)\Scripts\Source"
-$papyrusUtil = "G:\Modding\LoreRim\Mod Organizer\mods\PapyrusUtil SE - Modders Scripting Utility Functions\Scripts\Source"
-$stock = "G:\Modding\LoreRim\Update\Stock Game\Data\Source\Scripts"
-$imports = "$repo\Source\Scripts;$skse;$papyrusUtil;$stock"
-$out = Join-Path $repo ".codex-temp\PapyrusCompile"
-$pexName = [IO.Path]::ChangeExtension($script, ".pex")
-
-New-Item -ItemType Directory -Force -Path $out | Out-Null
-Remove-Item -LiteralPath (Join-Path $out $pexName) -Force -ErrorAction SilentlyContinue
-
-Push-Location -LiteralPath (Join-Path $repo "Source\Scripts")
-& $compiler $script "-f=$flags" "-i=$imports" "-o=$out"
-$exitCode = $LASTEXITCODE
-Pop-Location
-
-$compiledPex = Join-Path $out $pexName
-if ($exitCode -eq 0 -and (Test-Path -LiteralPath $compiledPex)) {
-    Move-Item -LiteralPath $compiledPex -Destination (Join-Path $repo "Scripts\$pexName") -Force
-} else {
-    throw "Papyrus compile failed; existing Scripts PEX was left untouched."
-}
+_tools\compile-papyrus.ps1 IronSoulController.psc
+_tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -RefreshRepoPex
 ```
 
 
