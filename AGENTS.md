@@ -41,6 +41,7 @@ Set-Location -LiteralPath $repo
 - Use `G:\Modding\LoreRim\Tools\xEdit\SSEEdit64.exe` when ESP inspection is needed.
 - Skyrim SE stock Data for xEdit master resolution is `G:\Modding\LoreRim\Mod Organizer\Stock Game\Data`.
 - Do not use `G:\Modding\LoreRim\Update\Stock Game\Data` for xEdit; that path is only the Papyrus source/flags area.
+- Use `_tools/dump-esp-records.ps1` for first-pass read-only ESP dumps and text searches when possible.
 - Prefer the SSEEdit64 GUI for authoritative ESP record inspection. Load only the relevant plugin(s) and required masters, then wait for `Background Loader: finished` before drawing conclusions.
 - Use EditorID/FormID search and the record tree to inspect records. Report the record signature, FormID, EditorID, and important field paths/values.
 - Do not rely on Papyrus source alone when ESP or Story Manager wiring determines behavior.
