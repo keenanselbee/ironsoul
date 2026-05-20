@@ -12,11 +12,13 @@ Use `_tools/dump-esp-records.ps1` for first-pass read-only dumps and text search
 
 ```powershell
 _tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp"
+_tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -StageInStockData
 _tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -Filter "IronSoul_Draugnarok"
-_tools\dump-esp-records.ps1 "Draugnarok.esp" -Filter "00012345"
+_tools\dump-esp-records.ps1 "Draugnarok.esp" -Filter "00012345" -StageInStockData
 ```
 
 The helper writes output under `.codex-temp\xedit` and must not modify plugin files.
+Use `-StageInStockData` when SSEDump needs the repo plugin temporarily copied beside the Stock Game Data masters. The helper refuses to overwrite an existing plugin with the same name, runs the dump, then removes only the hash-matching staged copy.
 
 Use `SSEEdit64.exe` for authoritative inspection when dump output is incomplete, hard to search, or master resolution fails. Load only the relevant plugin and required masters, wait for `Background Loader: finished`, and close without saving.
 

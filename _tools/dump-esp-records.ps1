@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory = $true, Position = 0)]
     [string]$Plugin,
 
-    [string]$Filter
+    [string]$Filter,
+
+    [switch]$StageInStockData
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,20 +77,64 @@ Assert-FileExists $pluginPath "plugin"
 
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 
+$pluginFileName = [System.IO.Path]::GetFileName($pluginPath)
 $pluginBaseName = [System.IO.Path]::GetFileNameWithoutExtension($pluginPath)
 $dumpPath = Join-Path $outputDir ("{0}.dump.txt" -f (Convert-ToSafeFilePart $pluginBaseName))
-$arguments = @("-D:$stockData", $pluginPath)
+$stagedPluginPath = Join-Path $stockData $pluginFileName
 
-Write-Host "[INFO] Running SSEDump64 for $([System.IO.Path]::GetFileName($pluginPath))..."
+if ($StageInStockData) {
+    Assert-PathInside $stagedPluginPath $stockData "staged plugin"
+    if (Test-Path -LiteralPath $stagedPluginPath) {
+        throw "Refusing to overwrite existing plugin in Stock Game Data: $stagedPluginPath"
+    }
+}
+
+Write-Host "[INFO] Running SSEDump64 for $pluginFileName..."
 Write-Host "[INFO] Output: $dumpPath"
 
-$previousErrorActionPreference = $ErrorActionPreference
-$ErrorActionPreference = "Continue"
+$runDirectory = $repo
+$arguments = @("-D:$stockData", $pluginPath)
+$sourceHash = $null
+
 try {
-    $dumpOutput = & $dumpExe @arguments 2>&1
-    $exitCode = $LASTEXITCODE
+    if ($StageInStockData) {
+        Write-Host "WARNING: THIS WILL TEMPORARILY STAGE THE REPO ESP IN STOCK GAME DATA"
+        $sourceHash = (Get-FileHash -LiteralPath $pluginPath -Algorithm SHA256).Hash
+        Copy-Item -LiteralPath $pluginPath -Destination $stagedPluginPath -Force
+
+        $stagedHash = (Get-FileHash -LiteralPath $stagedPluginPath -Algorithm SHA256).Hash
+        if ($stagedHash -ne $sourceHash) {
+            throw "Staged plugin hash mismatch before dump."
+        }
+
+        $runDirectory = $stockData
+        $arguments = @("-D:$stockData", $pluginFileName)
+        Write-Host "[INFO] Staged plugin: $stagedPluginPath"
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        Push-Location -LiteralPath $runDirectory
+        try {
+            $dumpOutput = & $dumpExe @arguments 2>&1
+            $exitCode = $LASTEXITCODE
+        } finally {
+            Pop-Location
+        }
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
 } finally {
-    $ErrorActionPreference = $previousErrorActionPreference
+    if ($StageInStockData -and (Test-Path -LiteralPath $stagedPluginPath)) {
+        $currentHash = (Get-FileHash -LiteralPath $stagedPluginPath -Algorithm SHA256).Hash
+        if ($sourceHash -and $currentHash -eq $sourceHash) {
+            Remove-Item -LiteralPath $stagedPluginPath -Force
+            Write-Host "[INFO] Removed staged plugin: $stagedPluginPath"
+        } else {
+            Write-Host "[WARNING] Staged plugin was not removed because its hash changed: $stagedPluginPath"
+        }
+    }
 }
 $dumpLines = $dumpOutput | ForEach-Object { $_.ToString() }
 $dumpLines | Set-Content -LiteralPath $dumpPath -Encoding UTF8
@@ -100,6 +146,9 @@ if ($exitCode -ne 0 -or ($dumpLines | Select-String -Pattern "Unexpected Error|E
         Write-Host "[ERROR] SSEDump64 reported an unexpected error."
     }
     Write-Host "[ERROR] Partial output was written to: $dumpPath"
+    if (-not $StageInStockData) {
+        Write-Host "[ERROR] If the error is master resolution, retry with -StageInStockData."
+    }
     if (Test-Path -LiteralPath $exceptionLog -PathType Leaf) {
         Write-Host "[ERROR] Last SSEDump64 exception log lines:"
         Get-Content -LiteralPath $exceptionLog -Tail 40 | ForEach-Object { Write-Host $_ }

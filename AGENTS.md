@@ -10,7 +10,7 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
 - Do not revert or overwrite unrelated user changes.
-- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented SKSE plugin build automation below. External paths may otherwise be read or used as tool/import inputs only.
+- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented SKSE plugin build automation and xEdit staged inspection below. External paths may otherwise be read or used as tool/import inputs only.
 - Keep temporary compile output or staging inside this repo, preferably under `.codex-temp`.
 - Treat `_reference/` as read-only reference material for the original Draugnarok and Respawn Soulslike Edition. Do not edit, stage, or commit anything inside it.
 - Follow `_docs/style-guide.md` for naming and formatting conventions.
@@ -49,7 +49,9 @@ Set-Location -LiteralPath $repo
 - When closing xEdit, if any save prompt appears for a plugin, choose not to save.
 - Do not run QuickAutoClean or save plugin backups unless the user explicitly asks for plugin edits/cleaning.
 - `G:\Modding\LoreRim\Tools\xEdit\SSEDump64.exe` may be used as an optional read-only helper.
-- If using SSEDump64, pass `-D:G:\Modding\LoreRim\Mod Organizer\Stock Game\Data`; if it fails to resolve masters, check `G:\Modding\LoreRim\Tools\xEdit\SSEDump64Exception.log` and fall back to SSEEdit64 GUI inspection.
+- Prefer `_tools/dump-esp-records.ps1 -StageInStockData` when using SSEDump64 against repo plugins, because SSEDump resolves masters reliably when the target plugin is temporarily staged beside the Stock Game Data masters.
+- The staged dump helper may temporarily copy a repo ESP/ESM/ESL into `G:\Modding\LoreRim\Mod Organizer\Stock Game\Data`, run SSEDump, and remove only the hash-matching staged copy afterward. It must refuse to overwrite an existing plugin with the same name.
+- If using SSEDump64 directly, pass `-D:G:\Modding\LoreRim\Mod Organizer\Stock Game\Data`; if it fails to resolve masters, check `G:\Modding\LoreRim\Tools\xEdit\SSEDump64Exception.log` and fall back to SSEEdit64 GUI inspection.
 
 
 --- Papyrus ---
