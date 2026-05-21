@@ -8,3 +8,19 @@ SKSE/plugins/IronSoulCharacterJournal.log
 SKSE/plugins/ironsoul-character-journal.log
 _reference/
 _tools/ironsoul-combined.log
+
+# Local SKSE build environment. Keep only the Iron Soul plugin project slice.
+dev/**
+!dev/
+!dev/projects/
+dev/projects/**
+!dev/projects/ironsoul/
+dev/projects/ironsoul/**
+!dev/projects/ironsoul/.gitignore
+!dev/projects/ironsoul/xmake.lua
+!dev/projects/ironsoul/xmake-requires.lock
+!dev/projects/ironsoul/src/
+!dev/projects/ironsoul/src/**
+!dev/projects/ironsoul/lib/
+dev/projects/ironsoul/lib/**
+!dev/projects/ironsoul/lib/commonlibsse-ng/

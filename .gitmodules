@@ -1,0 +1,4 @@
+[submodule "dev/projects/ironsoul/lib/commonlibsse-ng"]
+	path = dev/projects/ironsoul/lib/commonlibsse-ng
+	url = https://github.com/alandtse/CommonLibVR.git
+	branch = ng

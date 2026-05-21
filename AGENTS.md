@@ -18,7 +18,7 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
 - Do not revert or overwrite unrelated user changes.
-- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented SKSE plugin build automation, xEdit staged inspection, and MO2 overwrite INI refresh below. External paths may otherwise be read or used as tool/import inputs only.
+- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented xEdit staged inspection and MO2 overwrite INI refresh below. External paths may otherwise be read or used as tool/import inputs only.
 - Keep temporary compile output or staging inside this repo, preferably under `.codex-temp`.
 - Treat `_reference/` as read-only reference material for the original Draugnarok and Respawn Soulslike Edition. Do not edit, stage, or commit anything inside it.
 - Follow `_docs/style-guide.md` for naming and formatting conventions.
@@ -103,14 +103,14 @@ _tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -R
 --- SKSE Plugin Build Automation ---
 ------------------------------------
 
-- Codex may run `_tools/build-skse-plugin.ps1` when the user explicitly requests SKSE plugin build verification or DLL refresh, or when Codex has changed `Source/Plugin` source and needs final build verification/output sync.
-- Warn exactly `WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT` only before proposing or performing external build project edits outside the documented source mirror, stale source cleanup, xmake build/config output, and DLL refresh workflow. Mirroring `Source/Plugin/**/*.cpp` and `Source/Plugin/**/*.h` to the external `src` directory and building the DLL do not count for this warning.
-- The script mirrors `Source/Plugin/**/*.cpp` and `Source/Plugin/**/*.h` to `G:\Modding\LoreRim\Dev\projects\ironsoul\src`, then builds with `G:\Modding\LoreRim\Dev\tools\xmake\xmake.exe`.
-- For completed SKSE plugin source changes, run `_tools/build-skse-plugin.ps1 -RefreshRepoDll` by default after a successful build so `SKSE/plugins/ironsoul.dll` matches the source change. Use verify-only only for WIP checks or when the user explicitly asks not to refresh the repo DLL.
-- Verify-only builds must not update `SKSE/plugins/ironsoul.dll`.
-- DLL refresh must copy only the successful release output from `G:\Modding\LoreRim\Dev\projects\ironsoul\build\windows\x64\release\IronSoul.dll` to `SKSE/plugins/ironsoul.dll`.
-- Do not copy debug DLLs or any external build output other than the release DLL.
-- Do not stage or commit the DLL from inside the script. When `Source/Plugin` source changed, stage `SKSE/plugins/ironsoul.dll` with the same source commit that produced it. Use a standalone `build(native): update SKSE plugin binary` commit only for an explicitly requested DLL-only refresh or generated-output repair.
+- Codex may run `tools/build-skse-plugin.ps1` when the user explicitly requests SKSE plugin build verification or DLL refresh, or when Codex has changed `dev/projects/ironsoul/src` source and needs final build verification/output sync.
+- Iron Soul SKSE plugin source lives in `dev/projects/ironsoul/src`.
+- The script builds the repo-local project in `dev/projects/ironsoul` with `dev/tools/xmake/xmake.exe` and uses local xmake state under `dev/.xmake`.
+- For completed SKSE plugin source changes, run `tools/build-skse-plugin.ps1 -RefreshRepoDll` by default after a successful build so `mod/SKSE/plugins/ironsoul.dll` matches the source change. Use verify-only only for WIP checks or when the user explicitly asks not to refresh the repo DLL.
+- Verify-only builds must not update `mod/SKSE/plugins/ironsoul.dll`.
+- DLL refresh must copy only the successful release output from `dev/projects/ironsoul/build/windows/x64/release/IronSoul.dll` to `mod/SKSE/plugins/ironsoul.dll`.
+- Do not copy debug DLLs or any build output other than the release DLL.
+- Do not stage or commit the DLL from inside the script. When `dev/projects/ironsoul/src` source changed, stage `mod/SKSE/plugins/ironsoul.dll` with the same source commit that produced it. Use a standalone `build(native): update SKSE plugin binary` commit only for an explicitly requested DLL-only refresh or generated-output repair.
 
 
 --- MO2 Overwrite INI Refresh ---
@@ -134,7 +134,7 @@ LogLevel = 3
 -------------------------
 
 - When adding, removing, or renaming public INI keys, update `SKSE/plugins/ironsoul.ini`.
-- Also update the native allowlist in `source/plugin/config.cpp`.
+- Also update the native allowlist in `dev/projects/ironsoul/src/config.cpp`.
 - Also update the public `gini` listing in `Source/Scripts/IronSoulConsoleCommands.psc`.
 - After changing `SKSE/plugins/ironsoul.ini`, run `_tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled.
 
@@ -158,7 +158,7 @@ AUDIT   Audit the last few substantial chat changes end to end without editing.
 COMMIT   Execute the latest DIFF commit proposal.
 COMPILE  Compile all Papyrus source scripts and refresh only changed repo .pex files.
 DIFF     Show changed files and propose intelligent commit splits.
-DLL      Build and refresh SKSE/plugins/ironsoul.dll.
+DLL      Build and refresh mod/SKSE/plugins/ironsoul.dll.
 IMPLEMENT Execute the latest SUGGEST implementation proposal.
 LOG      Build _tools/ironsoul-combined.log, summarize it, then open it in VS Code.
 MSG      Generate a commit message for the currently staged files.
@@ -175,8 +175,8 @@ Command behavior:
 - `AUDIT`: Run a read-only audit of the last few substantial changes made in the current chat. Do not edit files, stage, commit, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. Use the available chat context to identify the change set, then inspect relevant git status, diffs, and affected files to verify the work end to end against the user's requests. Check for behavioral regressions, missed call sites, stale docs/config, missing generated artifacts, unsafe file operations, and verification gaps. Report findings first in severity order with file/line references where possible; if no issues are found, say that clearly and list any residual risk or checks not run.
 - `COMMIT`: Treat the `COMMIT` command as confirmation to execute the latest commit proposal produced by `DIFF`. Before staging, verify the worktree still matches that proposal. If no current `DIFF` proposal exists, or if the worktree changed since the proposal, run the `DIFF` behavior and stop instead of committing. When executing, stage only the proposed files for each commit, run `git diff --cached --check` before each commit, use the proposed messages, and finish with commit hashes and final status.
 - `COMPILE`: Enumerate every `.psc` file under `Source/Scripts`, then compile all of them with `_tools/compile-papyrus.ps1` to `.codex-temp\PapyrusCompile` first. Do not use `-RefreshRepoPex` for this command because that switch copies every successful target. If compilation succeeds, compare each generated `.pex` against `Scripts\<ScriptName>.pex` with SHA-256 hashes, then copy only missing or different repo `.pex` files. Leave existing repo `.pex` files untouched for failed scripts and report copied, unchanged, and failed scripts.
-- `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages. Use multiple commits when changes are independently revertible. Group `SKSE/plugins/ironsoul.dll` with the matching `Source/Plugin` source commit when native source changes exist; propose a standalone `build(native)` commit only for an explicit DLL-only refresh. State that `COMMIT` will execute this proposal if the worktree is unchanged.
-- `DLL`: Treat the `DLL` command itself as the explicit user request to refresh the repo DLL. State that `SKSE/plugins/ironsoul.dll` will be refreshed on success, then run `_tools/build-skse-plugin.ps1 -RefreshRepoDll` without asking for another chat confirmation.
+- `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages. Use multiple commits when changes are independently revertible. Group `mod/SKSE/plugins/ironsoul.dll` with the matching `dev/projects/ironsoul/src` source commit when native source changes exist; propose a standalone `build(native)` commit only for an explicit DLL-only refresh. State that `COMMIT` will execute this proposal if the worktree is unchanged.
+- `DLL`: Treat the `DLL` command itself as the explicit user request to refresh the repo DLL. State that `mod/SKSE/plugins/ironsoul.dll` will be refreshed on success, then run `tools/build-skse-plugin.ps1 -RefreshRepoDll` without asking for another chat confirmation.
 - `IMPLEMENT`: Treat the `IMPLEMENT` command as confirmation to execute the latest `SUGGEST` proposal or the latest explicit implementation plan proposed in chat. Before editing, verify the current request, repo context, and worktree still match that proposal; if no current proposal exists, or if the context has changed enough that the proposal may be stale, run `SUGGEST` behavior and stop instead of editing. When executing, make the narrow proposed code/file changes, run the relevant verification, refresh generated artifacts when project rules require it, and report changed files and checks. Do not stage or commit unless the user separately asks.
 - `LOG`: Run `_tools/build-ironsoul-log.bat`, then summarize `_tools/ironsoul-combined.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\_tools\ironsoul-combined.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\_tools\ironsoul-combined.log"`.
 - `MSG`: Read only the currently staged files and staged diff needed to understand them, then generate a commit message in chat that follows `_docs/commit-style.md`. Do not edit files, stage, commit, inspect unstaged changes, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. If no files are staged, say so and stop.
