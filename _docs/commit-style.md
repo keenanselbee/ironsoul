@@ -1,12 +1,11 @@
-==============================
---- Iron Soul Commit Style ---
-==============================
+--- Iron Soul Commit Style ---\
+\==============================
 
 This guide documents the commit-message style already used in Iron Soul. It is Conventional Commit-inspired, but tuned for this repo's history and workflow.
 
 
 --- Subject Format ---
-======================
+----------------------
 
 Use one of these subject shapes:
 
@@ -24,7 +23,7 @@ type!: summary
 
 
 --- Commit Bodies ---
-=====================
+---------------------
 
 Use the shortest commit message that fully explains the change. A subject-only commit is correct when the subject says enough; a body is expected when the change is substantial, cross-system, risky, or hard to infer from the subject.
 
@@ -45,7 +44,7 @@ When a body is useful, prefer this shape:
 
 
 --- Core Script Grouping ---
-============================
+----------------------------
 
 Default to one commit per core Papyrus source file. Do not bundle `IronSoulController.psc`, `IronSoulConsoleCommands.psc`, or `IronSoulNative.psc` together just because they are all Papyrus.
 
@@ -59,7 +58,7 @@ Keep matching compiled `.pex` outputs with the `.psc` source commit that require
 
 
 --- Native Output Grouping ---
-==============================
+------------------------------
 
 Keep `SKSE/plugins/ironsoul.dll` with the `Source/Plugin` source commit that required the rebuild. Native output should normally travel with the source change that produced it, not as a separate build-only commit.
 
@@ -67,7 +66,7 @@ Use a standalone `build(native): update SKSE plugin binary` commit only when the
 
 
 --- Types ---
-=============
+-------------
 
 Use the type that best describes the main reason for the commit.
 
@@ -83,7 +82,7 @@ Use the type that best describes the main reason for the commit.
 
 
 --- Scopes ---
-==============
+--------------
 
 Scopes name the subsystem or asset area touched by the commit. Keep scopes lowercase and reuse existing names when they fit.
 
@@ -114,7 +113,7 @@ Leave the scope off when the change is naturally repo-wide or too small to name 
 
 
 --- Practical Guidance ---
-==========================
+--------------------------
 
 - Use lowercase `type` and `scope`.
 - Keep summaries concise, present-tense, and without a trailing period.
@@ -130,7 +129,7 @@ Leave the scope off when the change is naturally repo-wide or too small to name 
 
 
 --- Examples ---
-================
+----------------
 
 Good examples from this repository:
 

@@ -1,11 +1,10 @@
-=================
---- AGENTS.md ---
-=================
+--- AGENTS.md ---\
+\=================
 
 Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, and user-facing INI configuration.
 
 --- Command Speed Rules ---
-===========================
+---------------------------
 
 - Zero-tool commands must not inspect files, run shell commands, check git status, summarize context, or add extra explanation.
 - `help` is the only zero-tool command. Reply immediately from the command list in the Keyword Commands section.
@@ -14,7 +13,7 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 
 
 --- Working Rules ---
-=====================
+---------------------
 
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
@@ -26,7 +25,7 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 
 
 --- Shell Reliability ---
-=========================
+-------------------------
 
 - The shell may start in `C:\` even when the workspace root is provided.
 - Treat `C:\Repositories\Iron Soul` as the canonical repo root for this project.
@@ -44,7 +43,7 @@ Set-Location -LiteralPath $repo
 
 
 --- xEdit / ESP Inspection ---
-==============================
+------------------------------
 
 - xEdit lives at `G:\Modding\LoreRim\Tools\xEdit`.
 - Use `G:\Modding\LoreRim\Tools\xEdit\SSEEdit64.exe` when ESP inspection is needed.
@@ -64,7 +63,7 @@ Set-Location -LiteralPath $repo
 
 
 --- Papyrus ---
-===============
+---------------
 
 - Iron Soul Papyrus source lives in `Source/Scripts`.
 - Compiled scripts output to `Scripts`.
@@ -93,7 +92,7 @@ If SKSE imports are missing or ordered after stock sources, functions such as `G
 
 
 --- Papyrus Compile Automation ---
-==================================
+----------------------------------
 
 ```powershell
 _tools\compile-papyrus.ps1 IronSoulController.psc
@@ -102,7 +101,7 @@ _tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -R
 
 
 --- SKSE Plugin Build Automation ---
-====================================
+------------------------------------
 
 - Codex may run `_tools/build-skse-plugin.ps1` when the user explicitly requests SKSE plugin build verification or DLL refresh, or when Codex has changed `Source/Plugin` source and needs final build verification/output sync.
 - Warn exactly `WARNING: THIS WILL MODIFY THE EXTERNAL BUILD PROJECT` only before proposing or performing external build project edits outside the documented source mirror, stale source cleanup, xmake build/config output, and DLL refresh workflow. Mirroring `Source/Plugin/**/*.cpp` and `Source/Plugin/**/*.h` to the external `src` directory and building the DLL do not count for this warning.
@@ -115,7 +114,7 @@ _tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -R
 
 
 --- MO2 Overwrite INI Refresh ---
-=================================
+---------------------------------
 
 - Codex may run `_tools/refresh-overwrite-ini.ps1` when `SKSE/plugins/ironsoul.ini` changes or when the user explicitly asks to refresh the LoreRim+ Overwrite INI.
 - The script overwrites `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` from the repo INI, then forces these debug settings:
@@ -132,7 +131,7 @@ LogLevel = 3
 
 
 --- INI Configuration ---
-=========================
+-------------------------
 
 - When adding, removing, or renaming public INI keys, update `SKSE/plugins/ironsoul.ini`.
 - Also update the native allowlist in `source/plugin/config.cpp`.
@@ -141,7 +140,7 @@ LogLevel = 3
 
 
 --- Keyword Commands ---
-========================
+------------------------
 
 Codex chat messages may trigger repo-specific keyword commands.
 
@@ -189,7 +188,7 @@ Command behavior:
 
 
 --- Verification ---
-====================
+--------------------
 
 - Run the smallest relevant check for the files changed.
 - Mention any compile, build, or test step that could not be run.

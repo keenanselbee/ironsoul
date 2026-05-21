@@ -1,11 +1,10 @@
-=============================
---- Iron Soul Style Guide ---
-=============================
+--- Iron Soul Style Guide ---\
+\=============================
 
 This guide defines the naming and formatting conventions for Iron Soul. Follow the local style of the file you are editing first, then use these rules for new work or unclear cases.
 
 --- Core Style ---
-==================
+------------------
 
 - Keep changes narrow, direct, and consistent with nearby code or docs.
 - Prefer readable names over abbreviations for new systems.
@@ -15,45 +14,37 @@ This guide defines the naming and formatting conventions for Iron Soul. Follow t
 
 
 --- Header Formatting ---
-=========================
+-------------------------
 
-Use divider headers across the repo. Match the weight of the header to the scope of the section.
+Use divider headers across the repo. Match the header style to the file type and the weight of the section.
 
-Markdown major-section spacing:
+Markdown:
 
-- Document title banners stay at the top of the file with no leading blank lines.
-- The first major section after opening prose uses one blank line before the header.
-- Later major sections use exactly two blank lines before the header.
-- This applies only to real Markdown `--- Name ---` plus `====` sections outside fenced code blocks.
-- Minor sections with `----` underlines, fenced examples, and Papyrus/C++/INI comment dividers are exempt.
+- Keep Markdown prose and lists in normal Markdown instead of wrapping divider sections in `text` fences just to preserve their source layout.
+- Use one Markdown file header with the `--- Name ---` title line, a hard break, and an escaped visible `=` ruler.
+- End the Markdown file-header title line with a backslash hard break so Markdown keeps the escaped `=` ruler on the next rendered line without trailing whitespace.
+- Use the `--- Name ---` title line with a `-` Setext underline for every Markdown section after the file header.
+- The first Markdown section after opening prose uses one blank line before the header.
+- Later Markdown sections use exactly two blank lines before the header.
+- Fenced examples and Papyrus/C++/INI comment dividers are exempt from Markdown spacing rules.
 
-Document title banner:
-
-```md
-=============================
---- Iron Soul Style Guide ---
-=============================
-```
-
-Use this once at the top of major standalone docs, such as `_docs/style-guide.md`. The title line is wrapped above and below with `=` lines.
-
-Major section header:
+Markdown file header:
 
 ```md
---- Header Formatting ---
-=========================
+--- Iron Soul: Dead God's Dream ---\
+\===================================
 ```
 
-Use this for major document sections and major implementation sections.
+The file-header title line above intentionally ends with Markdown's backslash hard break, and the `=` ruler is escaped so it stays visible.
 
-Minor section header:
+Markdown section:
 
 ```md
---- Naming By Layer ---
------------------------
+--- Current TODO ---
+--------------------
 ```
 
-Use this for table-of-contents groups, minor doc sections, or second-level sections.
+Use `=` divider comments for major implementation sections outside Markdown.
 
 Adapt the comment prefix to the file type:
 
@@ -87,7 +78,7 @@ Keep short local labels simple when a full divider would add noise:
 
 
 --- Naming By Layer ---
-=======================
+-----------------------
 
 | Area | Convention | Example |
 |---|---|---|
@@ -109,7 +100,7 @@ Do not use dashes in Papyrus script names, Papyrus identifiers, quest fragment n
 
 
 --- Papyrus ---
-===============
+---------------
 
 - Use PascalCase for script names, functions, and public-facing helper names.
 - Keep script names and file names identical: `Scriptname IronSoulExample` belongs in `IronSoulExample.psc`.
@@ -130,7 +121,7 @@ IronSoul_QF_DraugnarokCapitalRaidWhiterun.psc
 
 
 --- C++ / SKSE Plugin ---
-=========================
+-------------------------
 
 - Follow the existing C++ style in the touched file.
 - Use `IronSoul::` namespaces for plugin code.
@@ -149,7 +140,7 @@ Example:
 
 
 --- INI Configuration ---
-=========================
+-------------------------
 
 - Use PascalCase for section names and keys.
 - Keep comments directly above the setting they explain.
@@ -168,9 +159,10 @@ DraugnarokSystem = 1
 
 
 --- README And Documentation ---
-================================
+--------------------------------
 
-- Keep the README's ceremonial banner and divider-header style.
+- Keep the README's ceremonial banner and Markdown file-header style.
+- Use Markdown section dividers from this guide in Markdown docs.
 - Use concise prose first, then short one-level bullet lists.
 - Keep roadmap names in Title Case: `Heart Shards`, `Return of the Dead God`, `War of the Barrows`.
 - Prefer public-facing clarity over implementation detail in README prose.
