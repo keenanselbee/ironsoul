@@ -161,6 +161,7 @@ DIFF     Show changed files and propose intelligent commit splits.
 DLL      Build and refresh SKSE/plugins/ironsoul.dll.
 IMPLEMENT Execute the latest SUGGEST implementation proposal.
 LOG      Build _tools/ironsoul-combined.log, summarize it, then open it in VS Code.
+MSG      Generate a commit message for the currently staged files.
 OINI     Open the repo INI in VS Code.
 OINI2    Open the LoreRim+ Overwrite INI in VS Code for inspection.
 RINI2    Refresh the LoreRim+ Overwrite INI from the repo INI.
@@ -178,6 +179,7 @@ Command behavior:
 - `DLL`: Treat the `DLL` command itself as the explicit user request to refresh the repo DLL. State that `SKSE/plugins/ironsoul.dll` will be refreshed on success, then run `_tools/build-skse-plugin.ps1 -RefreshRepoDll` without asking for another chat confirmation.
 - `IMPLEMENT`: Treat the `IMPLEMENT` command as confirmation to execute the latest `SUGGEST` proposal or the latest explicit implementation plan proposed in chat. Before editing, verify the current request, repo context, and worktree still match that proposal; if no current proposal exists, or if the context has changed enough that the proposal may be stale, run `SUGGEST` behavior and stop instead of editing. When executing, make the narrow proposed code/file changes, run the relevant verification, refresh generated artifacts when project rules require it, and report changed files and checks. Do not stage or commit unless the user separately asks.
 - `LOG`: Run `_tools/build-ironsoul-log.bat`, then summarize `_tools/ironsoul-combined.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\_tools\ironsoul-combined.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\_tools\ironsoul-combined.log"`.
+- `MSG`: Read only the currently staged files and staged diff needed to understand them, then generate a commit message in chat that follows `_docs/commit-style.md`. Do not edit files, stage, commit, inspect unstaged changes, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. If no files are staged, say so and stop.
 - `OINI`: Open `C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini` in VS Code. Use `code --reuse-window "C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini"`.
 - `OINI2`: Open `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` in VS Code for inspection only. Use `code --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. Do not manually edit the overwrite INI.
 - `RINI2`: Run `_tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled. Report any failure.
