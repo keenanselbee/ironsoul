@@ -199,10 +199,10 @@ String Function GenerateGuidUnique(String playerName) Global Native
 ;
 ; Behaviour:
 ; - The plugin performs an immediate file swap when these functions are called.
-; - Before replacing a live asset, the plugin writes a sibling BACKUP copy if one
-;   does not already exist. Existing BACKUP files are never overwritten.
-; - Dynamic asset modes: 0=disabled/restore BACKUP if present, 1=dynamic,
-;   2=static Iron/default source.
+; - Before replacing a live asset that is not an Iron Soul variant, the plugin writes
+;   the next numbered sibling BACKUP-N copy and avoids duplicate latest backups.
+; - Dynamic asset modes: 0=disabled/restore latest numbered BACKUP if present,
+;   1=dynamic, 2=static Iron/default source.
 ;
 ; Tier mapping:
 ;   0=Defiant, 1=Iron, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour, 9=CHIM

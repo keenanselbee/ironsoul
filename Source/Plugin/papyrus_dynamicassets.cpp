@@ -4,31 +4,40 @@
 #include "config.h"
 #include "pathutil.h"
 
+#include <array>
+#include <cstring>
+#include <fstream>
+#include <limits>
 #include <optional>
+#include <vector>
 
 namespace IronSoul::Papyrus::DynamicAssets
 {
 namespace
 {
+    static constexpr std::int32_t kDynamicAssetTiers[] = { 0, 1, 2, 3, 4, 5, 6, 9 };
+
+    using DynamicAssetVariants = std::vector<std::filesystem::path>;
+
     static std::optional<const wchar_t*> ResolveDynamicSplashTierToken(std::int32_t a_tierId)
     {
         switch (a_tierId) {
         case 0:
-            return L"0defiant";
+            return L"0-defiant";
         case 1:
-            return L"1iron";
+            return L"1-iron";
         case 2:
-            return L"2silver";
+            return L"2-silver";
         case 3:
-            return L"3gold";
+            return L"3-gold";
         case 4:
-            return L"4ebon";
+            return L"4-ebon";
         case 5:
-            return L"5platinum";
+            return L"5-platinum";
         case 6:
-            return L"6devour";
+            return L"6-devour";
         case 9:
-            return L"9chim";
+            return L"9-chim";
         default:
             return std::nullopt;
         }
@@ -50,14 +59,12 @@ namespace
             return std::nullopt;
         }
 
-        std::wstring file = L"splash";
+        std::wstring file = L"splash-";
         auto preset = NormalizeDynamicSplashPreset(a_presetId);
         if (a_tierId == 9 && preset > 1) {
             preset = 0;
         }
-        if (preset != 0) {
-            file += std::to_wstring(preset);
-        }
+        file += std::to_wstring(preset);
         file += *token;
         file += L".png";
 
@@ -68,24 +75,64 @@ namespace
     {
         switch (a_tierId) {
         case 0:
-            return L"lvlWidget0defiant.swf";
+            return L"lvlWidget-0-defiant.swf";
         case 1:
-            return L"lvlWidget1iron.swf";
+            return L"lvlWidget-1-iron.swf";
         case 2:
-            return L"lvlWidget2silver.swf";
+            return L"lvlWidget-2-silver.swf";
         case 3:
-            return L"lvlWidget3gold.swf";
+            return L"lvlWidget-3-gold.swf";
         case 4:
-            return L"lvlWidget4ebon.swf";
+            return L"lvlWidget-4-ebon.swf";
         case 5:
-            return L"lvlWidget5platinum.swf";
+            return L"lvlWidget-5-platinum.swf";
         case 6:
-            return L"lvlWidget6devour.swf";
+            return L"lvlWidget-6-devour.swf";
         case 9:
-            return L"lvlWidget9chim.swf";
+            return L"lvlWidget-9-chim.swf";
         default:
             return std::nullopt;
         }
+    }
+
+    static DynamicAssetVariants GetDynamicSplashVariants(const std::filesystem::path& a_ifaceDir)
+    {
+        DynamicAssetVariants variants;
+        for (std::int32_t preset = 0; preset <= 3; ++preset) {
+            for (const auto tier : kDynamicAssetTiers) {
+                const auto file = ResolveDynamicSplashFile(tier, preset);
+                if (file) {
+                    variants.push_back(a_ifaceDir / std::filesystem::path(*file));
+                }
+            }
+        }
+        return variants;
+    }
+
+    static DynamicAssetVariants GetDynamicLevelWidgetVariants(const std::filesystem::path& a_ifaceDir)
+    {
+        DynamicAssetVariants variants;
+        for (const auto tier : kDynamicAssetTiers) {
+            const auto file = ResolveDynamicLevelWidgetFile(tier);
+            if (file) {
+                variants.push_back(a_ifaceDir / *file);
+            }
+        }
+        return variants;
+    }
+
+    static DynamicAssetVariants GetDynamicDraugrEyeVariants(const std::filesystem::path& a_dst)
+    {
+        const std::wstring stem = a_dst.stem().wstring();
+        const std::wstring extension = a_dst.extension().wstring();
+        const auto parent = a_dst.parent_path();
+
+        return DynamicAssetVariants{
+            parent / std::filesystem::path(stem + L"ORIGINAL" + extension),
+            parent / std::filesystem::path(stem + L"BLUE" + extension),
+            parent / std::filesystem::path(stem + L"PURPLE" + extension),
+            parent / std::filesystem::path(stem + L"RED" + extension)
+        };
     }
 
     static std::int32_t NormalizeDynamicDraugrEyePreset(std::int32_t a_presetId)
@@ -120,19 +167,154 @@ namespace
         return 1;
     }
 
-    static std::filesystem::path GetBackupPath(const std::filesystem::path& a_dst)
+    struct NumberedBackup
     {
-        return a_dst.parent_path() / std::filesystem::path(a_dst.stem().wstring() + L"BACKUP" + a_dst.extension().wstring());
+        std::filesystem::path path;
+        std::int32_t index{ 0 };
+    };
+
+    static std::optional<std::int32_t> TryParseBackupIndex(const std::filesystem::path& a_path, const std::filesystem::path& a_dst)
+    {
+        const std::wstring file = a_path.filename().wstring();
+        const std::wstring prefix = a_dst.stem().wstring() + L"BACKUP-";
+        const std::wstring extension = a_dst.extension().wstring();
+
+        if (file.size() <= prefix.size() + extension.size()) {
+            return std::nullopt;
+        }
+        if (file.compare(0, prefix.size(), prefix) != 0) {
+            return std::nullopt;
+        }
+        if (file.compare(file.size() - extension.size(), extension.size(), extension) != 0) {
+            return std::nullopt;
+        }
+
+        const auto numberStart = prefix.size();
+        const auto numberEnd = file.size() - extension.size();
+        std::int32_t index = 0;
+        for (auto i = numberStart; i < numberEnd; ++i) {
+            const wchar_t ch = file[i];
+            if (ch < L'0' || ch > L'9') {
+                return std::nullopt;
+            }
+            const auto digit = static_cast<std::int32_t>(ch - L'0');
+            if (index > ((std::numeric_limits<std::int32_t>::max)() - digit) / 10) {
+                return std::nullopt;
+            }
+            index = index * 10 + digit;
+        }
+
+        if (index <= 0) {
+            return std::nullopt;
+        }
+        return index;
     }
 
-    static bool EnsureBackupBeforeReplace(const std::filesystem::path& a_dst, const char* a_context)
+    static std::optional<NumberedBackup> FindLatestNumberedBackup(const std::filesystem::path& a_dst)
     {
         namespace fs = std::filesystem;
 
-        const fs::path backup = GetBackupPath(a_dst);
-        if (fs::exists(backup)) {
-            return true;
+        const fs::path parent = a_dst.parent_path();
+        std::error_code ec;
+        if (!fs::exists(parent, ec)) {
+            return std::nullopt;
         }
+
+        std::optional<NumberedBackup> latest;
+        for (fs::directory_iterator it(parent, ec), end; !ec && it != end; it.increment(ec)) {
+            std::error_code fileEc;
+            if (!it->is_regular_file(fileEc) || fileEc) {
+                continue;
+            }
+
+            const auto index = TryParseBackupIndex(it->path(), a_dst);
+            if (index && (!latest || *index > latest->index)) {
+                latest = NumberedBackup{ it->path(), *index };
+            }
+        }
+
+        return latest;
+    }
+
+    static std::filesystem::path GetNumberedBackupPath(const std::filesystem::path& a_dst, std::int32_t a_index)
+    {
+        return a_dst.parent_path() / std::filesystem::path(a_dst.stem().wstring() + L"BACKUP-" + std::to_wstring(a_index) + a_dst.extension().wstring());
+    }
+
+    static std::optional<std::filesystem::path> GetNextNumberedBackupPath(const std::filesystem::path& a_dst)
+    {
+        const auto latest = FindLatestNumberedBackup(a_dst);
+        if (latest && latest->index == (std::numeric_limits<std::int32_t>::max)()) {
+            return std::nullopt;
+        }
+
+        const auto nextIndex = latest ? latest->index + 1 : 1;
+        return GetNumberedBackupPath(a_dst, nextIndex);
+    }
+
+    static bool FileContentsEqual(const std::filesystem::path& a_lhs, const std::filesystem::path& a_rhs)
+    {
+        namespace fs = std::filesystem;
+
+        std::error_code ec;
+        if (!fs::exists(a_lhs, ec) || ec) {
+            return false;
+        }
+        ec.clear();
+        if (!fs::exists(a_rhs, ec) || ec) {
+            return false;
+        }
+
+        ec.clear();
+        const auto lhsSize = fs::file_size(a_lhs, ec);
+        if (ec) {
+            return false;
+        }
+        ec.clear();
+        const auto rhsSize = fs::file_size(a_rhs, ec);
+        if (ec || lhsSize != rhsSize) {
+            return false;
+        }
+
+        std::ifstream lhs(a_lhs, std::ios::binary);
+        std::ifstream rhs(a_rhs, std::ios::binary);
+        if (!lhs || !rhs) {
+            return false;
+        }
+
+        std::array<char, 64 * 1024> lhsBuffer{};
+        std::array<char, 64 * 1024> rhsBuffer{};
+        while (true) {
+            lhs.read(lhsBuffer.data(), lhsBuffer.size());
+            rhs.read(rhsBuffer.data(), rhsBuffer.size());
+
+            const auto lhsRead = lhs.gcount();
+            const auto rhsRead = rhs.gcount();
+            if (lhsRead != rhsRead) {
+                return false;
+            }
+            if (lhsRead > 0 && std::memcmp(lhsBuffer.data(), rhsBuffer.data(), static_cast<std::size_t>(lhsRead)) != 0) {
+                return false;
+            }
+            if (lhsRead < static_cast<std::streamsize>(lhsBuffer.size())) {
+                return lhs.eof() && rhs.eof();
+            }
+        }
+    }
+
+    static bool FileMatchesAnyVariant(const std::filesystem::path& a_file, const DynamicAssetVariants& a_variants)
+    {
+        for (const auto& variant : a_variants) {
+            if (FileContentsEqual(a_file, variant)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static bool EnsureBackupBeforeReplace(const std::filesystem::path& a_dst, const DynamicAssetVariants& a_knownVariants, const char* a_context)
+    {
+        namespace fs = std::filesystem;
 
         if (!fs::exists(a_dst)) {
             if (InfoLoggingEnabled()) {
@@ -141,21 +323,42 @@ namespace
             return false;
         }
 
-        std::error_code ec;
-        fs::create_directories(backup.parent_path(), ec);
-        if (ec) {
-            logger::error("{}: backup directory creation failed '{}' (ec={})", a_context, backup.parent_path().string(), ec.value());
+        if (FileMatchesAnyVariant(a_dst, a_knownVariants)) {
+            if (InfoLoggingEnabled()) {
+                logger::info("{}: live file already matches a known Iron Soul variant, skipped backup: {}", a_context, a_dst.string());
+            }
+            return true;
+        }
+
+        const auto latest = FindLatestNumberedBackup(a_dst);
+        if (latest && FileContentsEqual(a_dst, latest->path)) {
+            if (InfoLoggingEnabled()) {
+                logger::info("{}: live file already matches latest numbered backup, skipped duplicate backup: {}", a_context, latest->path.string());
+            }
+            return true;
+        }
+
+        const auto backup = GetNextNumberedBackupPath(a_dst);
+        if (!backup) {
+            logger::error("{}: backup numbering exhausted for '{}'", a_context, a_dst.string());
             return false;
         }
 
-        fs::copy_file(a_dst, backup, fs::copy_options::none, ec);
+        std::error_code ec;
+        fs::create_directories(backup->parent_path(), ec);
         if (ec) {
-            logger::error("{}: backup failed '{}' -> '{}' (ec={})", a_context, a_dst.string(), backup.string(), ec.value());
+            logger::error("{}: backup directory creation failed '{}' (ec={})", a_context, backup->parent_path().string(), ec.value());
+            return false;
+        }
+
+        fs::copy_file(a_dst, *backup, fs::copy_options::none, ec);
+        if (ec) {
+            logger::error("{}: backup failed '{}' -> '{}' (ec={})", a_context, a_dst.string(), backup->string(), ec.value());
             return false;
         }
 
         if (InfoLoggingEnabled()) {
-            logger::info("{}: backed up '{}' -> '{}'", a_context, a_dst.string(), backup.string());
+            logger::info("{}: backed up '{}' -> '{}'", a_context, a_dst.string(), backup->string());
         }
         return true;
     }
@@ -198,7 +401,7 @@ namespace
         return true;
     }
 
-    static bool CopyVariantWithBackup(const std::filesystem::path& a_src, const std::filesystem::path& a_dst, const char* a_context)
+    static bool CopyVariantWithBackup(const std::filesystem::path& a_src, const std::filesystem::path& a_dst, const DynamicAssetVariants& a_knownVariants, const char* a_context)
     {
         namespace fs = std::filesystem;
 
@@ -209,7 +412,7 @@ namespace
             return false;
         }
 
-        if (!EnsureBackupBeforeReplace(a_dst, a_context)) {
+        if (!EnsureBackupBeforeReplace(a_dst, a_knownVariants, a_context)) {
             return false;
         }
 
@@ -220,15 +423,15 @@ namespace
     {
         namespace fs = std::filesystem;
 
-        const fs::path backup = GetBackupPath(a_dst);
-        if (!fs::exists(backup)) {
+        const auto backup = FindLatestNumberedBackup(a_dst);
+        if (!backup) {
             if (InfoLoggingEnabled()) {
-                logger::info("{}: backup missing, skipped restore: {}", a_context, backup.string());
+                logger::info("{}: numbered backup missing, skipped restore for: {}", a_context, a_dst.string());
             }
             return false;
         }
 
-        return CopyFileReplacing(backup, a_dst, a_context);
+        return CopyFileReplacing(backup->path, a_dst, a_context);
     }
 
     // --- Dynamic Asset Bindings ---
@@ -247,7 +450,7 @@ namespace
         try {
             namespace fs = std::filesystem;
 
-            const wchar_t* suffix = L"BACKUP";
+            const wchar_t* suffix = L"RESTORE";
             if (mode != 0) {
                 suffix = (mode == 2 || preset == 0) ? L"ORIGINAL" : ResolveDynamicDraugrEyeSuffix(preset);
             }
@@ -263,8 +466,9 @@ namespace
                 }
 
                 const fs::path src = dst.parent_path() / fs::path(dst.stem().wstring() + suffix + dst.extension().wstring());
+                const auto knownVariants = GetDynamicDraugrEyeVariants(dst);
 
-                if (CopyVariantWithBackup(src, dst, "ApplyDynamicDraugrEyes")) {
+                if (CopyVariantWithBackup(src, dst, knownVariants, "ApplyDynamicDraugrEyes")) {
                     copiedAny = true;
                     if (InfoLoggingEnabled()) {
                         logger::info("ApplyDynamicDraugrEyes: applied '{}' -> '{}'", src.string(), dst.string());
@@ -287,7 +491,7 @@ namespace
         try {
             namespace fs = std::filesystem;
 
-            std::wstring file = L"splash1iron.png";
+            std::wstring file = L"splash-01-iron.png";
             const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicSplash", 1));
             if (mode == 1) {
                 const auto resolved = ResolveDynamicSplashFile(a_tierId, a_presetId);
@@ -301,13 +505,14 @@ namespace
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
             const fs::path src = ifaceDir / fs::path(file);
             const fs::path dst = ifaceDir / L"splash.png";
+            const auto knownVariants = GetDynamicSplashVariants(ifaceDir);
 
             if (mode == 0) {
                 RestoreBackupIfPresent(dst, "ApplyDynamicSplash");
                 return;
             }
 
-            if (!CopyVariantWithBackup(src, dst, "ApplyDynamicSplash")) {
+            if (!CopyVariantWithBackup(src, dst, knownVariants, "ApplyDynamicSplash")) {
                 return;
             }
 
@@ -330,19 +535,9 @@ namespace
         if (!fs::exists(ifaceDir / L"lvlWidget.swf")) {
             return false;
         }
-        static constexpr const wchar_t* kVariants[] = {
-            L"lvlWidget0defiant.swf",
-            L"lvlWidget1iron.swf",
-            L"lvlWidget2silver.swf",
-            L"lvlWidget3gold.swf",
-            L"lvlWidget4ebon.swf",
-            L"lvlWidget5platinum.swf",
-            L"lvlWidget6devour.swf",
-            L"lvlWidget9chim.swf"
-        };
-
-        for (auto* f : kVariants) {
-            if (!fs::exists(ifaceDir / f)) {
+        const auto variants = GetDynamicLevelWidgetVariants(ifaceDir);
+        for (const auto& variant : variants) {
+            if (!fs::exists(variant)) {
                 return false;
             }
         }
@@ -355,7 +550,7 @@ namespace
             namespace fs = std::filesystem;
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
 
-            const wchar_t* file = L"lvlWidget1iron.swf";
+            const wchar_t* file = L"lvlWidget-1-iron.swf";
             const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicLevelWidget", 1));
             if (mode == 1) {
                 if (!DynamicLevelWidgetAssetsPresent()) {
@@ -372,13 +567,14 @@ namespace
 
             const fs::path src = ifaceDir / file;
             const fs::path dst = ifaceDir / L"lvlWidget.swf";
+            const auto knownVariants = GetDynamicLevelWidgetVariants(ifaceDir);
 
             if (mode == 0) {
                 RestoreBackupIfPresent(dst, "ApplyDynamicLevelWidget");
                 return;
             }
 
-            if (!CopyVariantWithBackup(src, dst, "ApplyDynamicLevelWidget")) {
+            if (!CopyVariantWithBackup(src, dst, knownVariants, "ApplyDynamicLevelWidget")) {
                 return;
             }
 
