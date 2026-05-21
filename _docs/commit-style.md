@@ -1,5 +1,5 @@
---- Iron Soul Commit Style ---\
-\==============================
+--- Iron Soul Commit Style ---
+==============================
 
 This guide documents the commit-message style already used in Iron Soul. It is Conventional Commit-inspired, but tuned for this repo's history and workflow.
 

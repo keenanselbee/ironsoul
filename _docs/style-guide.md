@@ -1,5 +1,5 @@
---- Iron Soul Style Guide ---\
-\=============================
+--- Iron Soul Style Guide ---
+=============================
 
 This guide defines the naming and formatting conventions for Iron Soul. Follow the local style of the file you are editing first, then use these rules for new work or unclear cases.
 
@@ -31,8 +31,8 @@ Markdown:
 Markdown file header:
 
 ```md
---- Iron Soul: Dead God's Dream ---\
-\===================================
+--- Iron Soul: Dead God's Dream ---
+===================================
 ```
 
 The file-header title line above intentionally ends with Markdown's backslash hard break, and the `=` ruler is escaped so it stays visible.

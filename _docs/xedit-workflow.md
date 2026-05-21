@@ -1,5 +1,5 @@
---- Iron Soul xEdit Workflow ---\
-\=================================
+--- Iron Soul xEdit Workflow ---
+================================
 
 This workflow keeps ESP/ESM/ESL inspection useful while keeping binary plugin saves under user control.
 

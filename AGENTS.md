@@ -1,5 +1,5 @@
---- AGENTS.md ---\
-\=================
+--- AGENTS.md ---
+=================
 
 Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, and user-facing INI configuration.
 
