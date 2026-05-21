@@ -9,7 +9,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repo = "C:\Repositories\Iron Soul"
+$repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$modRoot = Join-Path $repo "mod"
 $stockData = "G:\Modding\LoreRim\Mod Organizer\Stock Game\Data"
 $xeditDir = "G:\Modding\LoreRim\Tools\xEdit"
 $dumpExe = Join-Path $xeditDir "SSEDump64.exe"
@@ -54,6 +55,8 @@ function Convert-ToSafeFilePart([string]$Value) {
 function Resolve-PluginPath([string]$PluginName) {
     if ([System.IO.Path]::IsPathRooted($PluginName)) {
         $full = Get-FullPath $PluginName
+    } elseif ([string]::IsNullOrWhiteSpace((Split-Path -Parent $PluginName))) {
+        $full = Get-FullPath (Join-Path $modRoot $PluginName)
     } else {
         $full = Get-FullPath (Join-Path $repo $PluginName)
     }
@@ -68,6 +71,7 @@ function Resolve-PluginPath([string]$PluginName) {
 }
 
 Assert-DirectoryExists $repo "repo root"
+Assert-DirectoryExists $modRoot "mod root"
 Assert-DirectoryExists $stockData "xEdit stock Data path"
 Assert-FileExists $dumpExe "SSEDump64"
 Assert-PathInside $outputDir $repo "xEdit dump output directory"

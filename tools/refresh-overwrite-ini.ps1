@@ -1,12 +1,12 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [string]$SourceIni = "C:\Repositories\Iron Soul\SKSE\plugins\ironsoul.ini",
+    [string]$SourceIni,
     [string]$DestinationIni = "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"
 )
 
 $ErrorActionPreference = "Stop"
 
-$repo = "C:\Repositories\Iron Soul"
+$repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $tempRoot = Join-Path $repo ".codex-temp"
 $defaultDestinationIni = "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"
 $requiredDebugSettings = [ordered]@{
@@ -14,6 +14,10 @@ $requiredDebugSettings = [ordered]@{
     EnableLogging = "1"
     EnableLogNotifications = "1"
     LogLevel = "3"
+}
+
+if ([string]::IsNullOrWhiteSpace($SourceIni)) {
+    $SourceIni = Join-Path $repo "mod\SKSE\plugins\ironsoul.ini"
 }
 
 function Get-FullPath([string]$Path) {

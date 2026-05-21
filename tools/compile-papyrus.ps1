@@ -7,9 +7,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$repo = "C:\Repositories\Iron Soul"
-$sourceDir = Join-Path $repo "Source\Scripts"
-$compiledDir = Join-Path $repo "Scripts"
+$repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$sourceDir = Join-Path $repo "mod\source\scripts"
+$compiledDir = Join-Path $repo "mod\scripts"
 $tempDir = Join-Path $repo ".codex-temp\PapyrusCompile"
 $compiler = "G:\Modding\LoreRim\Tools\Papyrus Compiler\PapyrusCompiler.exe"
 $flags = "G:\Modding\LoreRim\Update\Stock Game\Data\Source\Scripts\TESV_Papyrus_Flags.flg"

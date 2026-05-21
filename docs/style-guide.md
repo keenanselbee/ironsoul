@@ -83,9 +83,9 @@ Keep short local labels simple when a full divider would add noise:
 | Area | Convention | Example |
 |---|---|---|
 | Special root docs | Uppercase conventional names | `README.md`, `AGENTS.md`, `LICENSE`, `CHANGELOG.md` |
-| Repo docs | lower-kebab | `_docs/style-guide.md`, `_docs/heart-shards-roadmap.md` |
-| Repo tools | lower-kebab | `_tools/compile-papyrus.ps1` |
-| Internal repo buckets | Existing underscore folders | `_docs`, `_tools`, `_assets`, `_nexus` |
+| Repo docs | lower-kebab | `docs/style-guide.md`, `docs/heart-shards-roadmap.md` |
+| Repo tools | lower-kebab | `tools/compile-papyrus.ps1` |
+| Internal repo buckets | Top-level lowercase folders | `docs`, `tools`, `assets`, `reference` |
 | Papyrus scripts | PascalCase, no dashes | `IronSoulDraugnarokMain.psc` |
 | Quest fragments | `IronSoul_QF_*` | `IronSoul_QF_DraugnarokMain.psc` |
 | EditorIDs | `IronSoul_*` | `IronSoul_Draugnarok_MainQuest` |
@@ -166,6 +166,6 @@ DraugnarokSystem = 1
 - Use concise prose first, then short one-level bullet lists.
 - Keep roadmap names in Title Case: `Heart Shards`, `Return of the Dead God`, `War of the Barrows`.
 - Prefer public-facing clarity over implementation detail in README prose.
-- Use lower-kebab filenames for additional docs under `_docs`.
+- Use lower-kebab filenames for additional docs under `docs`.
 - Avoid nested bullets unless the extra hierarchy prevents confusion.
-- Keep commit-message and commit-grouping policy in `_docs/commit-style.md`.
+- Keep commit-message and commit-grouping policy in `docs/commit-style.md`.

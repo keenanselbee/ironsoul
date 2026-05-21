@@ -30,7 +30,7 @@ Use the shortest commit message that fully explains the change. A subject-only c
 Commits often need a body when they touch:
 
 - Core Papyrus scripts such as `IronSoulController.psc`, `IronSoulConsoleCommands.psc`, `IronSoulNative.psc`, `IronSoulOnDying.psc`, `IronSoulPlayerAlias.psc`, or `_DS_DN_Draugnarok.psc`.
-- SKSE plugin source under `Source/Plugin` or `source/plugin`.
+- SKSE plugin source under `dev/projects/ironsoul/src`.
 - Persistence, INI keys, Papyrus/native contracts, death flow, tier progression, journal/data storage, or generated runtime outputs.
 
 Subject-only commits are fine for simple Papyrus or plugin fixes where the subject says enough. They are also fine for straightforward docs, asset moves, UI/audio refreshes, and narrow housekeeping. Compiled output needs source context and should not be committed by itself unless the user explicitly requests a generated-output-only repair.
@@ -50,7 +50,7 @@ Default to one commit per core Papyrus source file. Do not bundle `IronSoulContr
 
 Group a core script with another file only when the companion is part of the same change:
 
-- `IronSoulConsoleCommands.psc` may travel with `SKSE/CustomConsole/IronSoulConsoleCommands.yaml`.
+- `IronSoulConsoleCommands.psc` may travel with `mod/SKSE/customconsole/IronSoulConsoleCommands.yaml`.
 - `IronSoulNative.psc` may travel with matching SKSE plugin native bindings.
 - A new imported subsystem, such as Draugnarok, may group its related scripts together.
 
@@ -60,7 +60,7 @@ Keep matching compiled `.pex` outputs with the `.psc` source commit that require
 --- Native Output Grouping ---
 ------------------------------
 
-Keep `SKSE/plugins/ironsoul.dll` with the `Source/Plugin` source commit that required the rebuild. Native output should normally travel with the source change that produced it, not as a separate build-only commit.
+Keep `mod/SKSE/plugins/ironsoul.dll` with the `dev/projects/ironsoul/src` source commit that required the rebuild. Native output should normally travel with the source change that produced it, not as a separate build-only commit.
 
 Use a standalone `build(native): update SKSE plugin binary` commit only when the user explicitly asks for a DLL-only refresh or generated-output-only repair. If a commit only normalizes DLL path casing, use `chore(native)` and include the rebuilt DLL bytes in that same casing commit.
 
@@ -121,7 +121,7 @@ Leave the scope off when the change is naturally repo-wide or too small to name 
 - Split unrelated changes into separate commits.
 - Bundle committed Papyrus `.pex` refreshes with the `.psc` source changes that produced them.
 - Avoid `build(papyrus)` for standalone compiled-script refreshes unless the user explicitly requests an exceptional generated-output-only repair.
-- Bundle committed native DLL refreshes with the `Source/Plugin` source changes that produced them.
+- Bundle committed native DLL refreshes with the `dev/projects/ironsoul/src` source changes that produced them.
 - Avoid standalone `build(native)` commits unless the user explicitly requests a DLL-only refresh or generated-output-only repair.
 - Use `chore(plugin)` when syncing a plugin file with existing changes.
 - Use `feat(esp)` when ESP record changes add or expose new behavior.

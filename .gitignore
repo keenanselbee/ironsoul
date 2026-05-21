@@ -3,11 +3,10 @@ meta.ini
 skyrimse.ppj
 SkyrimSE.code-workspace
 .codex-temp/
-Tools/IronSoulLogGenerator/Papyrus_IronSoul.log
-SKSE/plugins/IronSoulCharacterJournal.log
-SKSE/plugins/ironsoul-character-journal.log
-_reference/
-_tools/ironsoul-combined.log
+mod/SKSE/plugins/IronSoulCharacterJournal.log
+mod/SKSE/plugins/ironsoul-character-journal.log
+reference/
+tools/ironsoul-combined.log
 
 # Local SKSE build environment. Keep only the Iron Soul plugin project slice.
 dev/**

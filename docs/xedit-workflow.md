@@ -7,13 +7,13 @@ This workflow keeps ESP/ESM/ESL inspection useful while keeping binary plugin sa
 --- Read-Only Inspection ---
 ----------------------------
 
-Use `_tools/dump-esp-records.ps1` for first-pass read-only dumps and text searches:
+Use `tools/dump-esp-records.ps1` for first-pass read-only dumps and text searches:
 
 ```powershell
-_tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp"
-_tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -StageInStockData
-_tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -Filter "IronSoul_Draugnarok"
-_tools\dump-esp-records.ps1 "Draugnarok.esp" -Filter "00012345" -StageInStockData
+tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp"
+tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -StageInStockData
+tools\dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -Filter "IronSoul_Draugnarok"
+tools\dump-esp-records.ps1 "Draugnarok.esp" -Filter "00012345" -StageInStockData
 ```
 
 The helper writes output under `.codex-temp\xedit` and must not modify plugin files.

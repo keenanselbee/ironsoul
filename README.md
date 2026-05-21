@@ -1,6 +1,6 @@
 
 <p align="center">
-  <img src="_docs/images/iron-soul-logo.png" alt="Iron Soul logo" width="100%">
+  <img src="docs/images/iron-soul-logo.png" alt="Iron Soul logo" width="100%">
 </p>
 
 --- Iron Soul: Dead God's Dream ---
