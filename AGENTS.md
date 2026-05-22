@@ -9,7 +9,7 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Zero-tool commands must not inspect files, run shell commands, check git status, summarize context, or add extra explanation.
 - `help` is the only zero-tool command. Reply immediately from the command list in the Keyword Commands section.
 - Direct-action commands should skip unrelated repo inspection, git status checks, diff reading, and planning. Execute only their defined workflow, then report the result.
-- Direct-action commands are `DLL`, `LOG`, `OINI`, `OINI2`, and `RINI2`.
+- Direct-action commands are `BACKUP`, `DLL`, `LOG`, `OINI`, `OINI2`, and `RINI2`.
 
 
 --- Working Rules ---
@@ -18,7 +18,8 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
 - Do not revert or overwrite unrelated user changes.
-- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented xEdit staged inspection and MO2 overwrite INI refresh below. External paths may otherwise be read or used as tool/import inputs only.
+- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented BACKUP command, xEdit staged inspection, and MO2 overwrite INI refresh below. External paths may otherwise be read or used as tool/import inputs only.
+- The BACKUP command may create and write only under `Z:\Backup\LoreRim\Iron Soul` outside the repo.
 - Keep temporary compile output or staging inside this repo, preferably under `.codex-temp`.
 - Treat `reference/` as read-only reference material for the original Draugnarok and Respawn Soulslike Edition. Do not edit, stage, or commit anything inside it.
 - Follow `docs/style-guide.md` for naming and formatting conventions.
@@ -156,6 +157,7 @@ Codex chat messages may trigger repo-specific keyword commands.
 
 ```text
 AUDIT   Audit the last few substantial chat changes end to end without editing.
+BACKUP  Copy the full repo contents to a numbered backup folder.
 COMMIT   Execute the latest DIFF commit proposal.
 COMPILE  Compile all Papyrus source scripts and refresh only changed repo .pex files.
 DIFF     Show changed files and propose intelligent commit splits.
@@ -174,6 +176,7 @@ XEDIT    Summarize the main plugin, or answer an XEDIT: question from a fresh ES
 Command behavior:
 
 - `AUDIT`: Run a read-only audit of the last few substantial changes made in the current chat. Do not edit files, stage, commit, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. Use the available chat context to identify the change set, then inspect relevant git status, diffs, and affected files to verify the work end to end against the user's requests. Check for behavioral regressions, missed call sites, stale docs/config, missing generated artifacts, unsafe file operations, and verification gaps. Report findings first in severity order with file/line references where possible; if no issues are found, say that clearly and list any residual risk or checks not run.
+- `BACKUP`: Treat the `BACKUP` command itself as the explicit user request to copy the full contents of `C:\Repositories\Iron Soul`, including hidden files and folders such as `.git`, to a new numbered backup folder under `Z:\Backup\LoreRim\Iron Soul`; do not ask for another chat confirmation. Create `Z:\Backup\LoreRim\Iron Soul` if it is missing. Find existing backup folders matching `Iron Soul Backup N - M-D-YYYY`, use the global highest existing `N` plus one, default to `1` when none exist, and format the command execution date as `M-D-YYYY` with no zero padding, for example `5-5-2026`. Create `Iron Soul Backup <index> - <date>`, incrementing the index again if that exact folder already exists. Copy every root item from the repo with hidden items included. Report the created backup path, or report any failure and leave any partial backup folder untouched.
 - `COMMIT`: Treat the `COMMIT` command as confirmation to execute the latest commit proposal produced by `DIFF`. Before staging, verify the worktree still matches that proposal. If no current `DIFF` proposal exists, or if the worktree changed since the proposal, run the `DIFF` behavior and stop instead of committing. When executing, stage only the proposed files for each commit, run `git diff --cached --check` before each commit, use the proposed messages, and finish with commit hashes and final status.
 - `COMPILE`: Enumerate every `.psc` file under `mod/source/scripts`, then compile all of them with `tools/compile-papyrus.ps1` to `.codex-temp\PapyrusCompile` first. Do not use `-RefreshRepoPex` for this command because that switch copies every successful target. If compilation succeeds, compare each generated `.pex` against `mod/scripts\<ScriptName>.pex` with SHA-256 hashes, then copy only missing or different repo `.pex` files. Leave existing repo `.pex` files untouched for failed scripts and report copied, unchanged, and failed scripts.
 - `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages. Use multiple commits when changes are independently revertible. Group `mod/SKSE/plugins/ironsoul.dll` with the matching `dev/projects/ironsoul/src` source commit when native source changes exist; propose a standalone `build(native)` commit only for an explicit DLL-only refresh. State that `COMMIT` will execute this proposal if the worktree is unchanged.
