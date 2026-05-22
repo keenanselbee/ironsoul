@@ -49,12 +49,12 @@ Scriptname IronSoulNative Hidden
 ; - Data is always written to:
 ;
 ;     MainData:
-;       Data\SKSE\plugins\ironsoul\characterdata.dat
+;       Data\SKSE\plugins\ironsoul-character-data.dat
 ;
 ; - When MirrorDataBackup=1, data is also written to:
 ;
 ;     MirrorData:
-;       Data\SKSE\plugins\StorageUtilData\PapyrusUtil\Runtime\MD_5729.dat
+;       Data\SKSE\plugins\ironsoul-character-mirror-data.dat
 ;
 ; - Bidirectional self-heal:
 ;   When MirrorDataBackup=1, if either MainData or MirrorData loads successfully

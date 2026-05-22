@@ -33,15 +33,10 @@ namespace IronSoul
 
     void DataStore::EnsureDirectories()
     {
-        const auto plugins = IronSoul::PathUtil::GetSksePluginsDir();
-
-        std::filesystem::create_directories(plugins / L"ironsoul");
+        std::filesystem::create_directories(MainDataPath().parent_path());
 
         if (MirrorDataBackupEnabled()) {
-            std::filesystem::create_directories(plugins / L"StorageUtilData" / L"PapyrusUtil" / L"Runtime");
-            std::filesystem::create_directories(plugins / L"StorageUtilData" / L"PapyrusUtil" / L"Helpers");
-            std::filesystem::create_directories(plugins / L"StorageUtilData" / L"PapyrusUtil" / L"Output");
-            std::filesystem::create_directories(plugins / L"StorageUtilData" / L"PapyrusUtil" / L"SharedData");
+            std::filesystem::create_directories(MirrorDataPath().parent_path());
         }
     }
 
@@ -363,6 +358,7 @@ namespace IronSoul
         const fs::path mainPath = MainDataPath();
         const bool mirrorEnabled = MirrorDataBackupEnabled();
         const fs::path mirrorPath = mirrorEnabled ? MirrorDataPath() : fs::path{};
+        std::filesystem::create_directories(mainPath.parent_path());
         if (mirrorEnabled) {
             std::filesystem::create_directories(mirrorPath.parent_path());
         }

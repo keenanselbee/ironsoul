@@ -5,6 +5,9 @@ SkyrimSE.code-workspace
 .codex-temp/
 mod/SKSE/plugins/IronSoulCharacterJournal.log
 mod/SKSE/plugins/ironsoul-character-journal.log
+mod/SKSE/plugins/ironsoul-character-data.dat.tmp
+mod/SKSE/plugins/ironsoul-character-mirror-data.dat
+mod/SKSE/plugins/ironsoul-character-mirror-data.dat.tmp
 reference/
 tools/ironsoul-combined.log
 

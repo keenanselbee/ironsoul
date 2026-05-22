@@ -7,12 +7,12 @@ namespace IronSoul::DataStoreInternal
 {
     std::filesystem::path MainDataPath()
     {
-        return IronSoul::PathUtil::GetSksePluginsDir() / L"ironsoul" / L"characterdata.dat";
+        return IronSoul::PathUtil::GetSksePluginsDir() / L"ironsoul-character-data.dat";
     }
 
     std::filesystem::path MirrorDataPath()
     {
-        return IronSoul::PathUtil::GetSksePluginsDir() / L"StorageUtilData" / L"PapyrusUtil" / L"Runtime" / L"MD_5729.dat";
+        return IronSoul::PathUtil::GetSksePluginsDir() / L"ironsoul-character-mirror-data.dat";
     }
 
     bool MirrorDataBackupEnabled()
