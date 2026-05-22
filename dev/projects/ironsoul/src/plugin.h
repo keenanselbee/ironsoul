@@ -6,6 +6,6 @@
 namespace Plugin
 {
     inline constexpr std::string_view NAME = "Iron Soul";
-    // Increment as you iterate. This is your SKSE plugin version, not the mod's.
-    inline constexpr REL::Version VERSION{ 0, 1, 2, 0 };
+    // Synced with xmake.lua by tools/build-skse-plugin.ps1 refresh builds.
+    inline constexpr REL::Version VERSION{ 1, 4, 2, 0 };
 }

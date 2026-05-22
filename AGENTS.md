@@ -108,6 +108,7 @@ tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -Re
 - The script builds the repo-local project in `dev/projects/ironsoul` with `dev/tools/xmake/xmake.exe` and uses local xmake state under `dev/.xmake`.
 - For completed SKSE plugin source changes, run `tools/build-skse-plugin.ps1 -RefreshRepoDll` by default after a successful build so `mod/SKSE/plugins/ironsoul.dll` matches the source change. Use verify-only only for WIP checks or when the user explicitly asks not to refresh the repo DLL.
 - Verify-only builds must not update `mod/SKSE/plugins/ironsoul.dll`.
+- Refresh builds increment the SKSE plugin version in `dev/projects/ironsoul/xmake.lua` and the matching runtime log version in `dev/projects/ironsoul/src/plugin.h` before compiling. Stage those version bumps with the refreshed DLL.
 - DLL refresh must copy only the successful release output from `dev/projects/ironsoul/build/windows/x64/release/IronSoul.dll` to `mod/SKSE/plugins/ironsoul.dll`.
 - Do not copy debug DLLs or any build output other than the release DLL.
 - Do not stage or commit the DLL from inside the script. When `dev/projects/ironsoul/src` source changed, stage `mod/SKSE/plugins/ironsoul.dll` with the same source commit that produced it. Use a standalone `build(native): update SKSE plugin binary` commit only for an explicitly requested DLL-only refresh or generated-output repair.
