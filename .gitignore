@@ -9,6 +9,7 @@ reference/
 tools/ironsoul-combined.log
 
 # Local SKSE build environment. Keep only the Iron Soul plugin project slice.
+# Dependencies and tools under dev/ are restored manually when native builds are needed.
 dev/**
 !dev/
 !dev/projects/
@@ -22,4 +23,3 @@ dev/projects/ironsoul/**
 !dev/projects/ironsoul/src/**
 !dev/projects/ironsoul/lib/
 dev/projects/ironsoul/lib/**
-!dev/projects/ironsoul/lib/commonlibsse-ng/
