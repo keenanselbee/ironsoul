@@ -1,7 +1,7 @@
 ﻿[heading][color=#e69138]Description[/color][/heading]
 Iron Soul is a permadeath-lite death overhaul focused on meaningful stakes, character persistence, and long-form playthroughs.
 
-It combines [b]Dragon Soul Revive[/b], [b]True Death[/b], and [b]Optional Respawn Integration[/b] with [url=https://www.nexusmods.com/skyrimspecialedition/mods/69267]Respawn - Soulslike Edition[/url], plus per-character data tracking designed to resist tampering.
+It combines [b]Dragon Soul Revive[/b], [b]Death[/b], and [b]Optional Respawn Integration[/b] with [url=https://www.nexusmods.com/skyrimspecialedition/mods/69267]Respawn - Soulslike Edition[/url], plus per-character data tracking designed to resist tampering.
 
 [b]Important:[/b] Respawn is [b]optional[/b]. Iron Soul still functions as a complete death system without it.
 
@@ -9,7 +9,7 @@ It combines [b]Dragon Soul Revive[/b], [b]True Death[/b], and [b]Optional Respaw
 [list]
 [*]Per-character death tracking and persistent identity
 [*]Dragon Soul Revive (when you have Dragon Souls available, or freely with Devour Soul)
-[*]True Death flow and tier-aware death/permadeath presentation
+[*]Death flow and tier-aware death/permadeath presentation
 [*]Tiered UI/audio presentation, logging, and persistence systems
 [/list]
 
@@ -17,14 +17,14 @@ It combines [b]Dragon Soul Revive[/b], [b]True Death[/b], and [b]Optional Respaw
 On death, Iron Soul resolves outcomes in this order:
 [list]
 [*][b]Dragon Soul Revive[/b] (highest priority): if valid, consumes 1 Dragon Soul and revives you. Devour Soul revives this way for free, even with no Dragon Souls available.
-[*][b]Luck Mode[/b] (when Optional Respawn Integration is active): roll against current Luck; success respawns, failure becomes True Death.
-[*][b]True Death[/b] fallback: records death, shows tier-appropriate death/permadeath messaging, and exits the session.
+[*][b]Luck Mode[/b] (when Optional Respawn Integration is active): roll against current Luck; success respawns, failure becomes Death.
+[*][b]Death[/b] fallback: records death, shows tier-appropriate death/permadeath messaging, and exits the session.
 [/list]
 
 [heading][color=#e69138]Optional Respawn Integration[/color][/heading]
 [list]
 [*]Respawn support is [b]optional[/b] and controlled by config + quest availability.
-[*]If Respawn integration is missing, disabled, or not running, Iron Soul [b]fails closed[/b] and routes to True Death behavior instead of partial/inconsistent respawn behavior.
+[*]If Respawn integration is missing, disabled, or not running, Iron Soul [b]fails closed[/b] and routes to Death behavior instead of partial/inconsistent respawn behavior.
 [*]When integration is active, Iron Soul uses respawn-window protections, respawn messaging, and post-respawn state recovery.
 [/list]
 
@@ -33,7 +33,7 @@ Luck is tied to [b]Optional Respawn Integration[/b].
 
 [list]
 [*]Each eligible death rolls against your current Luck value.
-[*]Luck resets on respawn and on True Death.
+[*]Luck resets on respawn and on Death.
 [*]Luck regenerates from 0 to max over [b]60 minutes real time[/b].
 [*]Menu time does not advance Luck progression.
 [/list]
