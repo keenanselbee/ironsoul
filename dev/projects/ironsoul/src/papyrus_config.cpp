@@ -13,9 +13,34 @@ namespace
         return IronSoul::Config::GetAllowedInt(a_key, a_fallback);
     }
 
-    static std::int32_t GetIronSoulPresetPlus(RE::StaticFunctionTag*)
+    static std::int32_t GetIronSoulPresetOrdinal(RE::StaticFunctionTag*)
     {
-        return IronSoul::Config::GetIronSoulPresetPlus();
+        return IronSoul::Config::GetIronSoulPresetOrdinal();
+    }
+
+    static std::string GetConfigKeyCanonical(RE::StaticFunctionTag*, std::string a_key)
+    {
+        return IronSoul::Config::GetConfigKeyCanonical(a_key);
+    }
+
+    static std::string GetConfigKeyDisplayName(RE::StaticFunctionTag*, std::string a_key)
+    {
+        return IronSoul::Config::GetConfigKeyDisplayName(a_key);
+    }
+
+    static std::int32_t GetConfigKeyFlags(RE::StaticFunctionTag*, std::string a_key)
+    {
+        return IronSoul::Config::GetConfigKeyFlags(a_key);
+    }
+
+    static std::string GetConfigSetError(RE::StaticFunctionTag*, std::string a_key, std::string a_value)
+    {
+        return IronSoul::Config::GetConfigSetError(a_key, a_value);
+    }
+
+    static std::string GetConfigSummary(RE::StaticFunctionTag*)
+    {
+        return IronSoul::Config::GetConfigSummary();
     }
 
     static bool SetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_value, bool a_persistToIni)
@@ -39,7 +64,12 @@ namespace
     void Register(RE::BSScript::IVirtualMachine* a_vm)
     {
         a_vm->RegisterFunction("GetConfigInt", kScriptName, GetConfigInt);
-        a_vm->RegisterFunction("GetIronSoulPresetPlus", kScriptName, GetIronSoulPresetPlus);
+        a_vm->RegisterFunction("GetIronSoulPresetOrdinal", kScriptName, GetIronSoulPresetOrdinal);
+        a_vm->RegisterFunction("GetConfigKeyCanonical", kScriptName, GetConfigKeyCanonical);
+        a_vm->RegisterFunction("GetConfigKeyDisplayName", kScriptName, GetConfigKeyDisplayName);
+        a_vm->RegisterFunction("GetConfigKeyFlags", kScriptName, GetConfigKeyFlags);
+        a_vm->RegisterFunction("GetConfigSetError", kScriptName, GetConfigSetError);
+        a_vm->RegisterFunction("GetConfigSummary", kScriptName, GetConfigSummary);
         a_vm->RegisterFunction("SetConfigInt", kScriptName, SetConfigInt);
         a_vm->RegisterFunction("SetConfigString", kScriptName, SetConfigString);
         a_vm->RegisterFunction("ReloadConfig", kScriptName, ReloadConfig);

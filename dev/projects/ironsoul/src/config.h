@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 namespace IronSoul::Config
@@ -18,12 +19,20 @@ namespace IronSoul::Config
 	// Gets an int value by key. Returns fallback if missing/invalid.
 	std::int32_t GetInt(std::string_view key, std::int32_t fallback = 0);
 
-	// Gets an allowlisted config-facing int value by key. Returns fallback for
-	// invalid, non-allowlisted, or missing keys.
+	// Gets an allowlisted config-facing int value by key. IronSoulPreset returns
+	// the flattened ordinal parsed from base-plus INI text.
+	// Returns fallback for invalid, non-allowlisted, or missing keys.
 	std::int32_t GetAllowedInt(std::string_view key, std::int32_t fallback = 0);
 
-	// Returns 1 when IronSoulPreset was configured with a plus suffix, otherwise 0.
-	std::int32_t GetIronSoulPresetPlus();
+	// Returns the flattened IronSoulPreset ordinal stored in the native cache.
+	std::int32_t GetIronSoulPresetOrdinal();
+
+	// Config command metadata helpers.
+	std::string GetConfigKeyCanonical(std::string_view key);
+	std::string GetConfigKeyDisplayName(std::string_view key);
+	std::int32_t GetConfigKeyFlags(std::string_view key);
+	std::string GetConfigSetError(std::string_view key, std::string_view value);
+	std::string GetConfigSummary();
 
 	// Sets an int value in the in-memory config cache.
 	// When persistToIni is true, updates an existing key=value line in ironsoul.ini.

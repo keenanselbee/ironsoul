@@ -2,7 +2,7 @@
 #include "config.h"
 #include "pathutil.h"
 #include <atomic>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -18,7 +18,115 @@ namespace IronSoul::Config
 
 	// Store case-insensitive keys (lowercased). Values are int32.
 	static std::unordered_map<std::string, std::int32_t> g_ints;
-	static std::int32_t g_ironSoulPresetPlus = 0;
+
+	static constexpr std::int32_t kConfigFlagIronSoulPreset = 1 << 0;
+	static constexpr std::int32_t kConfigFlagPresetLockedCore = 1 << 1;
+	static constexpr std::int32_t kConfigFlagDraugrThreat = 1 << 2;
+	static constexpr std::int32_t kConfigFlagLuck = 1 << 3;
+	static constexpr std::int32_t kConfigFlagUninstallMode = 1 << 4;
+	static constexpr std::int32_t kConfigFlagDraugnarokRefresh = 1 << 5;
+
+struct ConfigKeySpec
+{
+	const char* canonicalKey;
+	const char* displayName;
+	const char* sectionName;
+	std::int32_t defaultValue;
+	bool hasMin;
+	std::int32_t minValue;
+	bool hasMax;
+	std::int32_t maxValue;
+	std::int32_t flags;
+};
+
+static constexpr ConfigKeySpec kConfigKeySpecs[] = {
+	{ "ironsoulpreset", "IronSoulPreset", "Difficulty", 0, false, 0, false, 0,
+		kConfigFlagIronSoulPreset | kConfigFlagDraugnarokRefresh },
+	{ "permadeath", "Permadeath", "Difficulty", 1, true, 0, true, 1, kConfigFlagPresetLockedCore },
+	{ "deathreset", "DeathReset", "Difficulty", 1, true, 0, true, 1, kConfigFlagPresetLockedCore },
+	{ "defiantsoul", "DefiantSoul", "Difficulty", 1, true, 0, true, 1, kConfigFlagPresetLockedCore },
+	{ "draugrthreatlevel", "DraugrThreatLevel", "Difficulty", 2, true, 1, true, 5,
+		kConfigFlagDraugrThreat | kConfigFlagDraugnarokRefresh },
+	{ "lucklevel", "LuckLevel", "Difficulty", 5, true, 1, true, 5,
+		kConfigFlagPresetLockedCore | kConfigFlagLuck },
+
+	{ "characterjournal", "CharacterJournal", "General", 1, true, 0, true, 1, 0 },
+	{ "deathmessage", "DeathMessage", "General", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulanticheat", "DragonSoulAnticheat", "General", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulincreasenotification", "DragonSoulIncreaseNotification", "General", 1, true, 0, true, 1, 0 },
+	{ "ironsoulintro", "IronSoulIntro", "General", 1, true, 0, true, 1, 0 },
+	{ "loadnotificationmode", "LoadNotificationMode", "General", 1, true, 0, true, 3, 0 },
+	{ "soulbonus", "SoulBonus", "General", 1, true, 0, true, 1, 0 },
+	{ "soulfatigue", "SoulFatigue", "General", 1, true, 0, true, 1, 0 },
+	{ "soulfeats", "SoulFeats", "General", 1, true, 0, true, 1, 0 },
+
+	{ "dragonsoulrevive", "DragonSoulRevive", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulrevivelimit", "DragonSoulReviveLimit", "DragonSoulRevive", 1, true, 0, true, 3, 0 },
+	{ "dragonsoulrevivemessage", "DragonSoulReviveMessage", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulrevivetransform", "DragonSoulReviveTransform", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
+
+	{ "luckremindernotification", "LuckReminderNotification", "Respawn", 1, true, 0, true, 1, 0 },
+	{ "luckrollmessagemode", "LuckRollMessageMode", "Respawn", 1, true, 0, true, 2, 0 },
+	{ "respawn", "Respawn", "Respawn", 1, true, 0, true, 1, 0 },
+	{ "respawnmessage", "RespawnMessage", "Respawn", 1, true, 0, true, 1, 0 },
+
+	{ "draugnaroksystem", "DraugnarokSystem", "Draugnarok", 1, true, 0, true, 1,
+		kConfigFlagDraugnarokRefresh },
+	{ "draugnarokbaseintervalhours", "DraugnarokBaseIntervalHours", "Draugnarok", 8, true, 1, true, 24, 0 },
+	{ "draugnarokcooldownintervals", "DraugnarokCooldownIntervals", "Draugnarok", 3, true, 0, true, 90, 0 },
+	{ "draugnarokforcecleanupintervals", "DraugnarokForceCleanupIntervals", "Draugnarok", 6, true, 0, true, 90, 0 },
+	{ "draugnarokgatepressureintervals", "DraugnarokGatePressureIntervals", "Draugnarok", 6, true, 0, true, 90, 0 },
+	{ "draugnarokjournalmode", "DraugnarokJournalMode", "Draugnarok", 1, true, 0, true, 3, 0 },
+	{ "draugnaroklevelprogression", "DraugnarokLevelProgression", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "draugnaroknotificationmode", "DraugnarokNotificationMode", "Draugnarok", 1, true, 0, true, 4, 0 },
+	{ "draugnarokvisiblequest", "DraugnarokVisibleQuest", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "draugnarokweathermode", "DraugnarokWeatherMode", "Draugnarok", 1, true, 0, true, 4, 0 },
+	{ "raidsmall", "RaidSmall", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "raidservice", "RaidService", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "raidtown", "RaidTown", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "raidmedium", "RaidMedium", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "raidpillage", "RaidPillage", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "raidminorcapital", "RaidMinorCapital", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "raidgate", "RaidGate", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "raidcapital", "RaidCapital", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "roadencounters", "RoadEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
+	{ "wildernessencounters", "WildernessEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
+
+	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "mirrordatabackup", "MirrorDataBackup", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "cursorhide", "CursorHide", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "dynamicdraugreyes", "DynamicDraugrEyes", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "dynamiclevelwidget", "DynamicLevelWidget", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "dynamicsplash", "DynamicSplash", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "musicfade", "MusicFade", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "slowmoondeath", "SlowMoOnDeath", "Plugin", 1, true, 0, true, 1, 0 },
+
+	{ "musicvolumeoverride", "MusicVolumeOverride", "Sound", -1, true, -1, true, 1, 0 },
+	{ "sfx", "SFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "slowmosfx", "SlowMoSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "ironintrosfx", "IronIntroSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "deathsfx", "DeathSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "permadeathsfx", "PermadeathSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "respawnsfx", "RespawnSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "defianttransitionsfx", "DefiantTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "chimtransitionsfx", "CHIMTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "defiantresetsfx", "DefiantResetSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "heartstoneabsorbsfx", "HeartstoneAbsorbSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulrevivecastsfx", "DragonSoulReviveCastSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulrevivesfx", "DragonSoulReviveSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "featunlocksfx", "FeatUnlockSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "luckrollsfx", "LuckRollSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "luckoutcomesfx", "LuckOutcomeSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "respawnheavybreathingsfx", "RespawnHeavyBreathingSFX", "Sound", 1, true, 0, true, 1, 0 },
+
+	{ "enablecharactersheetcompatibility", "EnableCharacterSheetCompatibility", "Experimental", 0, true, 0, true, 1, 0 },
+
+	{ "enabledebug", "EnableDebug", "Debug", 0, true, 0, true, 1, 0 },
+	{ "enablelogging", "EnableLogging", "Debug", 0, true, 0, true, 1, 0 },
+	{ "enablelognotifications", "EnableLogNotifications", "Debug", 0, true, 0, true, 1, 0 },
+	{ "loglevel", "LogLevel", "Debug", 2, true, 1, true, 3, 0 },
+	{ "uninstallmode", "UninstallMode", "Debug", 0, true, 0, true, 1, kConfigFlagUninstallMode },
+};
 
 	static bool IsInfoLoggingEnabledLocked()
 	{
@@ -195,9 +303,59 @@ namespace IronSoul::Config
 	struct ParsedConfigValue
 	{
 		std::int32_t value = 0;
-		std::int32_t ironSoulPresetPlus = 0;
 		std::string canonicalText;
 	};
+
+	static std::int32_t PresetOrdinalFromFamilyAndPlus(std::int32_t presetFamily, std::int32_t plusCount)
+	{
+		if (presetFamily <= 0) {
+			return 0;
+		}
+		return ((presetFamily - 1) * 4) + 1 + plusCount;
+	}
+
+	static bool IsImplementedPresetOrdinal(std::int32_t presetOrdinal)
+	{
+		return presetOrdinal == 0 ||
+			(presetOrdinal >= 1 && presetOrdinal <= 3) ||
+			(presetOrdinal >= 5 && presetOrdinal <= 7) ||
+			(presetOrdinal >= 9 && presetOrdinal <= 11);
+	}
+
+	static std::int32_t NormalizePresetOrdinal(std::int32_t presetOrdinal)
+	{
+		return IsImplementedPresetOrdinal(presetOrdinal) ? presetOrdinal : 0;
+	}
+
+	static std::int32_t PresetFamilyFromOrdinal(std::int32_t presetOrdinal)
+	{
+		presetOrdinal = NormalizePresetOrdinal(presetOrdinal);
+		if (presetOrdinal >= 1 && presetOrdinal <= 3) {
+			return 1;
+		}
+		if (presetOrdinal >= 5 && presetOrdinal <= 7) {
+			return 2;
+		}
+		if (presetOrdinal >= 9 && presetOrdinal <= 11) {
+			return 3;
+		}
+		return 0;
+	}
+
+	static std::int32_t PresetPlusFromOrdinal(std::int32_t presetOrdinal)
+	{
+		presetOrdinal = NormalizePresetOrdinal(presetOrdinal);
+		if (presetOrdinal >= 1 && presetOrdinal <= 3) {
+			return presetOrdinal - 1;
+		}
+		if (presetOrdinal >= 5 && presetOrdinal <= 7) {
+			return presetOrdinal - 5;
+		}
+		if (presetOrdinal >= 9 && presetOrdinal <= 11) {
+			return presetOrdinal - 9;
+		}
+		return 0;
+	}
 
 	static std::optional<ParsedConfigValue> ParseIronSoulPresetValue(std::string_view s)
 	{
@@ -224,10 +382,9 @@ namespace IronSoul::Config
 		}
 
 		ParsedConfigValue out;
-		out.value = *parsed;
-		out.ironSoulPresetPlus = plusCount;
-		out.canonicalText = std::to_string(out.value);
-		out.canonicalText.append(static_cast<std::size_t>(out.ironSoulPresetPlus), '+');
+		out.value = PresetOrdinalFromFamilyAndPlus(*parsed, plusCount);
+		out.canonicalText = std::to_string(*parsed);
+		out.canonicalText.append(static_cast<std::size_t>(plusCount), '+');
 		return out;
 	}
 
@@ -296,113 +453,317 @@ namespace IronSoul::Config
 		return true;
 	}
 
-	// --- Allowlist and Canonical Keys ---
-	// ====================================
+	// --- Config Metadata ---
+	// =======================
 
-	static const std::unordered_set<std::string>& AllowedConfigKeys()
+	static const ConfigKeySpec* FindConfigKeySpecByCanonical(std::string_view canonicalKey)
 	{
-		static const std::unordered_set<std::string> kAllowed = {
-			"enablelogging",
-			"loglevel",
-			"enablelognotifications",
-			"draugrthreatlevel",
-			"draugnaroksystem",
-			"draugnarokbaseintervalhours",
-			"draugnarokcooldownintervals",
-			"draugnarokforcecleanupintervals",
-			"draugnarokgatepressureintervals",
-			"draugnarokjournalmode",
-			"draugnaroklevelprogression",
-			"draugnaroknotificationmode",
-			"draugnarokvisiblequest",
-			"draugnarokweathermode",
-			"raidsmall",
-			"raidservice",
-			"raidtown",
-			"raidmedium",
-			"raidpillage",
-			"raidminorcapital",
-			"raidgate",
-			"raidcapital",
-			"roadencounters",
-			"wildernessencounters",
-			"deathmessage",
-			"dragonsoulrevive",
-			"dragonsoulrevivetransform",
-			"dragonsoulrevivemessage",
-			"dragonsoulrevivelimit",
-			"dynamicdraugreyes",
-			"dynamicsplash",
-			"dynamiclevelwidget",
-			"characterjournal",
-			"ironsoulintro",
-			"lucklevel",
-			"luckremindernotification",
-			"sfx",
-			"musicfade",
-			"musicvolumeoverride",
-			"cosaverecoverybackup",
-			"mirrordatabackup",
-			"cursorhide",
-			"slowmoondeath",
-			"slowmosfx",
-			"ironintrosfx",
-			"deathsfx",
-			"permadeathsfx",
-			"respawnsfx",
-			"defianttransitionsfx",
-			"chimtransitionsfx",
-			"defiantresetsfx",
-			"deathspurgedsfx",
-			"dragonsoulrevivecastsfx",
-			"dragonsoulrevivesfx",
-			"featunlocksfx",
-			"luckrollsfx",
-			"luckoutcomesfx",
-			"respawnheavybreathingsfx",
-			"respawn",
-			"respawnmessage",
-			"loadnotificationmode",
-			"luckrollmessagemode",
-			"uninstallmode",
-			"deathreset",
-			"defiantsoul",
-			"soulfeats",
-			"soulbonus",
-			"soulfatigue",
-			"dragonsoulanticheat",
-			"dragonsoulincreasenotification",
-			"ironsoulpreset",
-			"permadeath",
-			"enabledebug",
-			"enablecharactersheetcompatibility"
-		};
-		return kAllowed;
+		for (const ConfigKeySpec& spec : kConfigKeySpecs) {
+			if (spec.canonicalKey == canonicalKey) {
+				return &spec;
+			}
+		}
+		return nullptr;
 	}
 
-	static std::optional<std::string> CanonicalizeAllowedKey(std::string_view key)
+	static const ConfigKeySpec* FindConfigKeySpec(std::string_view key)
 	{
 		std::string keyLower = ToLowerCopy(key);
 		TrimInPlace(keyLower);
 		if (!IsValidConfigKey(keyLower)) {
-			return std::nullopt;
+			return nullptr;
 		}
 
-		const auto& allowed = AllowedConfigKeys();
-		if (allowed.find(keyLower) != allowed.end()) {
-			return keyLower;
+		if (const ConfigKeySpec* spec = FindConfigKeySpecByCanonical(keyLower)) {
+			return spec;
 		}
 
 		// Permit "section.key" forms by canonicalizing to "key".
 		const std::size_t dot = keyLower.rfind('.');
 		if (dot != std::string::npos && dot + 1 < keyLower.size()) {
-			std::string shortKey = keyLower.substr(dot + 1);
-			if (allowed.find(shortKey) != allowed.end()) {
-				return shortKey;
+			return FindConfigKeySpecByCanonical(std::string_view(keyLower).substr(dot + 1));
+		}
+
+		return nullptr;
+	}
+
+	static std::optional<std::string> CanonicalizeAllowedKey(std::string_view key)
+	{
+		if (const ConfigKeySpec* spec = FindConfigKeySpec(key)) {
+			return std::string(spec->canonicalKey);
+		}
+		return std::nullopt;
+	}
+
+	static bool HasConfigFlag(const ConfigKeySpec& spec, std::int32_t flag)
+	{
+		return (spec.flags & flag) != 0;
+	}
+
+	static std::int32_t ClampInt(std::int32_t value, std::int32_t minValue, std::int32_t maxValue)
+	{
+		if (value < minValue) {
+			return minValue;
+		}
+		if (value > maxValue) {
+			return maxValue;
+		}
+		return value;
+	}
+
+	static std::int32_t NormalizePreset(std::int32_t presetOrdinal)
+	{
+		return NormalizePresetOrdinal(presetOrdinal);
+	}
+
+	static std::int32_t NormalizeBool(std::int32_t value, std::int32_t fallback)
+	{
+		if (value == 0 || value == 1) {
+			return value;
+		}
+		return fallback;
+	}
+
+	static std::int32_t GetConfigValueLocked(std::string_view canonicalKey, std::int32_t defaultValue)
+	{
+		auto it = g_ints.find(std::string(canonicalKey));
+		if (it == g_ints.end()) {
+			return defaultValue;
+		}
+		return it->second;
+	}
+
+	static std::string PresetPlusTextLocked(std::int32_t presetOrdinal)
+	{
+		const std::int32_t plusCount = PresetPlusFromOrdinal(presetOrdinal);
+		if (plusCount <= 0) {
+			return "";
+		}
+		if (plusCount == 1) {
+			return "+";
+		}
+		return "++";
+	}
+
+	static std::string DifficultyLabelLocked(std::int32_t presetOrdinal)
+	{
+		presetOrdinal = NormalizePreset(presetOrdinal);
+		switch (PresetFamilyFromOrdinal(presetOrdinal)) {
+		case 1:
+			return "Dreamer" + PresetPlusTextLocked(presetOrdinal);
+		case 2:
+			return "Harbinger" + PresetPlusTextLocked(presetOrdinal);
+		case 3:
+			return "Apocalypse" + PresetPlusTextLocked(presetOrdinal);
+		default:
+			return "Custom";
+		}
+	}
+
+	static std::string PresetConfigTextLocked(std::int32_t presetOrdinal)
+	{
+		presetOrdinal = NormalizePreset(presetOrdinal);
+		const std::int32_t presetFamily = PresetFamilyFromOrdinal(presetOrdinal);
+		std::string text = std::to_string(presetFamily);
+		if (presetFamily != 0) {
+			text += PresetPlusTextLocked(presetOrdinal);
+		}
+		return text;
+	}
+
+	static std::int32_t GetEffectivePermadeathLocked(std::int32_t presetOrdinal)
+	{
+		switch (PresetFamilyFromOrdinal(presetOrdinal)) {
+		case 1:
+			return 0;
+		case 2:
+		case 3:
+			return 1;
+		default:
+			return NormalizeBool(GetConfigValueLocked("permadeath", 1), 1);
+		}
+	}
+
+	static std::int32_t GetEffectiveDeathResetLocked(std::int32_t presetOrdinal)
+	{
+		switch (PresetFamilyFromOrdinal(presetOrdinal)) {
+		case 1:
+		case 2:
+			return 1;
+		case 3:
+			return 0;
+		default:
+			return NormalizeBool(GetConfigValueLocked("deathreset", 1), 1);
+		}
+	}
+
+	static std::int32_t GetEffectiveDefiantSoulLocked(std::int32_t presetOrdinal)
+	{
+		switch (PresetFamilyFromOrdinal(presetOrdinal)) {
+		case 1:
+		case 2:
+			return 1;
+		case 3:
+			return 0;
+		default:
+			return NormalizeBool(GetConfigValueLocked("defiantsoul", 1), 1);
+		}
+	}
+
+	static std::int32_t GetEffectiveDraugrThreatLevelLocked(std::int32_t presetOrdinal)
+	{
+		std::int32_t threatLevel = 1;
+		const std::int32_t presetFamily = PresetFamilyFromOrdinal(presetOrdinal);
+		switch (presetFamily) {
+		case 1:
+			threatLevel = 2;
+			break;
+		case 2:
+			threatLevel = 3;
+			break;
+		case 3:
+			threatLevel = 4;
+			break;
+		default:
+			threatLevel = ClampInt(GetConfigValueLocked("draugrthreatlevel", 2), 1, 5);
+			break;
+		}
+
+		if (presetFamily != 0 && PresetPlusFromOrdinal(presetOrdinal) >= 1 &&
+			NormalizeBool(GetConfigValueLocked("draugnaroksystem", 1), 1) != 0) {
+			threatLevel += 1;
+		}
+
+		return ClampInt(threatLevel, 1, 5);
+	}
+
+	static std::int32_t GetEffectiveLuckLevelLocked(std::int32_t presetOrdinal)
+	{
+		std::int32_t luckLevel = 5;
+		const std::int32_t presetFamily = PresetFamilyFromOrdinal(presetOrdinal);
+		switch (presetFamily) {
+		case 1:
+			luckLevel = 4;
+			break;
+		case 2:
+			luckLevel = 3;
+			break;
+		case 3:
+			luckLevel = 2;
+			break;
+		default:
+			luckLevel = ClampInt(GetConfigValueLocked("lucklevel", 5), 1, 5);
+			break;
+		}
+
+		if (presetFamily != 0 && PresetPlusFromOrdinal(presetOrdinal) >= 2) {
+			luckLevel -= 1;
+		}
+
+		return ClampInt(luckLevel, 1, 5);
+	}
+
+	static std::string BuildRangeError(const ConfigKeySpec& spec)
+	{
+		if (spec.hasMin && spec.hasMax) {
+			if (spec.minValue == 0 && spec.maxValue == 1) {
+				return std::string("Error: ") + spec.displayName + " must be 0 or 1.";
+			}
+			if (spec.minValue == 1 && spec.maxValue == 5) {
+				return std::string("Error: ") + spec.displayName + " must be 1, 2, 3, 4, or 5.";
+			}
+			if (spec.minValue == -1 && spec.maxValue == 1) {
+				return std::string("Error: ") + spec.displayName + " must be -1, 0, or 1.";
+			}
+			return std::string("Error: ") + spec.displayName + " must be between " +
+				std::to_string(spec.minValue) + " and " + std::to_string(spec.maxValue) + ".";
+		}
+		if (spec.hasMin) {
+			return std::string("Error: ") + spec.displayName + " must be at least " +
+				std::to_string(spec.minValue) + ".";
+		}
+		return std::string("Error: ") + spec.displayName + " must be no greater than " +
+			std::to_string(spec.maxValue) + ".";
+	}
+
+	static std::string ValidateParsedConfigValueLocked(const ConfigKeySpec& spec, std::int32_t value)
+	{
+		if ((spec.hasMin && value < spec.minValue) || (spec.hasMax && value > spec.maxValue)) {
+			return BuildRangeError(spec);
+		}
+		return "";
+	}
+
+	static std::string ValidateConfigSetErrorLocked(std::string_view key, std::string_view valueText)
+	{
+		std::string keyText(key);
+		TrimInPlace(keyText);
+		if (keyText.empty()) {
+			return "Error: config key cannot be empty.";
+		}
+		if (!IsValidConfigKey(keyText)) {
+			return std::string("Error: invalid INI key '") + EscapeForLog(keyText) + "'.";
+		}
+
+		const ConfigKeySpec* spec = FindConfigKeySpec(keyText);
+		if (!spec) {
+			return std::string("Error: unknown INI key '") + EscapeForLog(keyText) + "'.";
+		}
+
+		auto parsed = ParseConfigValueForKey(spec->canonicalKey, valueText);
+		if (!parsed.has_value()) {
+			if (HasConfigFlag(*spec, kConfigFlagIronSoulPreset)) {
+				return "Error: IronSoulPreset must be 0, 1, 1+, 1++, 2, 2+, 2++, 3, 3+, or 3++.";
+			}
+			return std::string("Error: INI key '") + spec->displayName + "' requires an integer value.";
+		}
+
+		if (HasConfigFlag(*spec, kConfigFlagPresetLockedCore) || HasConfigFlag(*spec, kConfigFlagDraugrThreat)) {
+			const std::int32_t currentPreset = NormalizePreset(GetConfigValueLocked("ironsoulpreset", 0));
+			if (currentPreset != 0) {
+				return std::string("Error: IronSoulPreset must be 0 (Override) before setting ") +
+					spec->displayName + ". Current preset is " + DifficultyLabelLocked(currentPreset) + ".";
 			}
 		}
 
-		return std::nullopt;
+		return ValidateParsedConfigValueLocked(*spec, parsed->value);
+	}
+
+	static void AppendConfigSummarySection(std::string& result, std::string_view sectionName)
+	{
+		bool wroteHeader = false;
+		int valuesOnLine = 0;
+
+		for (const ConfigKeySpec& spec : kConfigKeySpecs) {
+			if (std::string_view(spec.sectionName) != sectionName) {
+				continue;
+			}
+
+			if (!wroteHeader) {
+				result += "[";
+				result.append(sectionName.data(), sectionName.size());
+				result += "]\n";
+				wroteHeader = true;
+			}
+
+			if (valuesOnLine > 0) {
+				result += ", ";
+			}
+
+			result += spec.displayName;
+			result += "=";
+			result += std::to_string(GetConfigValueLocked(spec.canonicalKey, spec.defaultValue));
+
+			++valuesOnLine;
+			if (valuesOnLine >= 5) {
+				result += "\n";
+				valuesOnLine = 0;
+			}
+		}
+
+		if (wroteHeader && valuesOnLine != 0) {
+			result += "\n";
+		}
 	}
 
 	int GetAllowedInt(std::string_view key, int defaultValue)
@@ -414,18 +775,78 @@ namespace IronSoul::Config
 			return defaultValue;
 		}
 
-		auto it = g_ints.find(*canonicalKey);
-		if (it == g_ints.end()) {
-			return defaultValue;
-		}
-
-		return static_cast<int>(it->second);
+		return static_cast<int>(GetConfigValueLocked(*canonicalKey, defaultValue));
 	}
 
-	std::int32_t GetIronSoulPresetPlus()
+	std::int32_t GetIronSoulPresetOrdinal()
 	{
 		std::lock_guard lock(g_mutex);
-		return g_ironSoulPresetPlus;
+		return NormalizePreset(GetConfigValueLocked("ironsoulpreset", 0));
+	}
+
+	std::string GetConfigKeyCanonical(std::string_view key)
+	{
+		std::lock_guard lock(g_mutex);
+		if (const ConfigKeySpec* spec = FindConfigKeySpec(key)) {
+			return spec->canonicalKey;
+		}
+		return "";
+	}
+
+	std::string GetConfigKeyDisplayName(std::string_view key)
+	{
+		std::lock_guard lock(g_mutex);
+		if (const ConfigKeySpec* spec = FindConfigKeySpec(key)) {
+			return spec->displayName;
+		}
+		return "";
+	}
+
+	std::int32_t GetConfigKeyFlags(std::string_view key)
+	{
+		std::lock_guard lock(g_mutex);
+		if (const ConfigKeySpec* spec = FindConfigKeySpec(key)) {
+			return spec->flags;
+		}
+		return 0;
+	}
+
+	std::string GetConfigSetError(std::string_view key, std::string_view value)
+	{
+		std::lock_guard lock(g_mutex);
+		return ValidateConfigSetErrorLocked(key, value);
+	}
+
+	std::string GetConfigSummary()
+	{
+		std::lock_guard lock(g_mutex);
+
+		const std::int32_t preset = NormalizePreset(GetConfigValueLocked("ironsoulpreset", 0));
+
+		std::string result;
+		result.reserve(2048);
+		result += "[Difficulty]\n";
+		result += "IronSoulPreset=" + PresetConfigTextLocked(preset);
+		result += ", Permadeath=" + std::to_string(GetEffectivePermadeathLocked(preset));
+		result += ", DeathReset=" + std::to_string(GetEffectiveDeathResetLocked(preset));
+		result += ", DefiantSoul=" + std::to_string(GetEffectiveDefiantSoulLocked(preset));
+		result += ", DraugrThreatLevel=" + std::to_string(GetEffectiveDraugrThreatLevelLocked(preset));
+		result += "\nLuckLevel=" + std::to_string(GetEffectiveLuckLevelLocked(preset));
+		result += "\n";
+
+		AppendConfigSummarySection(result, "General");
+		AppendConfigSummarySection(result, "DragonSoulRevive");
+		AppendConfigSummarySection(result, "Respawn");
+		AppendConfigSummarySection(result, "Draugnarok");
+		AppendConfigSummarySection(result, "Plugin");
+		AppendConfigSummarySection(result, "Sound");
+		AppendConfigSummarySection(result, "Experimental");
+		AppendConfigSummarySection(result, "Debug");
+
+		if (!result.empty() && result.back() == '\n') {
+			result.pop_back();
+		}
+		return result;
 	}
 
 	// --- INI Updates ---
@@ -440,9 +861,6 @@ namespace IronSoul::Config
 				k[k.size() - keyLower.size() - 1] == '.') {
 				v = parsed.value;
 			}
-		}
-		if (keyLower == "ironsoulpreset") {
-			g_ironSoulPresetPlus = parsed.ironSoulPresetPlus;
 		}
 	}
 
@@ -478,6 +896,9 @@ namespace IronSoul::Config
 					TrimInPlace(keyPart);
 					if (!keyPart.empty()) {
 						std::string keyLower = ToLowerCopy(keyPart);
+						if (const ConfigKeySpec* spec = FindConfigKeySpec(keyLower)) {
+							keyLower = spec->canonicalKey;
+						}
 						if (keyLower == targetKeyLower) {
 							std::string valuePart = line.substr(eq + 1);
 							std::string commentPart;
@@ -570,19 +991,19 @@ namespace IronSoul::Config
 
 		std::string keyText(key);
 		TrimInPlace(keyText);
-		if (!IsValidConfigKey(keyText)) {
-			logger::warn("Iron Soul: SetInt rejected invalid config key '{}'", EscapeForLog(keyText));
+		const std::string valueText = std::to_string(value);
+		const std::string validationError = ValidateConfigSetErrorLocked(keyText, valueText);
+		if (!validationError.empty()) {
+			logger::warn("Iron Soul: SetInt rejected config update '{}={}' ({})",
+				EscapeForLog(keyText),
+				value,
+				validationError);
 			return false;
 		}
 
-		auto canonicalKey = CanonicalizeAllowedKey(keyText);
-		if (!canonicalKey.has_value()) {
-			logger::warn("Iron Soul: SetInt rejected non-allowlisted config key '{}'", EscapeForLog(keyText));
-			return false;
-		}
-
-		const std::string keyLower = *canonicalKey;
-		auto parsed = ParseConfigValueForKey(keyLower, std::to_string(value));
+		const ConfigKeySpec* spec = FindConfigKeySpec(keyText);
+		const std::string keyLower = spec ? spec->canonicalKey : "";
+		auto parsed = ParseConfigValueForKey(keyLower, valueText);
 		if (!parsed.has_value()) {
 			logger::warn("Iron Soul: SetInt rejected invalid config value for key '{}' (value={})", EscapeForLog(keyText), value);
 			return false;
@@ -616,18 +1037,19 @@ namespace IronSoul::Config
 
 		std::string keyText(key);
 		TrimInPlace(keyText);
-		if (!IsValidConfigKey(keyText)) {
-			logger::warn("Iron Soul: SetString rejected invalid config key '{}'", EscapeForLog(keyText));
+		const std::string validationError = ValidateConfigSetErrorLocked(keyText, value);
+		if (!validationError.empty()) {
+			logger::warn(
+				"Iron Soul: SetString rejected config update '{}={}' ({})",
+				EscapeForLog(keyText),
+				EscapeForLog(value),
+				validationError
+			);
 			return false;
 		}
 
-		auto canonicalKey = CanonicalizeAllowedKey(keyText);
-		if (!canonicalKey.has_value()) {
-			logger::warn("Iron Soul: SetString rejected non-allowlisted config key '{}'", EscapeForLog(keyText));
-			return false;
-		}
-
-		const std::string keyLower = *canonicalKey;
+		const ConfigKeySpec* spec = FindConfigKeySpec(keyText);
+		const std::string keyLower = spec ? spec->canonicalKey : "";
 		auto parsed = ParseConfigValueForKey(keyLower, value);
 		if (!parsed.has_value()) {
 			logger::warn(
@@ -667,7 +1089,6 @@ namespace IronSoul::Config
 	{
 		std::lock_guard lock(g_mutex);
 		g_ints.clear();
-		g_ironSoulPresetPlus = 0;
 		RefreshInfoLoggingCacheLocked();
 
 		const fs::path iniPath = GetIniPath();
@@ -739,6 +1160,9 @@ namespace IronSoul::Config
 			UnquoteIfWrapped(val);
 
 			std::string keyLower = ToLowerCopy(key);
+			if (const ConfigKeySpec* spec = FindConfigKeySpec(keyLower)) {
+				keyLower = spec->canonicalKey;
+			}
 
 			auto parsed = ParseConfigValueForKey(keyLower, val);
 			if (!parsed.has_value()) {
@@ -748,6 +1172,19 @@ namespace IronSoul::Config
 					EscapeForLog(val)
 				);
 				continue;
+			}
+
+			if (const ConfigKeySpec* spec = FindConfigKeySpecByCanonical(keyLower)) {
+				const std::string validationError = ValidateParsedConfigValueLocked(*spec, parsed->value);
+				if (!validationError.empty()) {
+					logger::warn(
+						"Iron Soul: invalid config value for key '{}' in ironsoul.ini (raw='{}'): {}",
+						key,
+						EscapeForLog(val),
+						validationError
+					);
+					continue;
+				}
 			}
 
 			++settingsParsed;
@@ -775,9 +1212,6 @@ namespace IronSoul::Config
 						);
 						it->second = parsed->value;
 					}
-				}
-				if (keyLower == "ironsoulpreset") {
-					g_ironSoulPresetPlus = parsed->ironSoulPresetPlus;
 				}
 			}
 

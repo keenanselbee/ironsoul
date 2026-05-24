@@ -19,25 +19,21 @@ namespace
         }
 
         std::string difficultyLabel;
-        const auto preset = IronSoul::Config::GetAllowedInt("IronSoulPreset", 0);
-        if (preset >= 1 && preset <= 3) {
-            if (preset == 1) {
-                difficultyLabel = "[D]";
-            } else if (preset == 2) {
-                difficultyLabel = "[H]";
-            } else {
-                difficultyLabel = "[A]";
-            }
+        const auto presetOrdinal = IronSoul::Config::GetIronSoulPresetOrdinal();
+        auto plusCount = 0;
+        if (presetOrdinal >= 1 && presetOrdinal <= 3) {
+            difficultyLabel = "[D]";
+            plusCount = presetOrdinal - 1;
+        } else if (presetOrdinal >= 5 && presetOrdinal <= 7) {
+            difficultyLabel = "[H]";
+            plusCount = presetOrdinal - 5;
+        } else if (presetOrdinal >= 9 && presetOrdinal <= 11) {
+            difficultyLabel = "[A]";
+            plusCount = presetOrdinal - 9;
+        }
 
-            auto plusCount = IronSoul::Config::GetIronSoulPresetPlus();
-            if (plusCount < 0) {
-                plusCount = 0;
-            } else if (plusCount > 2) {
-                plusCount = 2;
-            }
-            if (plusCount > 0) {
-                difficultyLabel.insert(difficultyLabel.size() - 1, static_cast<std::size_t>(plusCount), '+');
-            }
+        if (!difficultyLabel.empty() && plusCount > 0) {
+            difficultyLabel.insert(difficultyLabel.size() - 1, static_cast<std::size_t>(plusCount), '+');
         }
 
         std::string prefix = name;
