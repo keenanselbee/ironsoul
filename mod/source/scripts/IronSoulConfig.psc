@@ -1,25 +1,638 @@
-Scriptname IronSoulConfig Hidden
+Scriptname IronSoulConfig extends Quest
+
+; --- Optional INI Settings ---
+; =============================
+
+; Central list of hidden optional INI settings. These settings may be omitted
+; from the shipped INI when their default value is the desired public behavior.
+; Add any key below to ironsoul.ini under the listed section to override it.
+;
+; [Sound] 
+; CHIMTransitionSFX = 1
+; DeathSFX = 1
+; DefiantResetSFX = 1
+; DragonSoulReviveCastSFX = 1
+; DragonSoulReviveSFX = 1
+; FeatUnlockSFX = 1
+; HeartstoneAbsorbSFX = 1
+; IronIntroSFX = 1
+; LuckOutcomeSFX = 1
+; LuckRollSFX = 1
+; PermadeathSFX = 1
+; RespawnSFX = 1
+; RespawnHeavyBreathingSFX = 1
+; SlowMoSFX = 1
 
 ; =========================
 ; --- Table of Contents ---
 ; =========================
+
+; --- Config Loading & Preset Assets ---
+; --------------------------------------
+; ResetDefaults()
+; ApplyPresetCoreSettings()
+; LoadFromIni()
+; ApplyDynamicSplashForTier()
+; ApplyDynamicDraugrEyesForPreset()
+; ApplyDynamicPresetAssetsForTier()
+
+; --- Loaded Config Queries ---
+; -----------------------------
+; IsLoggingEnabled()
+; GetLogLevel()
+; GetLogNotificationMode()
+; IsRespawnEnabled()
+; IsRespawnMessageEnabled()
+; IsDeathMessageEnabled()
+; IsDragonSoulReviveEnabled()
+; IsDragonSoulReviveTransformEnabled()
+; GetDragonSoulReviveLimit()
+; IsDragonSoulReviveMessageEnabled()
+; IsDragonSoulIncreaseNotificationEnabled()
+; IsCharacterJournalEnabled()
+; GetLuckLevel()
+; GetLuckRollMessageMode()
+; IsCharacterSheetCompatibilityEnabled()
+; IsCosaveRecoveryBackupEnabled()
+; IsIronSoulIntroEnabled()
+; IsSFXEnabled()
+; IsMusicFadeEnabled()
+; IsIronIntroSFXEnabled()
+; IsDeathSFXEnabled()
+; IsPermadeathSFXEnabled()
+; IsRespawnSFXEnabled()
+; IsDefiantTransitionSFXEnabled()
+; IsCHIMTransitionSFXEnabled()
+; IsDefiantResetSFXEnabled()
+; IsHeartstoneAbsorbSFXEnabled()
+; IsDragonSoulReviveCastSFXEnabled()
+; IsDragonSoulReviveSFXEnabled()
+; IsFeatUnlockSFXEnabled()
+; IsLuckRollSFXEnabled()
+; IsLuckOutcomeSFXEnabled()
+; IsRespawnHeavyBreathingSFXEnabled()
+; IsDeathResetEnabled()
+; IsDefiantSoulEnabled()
+; IsSoulFeatsEnabled()
+; IsSoulBonusEnabled()
+; IsSoulFatigueEnabled()
+; IsDragonSoulAnticheatEnabled()
+; IsLuckReminderNotificationEnabled()
+; GetLoadNotificationMode()
+; IsUninstallMode()
+; IsPermadeathEnabled()
+; GetIronSoulPreset()
+
+; --- Logging ---
+; ---------------
+; LogMsg()
+; LogExternalMsg()
+; LogComponentMsg()
+; LogMsgSnapshot()
+; LogComponentSnapshot()
+; LogSnapshot()
+; LOG_ERR()
+; LOG_INFO()
+; LOG_DBG()
 
 ; --- Config Helpers ---
 ; ----------------------
 ; ReadBool()
 ; ReadFeatureEnabled()
 ; ReadIntRange()
-; NormalizeIronSoulPreset()
+; NormalizeIronSoulPresetOrdinal()
+; GetIronSoulPresetFamily()
+; GetPresetOrdinalPlusRank()
 ; ClampLuckLevel()
 ; GetPresetLuckLevel()
 ; GetEffectiveLuckLevel()
 ; ResolvePresetAssetId()
 
-; --- Logging Constants ---
-; -------------------------
-; LOG_ERR()
-; LOG_INFO()
-; LOG_DBG()
+
+; --- Loaded Config State ---
+; ===========================
+
+Bool _logEnabled = False
+Int _logLevel = 2 ; 1=Errors, 2=Info, 3=Debug
+Int _enableLogNotifications = 0
+
+Bool _respawnEnabled = True
+Bool _respawnMessageEnabled = True
+Bool _deathMessageEnabled = True
+Bool _dragonSoulReviveEnabled = True
+Bool _dragonSoulReviveTransformEnabled = True
+Int _dragonSoulReviveLimit = 3
+Bool _dragonSoulReviveMessageEnabled = True
+Bool _dragonSoulIncreaseNotificationEnabled = True
+Bool _characterJournalLogEnabled = True
+Int _luckLevel = 5
+Int _luckRollMessageMode = 1
+Bool _enableCharacterSheetCompatibility = False
+Bool _cosaveRecoveryBackupEnabled = True
+Bool _ironSoulIntroEnabled = True
+Bool _sfxEnabled = True
+Bool _musicFadeEnabled = True
+Bool _ironIntroSFXEnabled = True
+Bool _deathSFXEnabled = True
+Bool _permadeathSFXEnabled = True
+Bool _respawnSFXEnabled = True
+Bool _defiantTransitionSFXEnabled = True
+Bool _chimTransitionSFXEnabled = True
+Bool _defiantResetSFXEnabled = True
+Bool _heartstoneAbsorbSFXEnabled = True
+Bool _dragonSoulReviveCastSFXEnabled = True
+Bool _dragonSoulReviveSFXEnabled = True
+Bool _featUnlockSFXEnabled = True
+Bool _luckRollSFXEnabled = True
+Bool _luckOutcomeSFXEnabled = True
+Bool _respawnHeavyBreathingSFXEnabled = True
+
+Bool _deathResetEnabled = True
+Bool _defiantSoulEnabled = True
+Bool _soulFeatsEnabled = True
+Bool _soulBonusEnabled = True
+Bool _soulFatigueEnabled = True
+Bool _dragonSoulAnticheatEnabled = True
+
+Bool _luckReminderNotificationEnabled = True
+Int _loadNotificationMode = 1 ; 0=off,1=default,2=no flavor,3=only flavor
+
+Bool _uninstallMode = False
+Bool _permadeathEnabled = True
+Int _ironSoulPresetOrdinal = 0
+
+
+; --- Config Loading & Preset Assets ---
+; ======================================
+
+Function ResetDefaults()
+    _logEnabled = False
+    _logLevel = 2
+    _enableLogNotifications = 0
+
+    ; Messaging (SWF)
+    _respawnMessageEnabled = True
+    _dragonSoulReviveMessageEnabled = True
+    _dragonSoulIncreaseNotificationEnabled = True
+    _ironSoulIntroEnabled = True
+
+    ; Gameplay / integration
+    _respawnEnabled = True
+    _deathMessageEnabled = True
+    _enableCharacterSheetCompatibility = False
+    _cosaveRecoveryBackupEnabled = True
+    _dragonSoulReviveEnabled = True
+    _dragonSoulReviveTransformEnabled = True
+    _dragonSoulReviveLimit = 3
+    _soulBonusEnabled = True
+    _characterJournalLogEnabled = True
+    _uninstallMode = False
+    _permadeathEnabled = True
+    _ironSoulPresetOrdinal = 0
+
+    ; Luck / load notifications
+    _luckReminderNotificationEnabled = True
+    _luckLevel = 5
+    _loadNotificationMode = 1
+    _luckRollMessageMode = 1
+
+    ; Feats
+    _deathResetEnabled = True
+    _defiantSoulEnabled = True
+    _soulFeatsEnabled = True
+    _soulFatigueEnabled = True
+
+    ; Additional toggles (ensure defaults reset on reload)
+    _dragonSoulAnticheatEnabled = True
+    _sfxEnabled = True
+    _musicFadeEnabled = True
+    _ironIntroSFXEnabled = True
+    _deathSFXEnabled = True
+    _permadeathSFXEnabled = True
+    _respawnSFXEnabled = True
+    _defiantTransitionSFXEnabled = True
+    _chimTransitionSFXEnabled = True
+    _defiantResetSFXEnabled = True
+    _heartstoneAbsorbSFXEnabled = True
+    _dragonSoulReviveCastSFXEnabled = True
+    _dragonSoulReviveSFXEnabled = True
+    _featUnlockSFXEnabled = True
+    _luckRollSFXEnabled = True
+    _luckOutcomeSFXEnabled = True
+    _respawnHeavyBreathingSFXEnabled = True
+EndFunction
+
+Function ApplyPresetCoreSettings(Bool iniPermadeath, Bool iniDeathReset, Bool iniDefiantSoul)
+    Int presetFamily = GetIronSoulPresetFamily(_ironSoulPresetOrdinal)
+    if presetFamily == 1
+        _permadeathEnabled = False
+        _deathResetEnabled = True
+        _defiantSoulEnabled = True
+    elseif presetFamily == 2
+        _permadeathEnabled = True
+        _deathResetEnabled = True
+        _defiantSoulEnabled = True
+    elseif presetFamily == 3
+        _permadeathEnabled = True
+        _deathResetEnabled = False
+        _defiantSoulEnabled = False
+    else
+        _permadeathEnabled = iniPermadeath
+        _deathResetEnabled = iniDeathReset
+        _defiantSoulEnabled = iniDefiantSoul
+    endif
+EndFunction
+
+Function LoadFromIni()
+    ResetDefaults()
+
+    _ironSoulPresetOrdinal = NormalizeIronSoulPresetOrdinal(IronSoulNative.GetIronSoulPresetOrdinal())
+    _luckLevel = GetEffectiveLuckLevel(_ironSoulPresetOrdinal)
+
+    _logEnabled = ReadBool("EnableLogging", _logEnabled)
+    _logLevel = ReadIntRange("LogLevel", _logLevel, 1, 3)
+    _enableLogNotifications = ReadIntRange("EnableLogNotifications", _enableLogNotifications, 0, 1)
+
+    _deathMessageEnabled = ReadFeatureEnabled("DeathMessage", True)
+    _dragonSoulReviveEnabled = ReadFeatureEnabled("DragonSoulRevive", True)
+    _dragonSoulReviveTransformEnabled = ReadFeatureEnabled("DragonSoulReviveTransform", True)
+    _dragonSoulReviveLimit = ReadIntRange("DragonSoulReviveLimit", _dragonSoulReviveLimit, 0, 3)
+    _dragonSoulReviveMessageEnabled = ReadFeatureEnabled("DragonSoulReviveMessage", True)
+    _respawnEnabled = ReadFeatureEnabled("Respawn", True)
+    _respawnMessageEnabled = ReadFeatureEnabled("RespawnMessage", True)
+    _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
+
+    _soulBonusEnabled = ReadFeatureEnabled("SoulBonus", True)
+    _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournal", True)
+    _uninstallMode = ReadBool("UninstallMode", _uninstallMode)
+    _enableCharacterSheetCompatibility = ReadBool("EnableCharacterSheetCompatibility", _enableCharacterSheetCompatibility)
+    _cosaveRecoveryBackupEnabled = ReadFeatureEnabled("CosaveRecoveryBackup", True)
+
+    Bool iniPermadeath = ReadFeatureEnabled("Permadeath", True)
+
+    _luckReminderNotificationEnabled = ReadFeatureEnabled("LuckReminderNotification", True)
+    _loadNotificationMode = ReadIntRange("LoadNotificationMode", _loadNotificationMode, 0, 3)
+    _luckRollMessageMode = ReadIntRange("LuckRollMessageMode", _luckRollMessageMode, 0, 2)
+
+    Bool iniDeathReset = ReadFeatureEnabled("DeathReset", True)
+    Bool iniDefiantSoul = ReadFeatureEnabled("DefiantSoul", True)
+    ApplyPresetCoreSettings(iniPermadeath, iniDeathReset, iniDefiantSoul)
+    _soulFeatsEnabled = ReadFeatureEnabled("SoulFeats", True)
+    _soulFatigueEnabled = ReadFeatureEnabled("SoulFatigue", True)
+
+    _dragonSoulAnticheatEnabled = ReadFeatureEnabled("DragonSoulAnticheat", True)
+    _dragonSoulIncreaseNotificationEnabled = ReadFeatureEnabled("DragonSoulIncreaseNotification", True)
+    _sfxEnabled = ReadFeatureEnabled("SFX", True)
+    _musicFadeEnabled = ReadFeatureEnabled("MusicFade", True)
+    _ironIntroSFXEnabled = ReadFeatureEnabled("IronIntroSFX", True)
+    _deathSFXEnabled = ReadFeatureEnabled("DeathSFX", True)
+    _permadeathSFXEnabled = ReadFeatureEnabled("PermadeathSFX", True)
+    _respawnSFXEnabled = ReadFeatureEnabled("RespawnSFX", True)
+    _defiantTransitionSFXEnabled = ReadFeatureEnabled("DefiantTransitionSFX", True)
+    _chimTransitionSFXEnabled = ReadFeatureEnabled("CHIMTransitionSFX", True)
+    _defiantResetSFXEnabled = ReadFeatureEnabled("DefiantResetSFX", True)
+    _heartstoneAbsorbSFXEnabled = ReadFeatureEnabled("HeartstoneAbsorbSFX", True)
+    _dragonSoulReviveCastSFXEnabled = ReadFeatureEnabled("DragonSoulReviveCastSFX", True)
+    _dragonSoulReviveSFXEnabled = ReadFeatureEnabled("DragonSoulReviveSFX", True)
+    _featUnlockSFXEnabled = ReadFeatureEnabled("FeatUnlockSFX", True)
+    _luckRollSFXEnabled = ReadFeatureEnabled("LuckRollSFX", True)
+    _luckOutcomeSFXEnabled = ReadFeatureEnabled("LuckOutcomeSFX", True)
+    _respawnHeavyBreathingSFXEnabled = ReadFeatureEnabled("RespawnHeavyBreathingSFX", True)
+EndFunction
+
+Function ApplyDynamicSplashForTier(Int tierId)
+    IronSoulNative.ApplyDynamicSplash(tierId, ResolvePresetAssetId(_ironSoulPresetOrdinal))
+EndFunction
+
+Function ApplyDynamicDraugrEyesForPreset()
+    IronSoulNative.ApplyDynamicDraugrEyes(ResolvePresetAssetId(_ironSoulPresetOrdinal))
+EndFunction
+
+Function ApplyDynamicPresetAssetsForTier(Int tierId)
+    ApplyDynamicSplashForTier(tierId)
+    ApplyDynamicDraugrEyesForPreset()
+EndFunction
+
+
+; --- Loaded Config Queries ---
+; =============================
+
+Bool Function IsLoggingEnabled()
+    return _logEnabled
+EndFunction
+
+Int Function GetLogLevel()
+    return _logLevel
+EndFunction
+
+Int Function GetLogNotificationMode()
+    return _enableLogNotifications
+EndFunction
+
+Bool Function IsRespawnEnabled()
+    return _respawnEnabled
+EndFunction
+
+Bool Function IsRespawnMessageEnabled()
+    return _respawnMessageEnabled
+EndFunction
+
+Bool Function IsDeathMessageEnabled()
+    return _deathMessageEnabled
+EndFunction
+
+Bool Function IsDragonSoulReviveEnabled()
+    return _dragonSoulReviveEnabled
+EndFunction
+
+Bool Function IsDragonSoulReviveTransformEnabled()
+    return _dragonSoulReviveTransformEnabled
+EndFunction
+
+Int Function GetDragonSoulReviveLimit()
+    return _dragonSoulReviveLimit
+EndFunction
+
+Bool Function IsDragonSoulReviveMessageEnabled()
+    return _dragonSoulReviveMessageEnabled
+EndFunction
+
+Bool Function IsDragonSoulIncreaseNotificationEnabled()
+    return _dragonSoulIncreaseNotificationEnabled
+EndFunction
+
+Bool Function IsCharacterJournalEnabled()
+    return _characterJournalLogEnabled
+EndFunction
+
+Int Function GetLuckLevel()
+    return _luckLevel
+EndFunction
+
+Int Function GetLuckRollMessageMode()
+    return _luckRollMessageMode
+EndFunction
+
+Bool Function IsCharacterSheetCompatibilityEnabled()
+    return _enableCharacterSheetCompatibility
+EndFunction
+
+Bool Function IsCosaveRecoveryBackupEnabled()
+    return _cosaveRecoveryBackupEnabled
+EndFunction
+
+Bool Function IsIronSoulIntroEnabled()
+    return _ironSoulIntroEnabled
+EndFunction
+
+Bool Function IsSFXEnabled()
+    return _sfxEnabled
+EndFunction
+
+Bool Function IsMusicFadeEnabled()
+    return _musicFadeEnabled
+EndFunction
+
+Bool Function IsIronIntroSFXEnabled()
+    return _ironIntroSFXEnabled
+EndFunction
+
+Bool Function IsDeathSFXEnabled()
+    return _deathSFXEnabled
+EndFunction
+
+Bool Function IsPermadeathSFXEnabled()
+    return _permadeathSFXEnabled
+EndFunction
+
+Bool Function IsRespawnSFXEnabled()
+    return _respawnSFXEnabled
+EndFunction
+
+Bool Function IsDefiantTransitionSFXEnabled()
+    return _defiantTransitionSFXEnabled
+EndFunction
+
+Bool Function IsCHIMTransitionSFXEnabled()
+    return _chimTransitionSFXEnabled
+EndFunction
+
+Bool Function IsDefiantResetSFXEnabled()
+    return _defiantResetSFXEnabled
+EndFunction
+
+Bool Function IsHeartstoneAbsorbSFXEnabled()
+    return _heartstoneAbsorbSFXEnabled
+EndFunction
+
+Bool Function IsDragonSoulReviveCastSFXEnabled()
+    return _dragonSoulReviveCastSFXEnabled
+EndFunction
+
+Bool Function IsDragonSoulReviveSFXEnabled()
+    return _dragonSoulReviveSFXEnabled
+EndFunction
+
+Bool Function IsFeatUnlockSFXEnabled()
+    return _featUnlockSFXEnabled
+EndFunction
+
+Bool Function IsLuckRollSFXEnabled()
+    return _luckRollSFXEnabled
+EndFunction
+
+Bool Function IsLuckOutcomeSFXEnabled()
+    return _luckOutcomeSFXEnabled
+EndFunction
+
+Bool Function IsRespawnHeavyBreathingSFXEnabled()
+    return _respawnHeavyBreathingSFXEnabled
+EndFunction
+
+Bool Function IsDeathResetEnabled()
+    return _deathResetEnabled
+EndFunction
+
+Bool Function IsDefiantSoulEnabled()
+    return _defiantSoulEnabled
+EndFunction
+
+Bool Function IsSoulFeatsEnabled()
+    return _soulFeatsEnabled
+EndFunction
+
+Bool Function IsSoulBonusEnabled()
+    return _soulBonusEnabled
+EndFunction
+
+Bool Function IsSoulFatigueEnabled()
+    return _soulFatigueEnabled
+EndFunction
+
+Bool Function IsDragonSoulAnticheatEnabled()
+    return _dragonSoulAnticheatEnabled
+EndFunction
+
+Bool Function IsLuckReminderNotificationEnabled()
+    return _luckReminderNotificationEnabled
+EndFunction
+
+Int Function GetLoadNotificationMode()
+    return _loadNotificationMode
+EndFunction
+
+Bool Function IsUninstallMode()
+    return _uninstallMode
+EndFunction
+
+Bool Function IsPermadeathEnabled()
+    return _permadeathEnabled
+EndFunction
+
+Int Function GetIronSoulPreset()
+    return _ironSoulPresetOrdinal
+EndFunction
+
+
+; --- Logging ---
+; ===============
+
+Function LogMsg(Int level, String msg, Bool suppressNotify = False)
+    if !_logEnabled
+        return
+    endif
+    if level > _logLevel
+        return
+    endif
+
+    if _enableLogNotifications == 1 && !suppressNotify
+        Debug.Notification("[IS] " + msg)
+    endif
+
+    if level == LOG_DBG()
+        Debug.Trace("[IronSoul]" + " [DBG] " + msg)
+    elseif level == LOG_INFO()
+        Debug.Trace("[IronSoul]" + " [INFO] " + msg)
+    else
+        Debug.Trace("[IronSoul]" + " [ERR] " + msg)
+    endif
+EndFunction
+
+Function LogExternalMsg(String source, Int level, String msg, Bool suppressNotify = False)
+    if source == ""
+        source = "External"
+    endif
+    if msg == ""
+        return
+    endif
+
+    LogMsg(level, "[" + source + "] " + msg, suppressNotify)
+EndFunction
+
+Function LogComponentMsg(String source, Int level, String msg, Bool suppressNotify = False)
+    if !_logEnabled
+        return
+    endif
+    if level > _logLevel
+        return
+    endif
+
+    if source == ""
+        source = "External"
+    endif
+
+    if _enableLogNotifications == 1 && !suppressNotify
+        Debug.Notification("[IS] " + msg)
+    endif
+
+    if level == LOG_DBG()
+        Debug.Trace("[IronSoul]" + " [DBG] [" + source + "] " + msg)
+    elseif level == LOG_INFO()
+        Debug.Trace("[IronSoul]" + " [INFO] [" + source + "] " + msg)
+    else
+        Debug.Trace("[IronSoul]" + " [ERR] [" + source + "] " + msg)
+    endif
+EndFunction
+
+Function LogMsgSnapshot(Int level, String msg)
+    if !_logEnabled
+        return
+    endif
+    if level > _logLevel
+        return
+    endif
+
+    Debug.Trace("[IronSoul]" + " [Snapshot] " + msg)
+EndFunction
+
+Function LogComponentSnapshot(String source, Int level, String msg)
+    if !_logEnabled
+        return
+    endif
+    if level > _logLevel
+        return
+    endif
+
+    if source == ""
+        source = "External"
+    endif
+
+    if level == LOG_DBG()
+        Debug.Trace("[IronSoul]" + " [Snapshot] [DBG] [" + source + "] " + msg)
+    elseif level == LOG_INFO()
+        Debug.Trace("[IronSoul]" + " [Snapshot] [INFO] [" + source + "] " + msg)
+    else
+        Debug.Trace("[IronSoul]" + " [Snapshot] [ERR] [" + source + "] " + msg)
+    endif
+EndFunction
+
+Function LogSnapshot()
+    LogComponentSnapshot("Config", LOG_INFO(), "Config: Logging=" + _logEnabled \
+        + " Level=" + _logLevel \
+        + " Notify=" + _enableLogNotifications \
+        + " Preset=" + _ironSoulPresetOrdinal \
+        + " Permadeath=" + _permadeathEnabled \
+        + " UninstallMode=" + _uninstallMode)
+
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Systems: LuckLevel=" + _luckLevel \
+        + " SoulBonus=" + _soulBonusEnabled \
+        + " SoulFeats=" + _soulFeatsEnabled \
+        + " DefiantSoul=" + _defiantSoulEnabled \
+        + " DeathReset=" + _deathResetEnabled \
+        + " DragonSoulRevive=" + _dragonSoulReviveEnabled \
+        + " DragonSoulReviveTransform=" + _dragonSoulReviveTransformEnabled \
+        + " DragonSoulIncreaseNotify=" + _dragonSoulIncreaseNotificationEnabled \
+        + " DragonSoulReviveLimit=" + _dragonSoulReviveLimit)
+
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Sound: SFX=" + _sfxEnabled \
+        + " MusicFade=" + _musicFadeEnabled \
+        + " IronIntroSFX=" + _ironIntroSFXEnabled \
+        + " DeathSFX=" + _deathSFXEnabled \
+        + " PermadeathSFX=" + _permadeathSFXEnabled \
+        + " RespawnSFX=" + _respawnSFXEnabled \
+        + " DefiantTransitionSFX=" + _defiantTransitionSFXEnabled \
+        + " CHIMTransitionSFX=" + _chimTransitionSFXEnabled \
+        + " DefiantResetSFX=" + _defiantResetSFXEnabled \
+        + " HeartstoneAbsorbSFX=" + _heartstoneAbsorbSFXEnabled \
+        + " DragonSoulReviveCastSFX=" + _dragonSoulReviveCastSFXEnabled \
+        + " DragonSoulReviveSFX=" + _dragonSoulReviveSFXEnabled \
+        + " FeatUnlockSFX=" + _featUnlockSFXEnabled \
+        + " LuckRollSFX=" + _luckRollSFXEnabled \
+        + " LuckOutcomeSFX=" + _luckOutcomeSFXEnabled \
+        + " RespawnHeavyBreathingSFX=" + _respawnHeavyBreathingSFXEnabled)
+EndFunction
+
+Int Function LOG_ERR() Global
+    return 1
+EndFunction
+
+Int Function LOG_INFO() Global
+    return 2
+EndFunction
+
+Int Function LOG_DBG() Global
+    return 3
+EndFunction
 
 
 ; --- Config Helpers ---
@@ -47,11 +660,41 @@ Int Function ReadIntRange(String configKey, Int defaultValue, Int minV, Int maxV
     return defaultValue
 EndFunction
 
-Int Function NormalizeIronSoulPreset(Int presetId) Global
-    if presetId >= 1 && presetId <= 3
-        return presetId
+Int Function NormalizeIronSoulPresetOrdinal(Int presetOrdinal) Global
+    if presetOrdinal == 0
+        return 0
+    elseif presetOrdinal >= 1 && presetOrdinal <= 3
+        return presetOrdinal
+    elseif presetOrdinal >= 5 && presetOrdinal <= 7
+        return presetOrdinal
+    elseif presetOrdinal >= 9 && presetOrdinal <= 11
+        return presetOrdinal
     endif
 
+    return 0
+EndFunction
+
+Int Function GetIronSoulPresetFamily(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal >= 1 && presetOrdinal <= 3
+        return 1
+    elseif presetOrdinal >= 5 && presetOrdinal <= 7
+        return 2
+    elseif presetOrdinal >= 9 && presetOrdinal <= 11
+        return 3
+    endif
+    return 0
+EndFunction
+
+Int Function GetPresetOrdinalPlusRank(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal >= 1 && presetOrdinal <= 3
+        return presetOrdinal - 1
+    elseif presetOrdinal >= 5 && presetOrdinal <= 7
+        return presetOrdinal - 5
+    elseif presetOrdinal >= 9 && presetOrdinal <= 11
+        return presetOrdinal - 9
+    endif
     return 0
 EndFunction
 
@@ -64,47 +707,31 @@ Int Function ClampLuckLevel(Int luckLevel) Global
     return luckLevel
 EndFunction
 
-Int Function GetPresetLuckLevel(Int presetId) Global
-    presetId = NormalizeIronSoulPreset(presetId)
-    if presetId == 1
+Int Function GetPresetLuckLevel(Int presetOrdinal) Global
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    if presetFamily == 1
         return 4
-    elseif presetId == 2
+    elseif presetFamily == 2
         return 3
-    elseif presetId == 3
+    elseif presetFamily == 3
         return 2
     endif
     return 5
 EndFunction
 
-Int Function GetEffectiveLuckLevel(Int presetId) Global
-    presetId = NormalizeIronSoulPreset(presetId)
-    if presetId == 0
+Int Function GetEffectiveLuckLevel(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal == 0
         return ClampLuckLevel(IronSoulNative.GetConfigInt("LuckLevel", 5))
     endif
 
-    Int luckLevel = GetPresetLuckLevel(presetId)
-    if IronSoulNative.GetIronSoulPresetPlus() >= 2
+    Int luckLevel = GetPresetLuckLevel(presetOrdinal)
+    if GetPresetOrdinalPlusRank(presetOrdinal) >= 2
         luckLevel -= 1
     endif
     return ClampLuckLevel(luckLevel)
 EndFunction
 
-Int Function ResolvePresetAssetId(Int presetId) Global
-    return NormalizeIronSoulPreset(presetId)
-EndFunction
-
-
-; --- Logging Constants ---
-; =========================
-
-Int Function LOG_ERR() Global
-    return 1
-EndFunction
-
-Int Function LOG_INFO() Global
-    return 2
-EndFunction
-
-Int Function LOG_DBG() Global
-    return 3
+Int Function ResolvePresetAssetId(Int presetOrdinal) Global
+    return GetIronSoulPresetFamily(presetOrdinal)
 EndFunction
