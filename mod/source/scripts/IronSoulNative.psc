@@ -1,342 +1,241 @@
 Scriptname IronSoulNative Hidden
 
-; =====================================================================================
-; IronSoulNative.psc
+; --- Native Bridge Contract ---
+; ==============================
+
+; Exposes Iron Soul SKSE plugin services to Papyrus. Contains no gameplay logic.
+; Papyrus owns gameplay policy, schema, limits, and the authoritative GUID slot.
 ;
-; High-level native bridge for the Iron Soul SKSE plugin.
+; Native services:
+; - DataStore persistence and journal file writes.
+; - INI config cache, validation, and optional INI persistence.
+; - GUID minting, dynamic asset swaps, cursor control, music fades, and slow motion.
 ;
-; This script intentionally contains NO gameplay logic.
-; It exists solely to document and expose the persistence and logging services
-; provided by the native SKSE plugin.
+; Storage contract:
+; - MainData: Data\SKSE\plugins\ironsoul-character-data.dat
+; - MirrorData: Data\SKSE\plugins\ironsoul-character-mirror-data.dat
+; - MirrorData is used only when MirrorDataBackup=1.
+; - Files are transactional, FNV-1a checked, size capped, and sequence numbered.
+; - On load, the newest valid store wins; equal-sequence divergence prefers MainData.
+; - Dirty data flushes on SKSE save callback or explicit DataFlushIfDirty().
+; - There is no periodic flush thread.
 ;
-; -------------------------------------------------------------------------------------
-; OVERVIEW
-;
-; The Iron Soul SKSE plugin owns ALL disk persistence and file I/O.
-;
-; The plugin provides:
-;
-;   1) Binary persistent storage (.dat)
-;      - MainData  : Primary persistent store (preferred authority on load)
-;      - MirrorData: Optional backup store used for recovery when MirrorDataBackup=1
-;
-;   2) Atomic writes + integrity checking
-;      - Writes are transactional (.tmp -> replace)
-;      - Integrity hash is FNV-1a
-;      - Corruption/tampering is detected and recovered automatically
-;      - Safety caps are enforced on load to prevent pathological / malicious files:
-;          - Max payload bytes : 1 MiB
-;          - Max record count  : 50,000
-;          - Max key bytes     : 256
-;          - Max string bytes  : 16 KiB (per string value)
-;        If a cap is hit, the file is rejected and the plugin will attempt recovery
-;        from the other store. Cap hits are logged as warnings in ironsoul.log.
-;
-;   3) High-performance key/value access
-;      - Flat string keys
-;      - Int and String values only
-;      - Optimized "set-if-changed" calls for hot paths
-;
-;   4) Controlled flush semantics
-;      - Plugin flushes data automatically on save via SKSE serialization callback
-;      - There is no background periodic or dedicated exit flush thread in the plugin
-;      - Papyrus/controller may request immediate flushes for critical events
-;
-; -------------------------------------------------------------------------------------
-; STORAGE MODEL (IMPORTANT)
-;
-; - All persistent state lives in the SKSE plugin's DataStore.
-; - Data is always written to:
-;
-;     MainData:
-;       Data\SKSE\plugins\ironsoul-character-data.dat
-;
-; - When MirrorDataBackup=1, data is also written to:
-;
-;     MirrorData:
-;       Data\SKSE\plugins\ironsoul-character-mirror-data.dat
-;
-; - Bidirectional self-heal:
-;   When MirrorDataBackup=1, if either MainData or MirrorData loads successfully
-;   while the other is missing or invalid, the plugin treats the valid store as
-;   authoritative and rebuilds the other from that snapshot (logging a warning).
-;   When MirrorDataBackup=0, MirrorData is ignored and MainData is the only
-;   datastore source.
-;
-; - Papyrus "co-save" storage (StorageUtil) always holds the authoritative GUID slot (IS_9975).
-;   When CosaveRecoveryBackup=1, GUID-scoped integer state is also mirrored there as recovery backup.
-;   MainData remains authoritative for gameplay state; co-save integers are ignored when disabled.
-;
-; -------------------------------------------------------------------------------------
-; KEY SEMANTICS
-;
-; - Keys are flat strings (often suffixed with a per-character GUID).
-; - The plugin does not interpret keys or enforce schema.
-; - Authority policies and min/max logic remain in Papyrus.
-;
-; GUID-related keys (controller-owned schema):
-;
-;   Co-save (authoritative):
-;     - IS_9975                  (string)  -- stored ONLY in the co-save via StorageUtil (authoritative GUID)
-;
-;   MainData (GUID-scoped; stored as <KEY>:<GUID> using MakeKey(KEY, guid)):
-;     - I.N:<GUID>               (string)  -- Identity.Name
-;     - I.R:<GUID>               (int)     -- Identity.RaceFormID
-;     - I.L:<GUID>               (int)     -- Identity.Level (last seen level)
-;     - I.D:<GUID>               (int)     -- Identity.GameDay (last seen in-game day)
-;
-;   MainData (global; NOT GUID-scoped):
-;     - G.U.<GUID> = 1           (int)     -- collision index (GUID is already claimed)
-;     - G.U.INDEX                (string)  -- GUID list for recovery enumeration (e.g. "A1234|B5678|...")
-;
-; Policy:
-;   - ALL persistent keys in MainData SHOULD be GUID-scoped except those under the "G.U." namespace.
-;
-; -------------------------------------------------------------------------------------
-; DO NOT:
-; - Perform file I/O in Papyrus
-; - Attempt to mirror or duplicate disk state
-; - Assume ordering or iteration over keys
-;
-; =====================================================================================
+; Key contract:
+; - DataStore keys are flat strings with Int or String values.
+; - Normal DataStore calls do not enforce gameplay schema.
+; - MainData stores gameplay state; StorageUtil stores IS_9975 as the GUID authority.
+; - GUID-scoped MainData keys use <KEY>:<GUID>; G.U.* keys are global identity indexes.
+
+; =========================
+; --- Table of Contents ---
+; =========================
+
+; --- Plugin Health / Availability ---
+; ------------------------------------
+; IsAvailable()
+; DataStoreReady()
+
+; --- Journal Logging ---
+; -----------------------
+; LogJournalEntry()
+
+; --- Config Access ---
+; ---------------------
+; GetConfigInt()
+; GetIronSoulPresetOrdinal()
+; GetConfigKeyCanonical()
+; GetConfigKeyDisplayName()
+; GetConfigKeyFlags()
+; GetConfigSetError()
+; GetConfigSummary()
+; SetConfigInt()
+; SetConfigString()
+; ReloadConfig()
+
+; --- Identity / GUID Utilities ---
+; ---------------------------------
+; GetPlayerName()
+; GenerateGuidUnique()
+
+; --- Dynamic UI ---
+; ------------------
+; ApplyDynamicSplash()
+; ApplyDynamicLevelWidget()
+; ApplyDynamicDraugrEyes()
+
+; --- Cursor Control ---
+; ----------------------
+; SuppressCursor()
+
+; --- Music Fade ---
+; ------------------
+; MusicFadeOut()
+; MusicFadeIn()
+
+; --- Health Monitoring ---
+; -------------------------
+; StartHealthMonitor()
+; StopHealthMonitor()
+
+; --- DataStore Read Access ---
+; -----------------------------
+; DataGetInt()
+; DataGetString()
+; DataHasKey()
+; DataGetCharacterData()
+
+; --- DataStore Write Access ---
+; ------------------------------
+; DataSetInt()
+; DataSetString()
+; DataSetIntIfChanged()
+; DataSetIntChecked()
+; DataSetStringIfChanged()
+; DataSetStringChecked()
+; DataDeleteKey()
+
+; --- DataStore Flush Control ---
+; --------------------------------
+; DataFlushIfDirty()
 
 
-; ====================================
 ; --- PLUGIN HEALTH / AVAILABILITY ---
 ; ====================================
 
-; Lightweight probes used by the controller to verify the native plugin is loaded
-; and that its datastore has been initialized.
-;
-; Notes:
-; - IsAvailable() is only a "native registration" check (plugin loaded + functions registered).
-; - DataStoreReady() is a stronger check that returns true only after the plugin has
-;   successfully initialized its persistent datastore layer.
-;
+; Native registration and DataStore initialization probes.
+; IsAvailable() only proves the plugin registered this script's natives.
+; DataStoreReady() also proves native persistence initialized.
 Bool Function IsAvailable() Global Native
 Bool Function DataStoreReady() Global Native
 
 
-; =======================
 ; --- JOURNAL LOGGING ---
 ; =======================
 
-; Appends a single journal line to the Iron Soul character journal log.
-; The SKSE plugin prepends the player name/difficulty label as "<CharacterName> [A+] | ".
-;
-; Log file:
-;   Data\SKSE\plugins\ironsoul-character-journal.log
-;
-; Example:
-;   IronSoulNative.LogJournalEntry("Day 5: Defeated. Deaths: 5 / 10.")
-;
+; Appends a character journal line. Native prefixes "Name [D/H/A++] | ".
+; File: Data\SKSE\plugins\ironsoul-character-journal.log
 Function LogJournalEntry(String msg) Global Native
 
 
-; =====================
 ; --- CONFIG ACCESS ---
 ; =====================
 
-; Reads integer configuration values from:
-;   Data\SKSE\plugins\ironsoul.ini
-;
+; Reads and edits allowlisted config keys from ironsoul.ini.
+; SetConfig* validates values; persistToIni=True requires an existing INI entry.
+; IronSoulPreset accepts base-plus text, but reads return the flattened ordinal.
 Int Function GetConfigInt(String key, Int fallback = 0) Global Native
-Int Function GetIronSoulPresetPlus() Global Native
+Int Function GetIronSoulPresetOrdinal() Global Native
+String Function GetConfigKeyCanonical(String key) Global Native
+String Function GetConfigKeyDisplayName(String key) Global Native
+Int Function GetConfigKeyFlags(String key) Global Native
+String Function GetConfigSetError(String key, String value) Global Native
+String Function GetConfigSummary() Global Native
 Bool Function SetConfigInt(String key, Int value, Bool persistToIni = True) Global Native
 Bool Function SetConfigString(String key, String value, Bool persistToIni = True) Global Native
 Bool Function ReloadConfig() Global Native
 
 
-; =================================
 ; --- IDENTITY / GUID UTILITIES ---
 ; =================================
 
-; Returns the current player name.
-; Notes:
-; - Returns "" (empty) if the name is not yet available (very early new game / pre-RaceMenu).
-; - The controller should treat empty as "not ready" and retry later.
+; Returns "" until the player name is stable enough for identity setup.
 String Function GetPlayerName() Global Native
 
-; Generates a unique character GUID with collision protection.
-; GUID format (v2):
-;   <LETTER><####>
-;   - LETTER: first letter of the character name (uppercase). If unavailable, falls back to 'P'.
-;   - ####  : random 4-digit number from 1000 to 9999.
-;
-; Collision handling (no datastore enumeration):
-;   The plugin claims GUIDs in a dedicated collision index inside MainData:
-;     "G.U.<GUID>" = 1
-;   GenerateGuidUnique() checks for that key and atomically claims it
-;   (check+set under the datastore mutex) before returning.
-;
-; Retry / fallback behavior:
-; - Tries up to 64 random 4-digit candidates.
-; - Extremely unlikely fallback: widens to 6 digits (100000-999999) and tries up to 64 candidates.
-; - Returns "" on unexpected failure to claim a GUID.
-;
-; Intended usage:
-; - Called ONLY when the authoritative co-save GUID (IS_9975) is missing and identity is ready.
-; - Controller writes the returned GUID once to the authoritative co-save slot (IS_9975).
-; - GUID is NOT mirrored into MainData; MainData uses GUID-scoped keys for all other state.
-;
-; NOTE:
-; If the controller obtains a GUID from any source OTHER than this function
-; (e.g., restore/migration/recovery), it MUST ensure the marker exists:
-;   DataSetInt("G.U." + guid, 1)
-;
-; Controller maintains a GUID index string for recovery enumeration:
-;   DataSetStringIfChanged("G.U.INDEX", "<pipe-delimited GUID list>")
+; Returns <LETTER><####>, claiming G.U.<GUID> in MainData atomically.
+; Retries 64 four-digit values, then 64 six-digit values, then returns "".
+; Caller writes the GUID to co-save IS_9975 and maintains G.U.INDEX.
+; Recovered/imported GUIDs must also ensure G.U.<GUID> exists.
 String Function GenerateGuidUnique(String playerName) Global Native
 
 
+; --- DYNAMIC UI ---
 ; ==================
-; --- Dynamic UI ---
-; ==================
 ;
-; Provides direct, tier-ID-based swapping of dynamic UI assets through the native plugin.
-; No tier or preset state is stored or tracked by the plugin. The controller supplies
-; the desired tier and effective preset IDs whenever a UI change is required.
-;
-; Behaviour:
-; - The plugin performs an immediate file swap when these functions are called.
-; - Before replacing a live asset that is not an Iron Soul variant, the plugin writes
-;   the next numbered sibling BACKUP-N copy and avoids duplicate latest backups.
-; - Dynamic asset modes: 0=disabled/restore latest numbered BACKUP if present,
-;   1=dynamic, 2=static Iron/default source.
-;
-; Tier mapping:
-;   0=Defiant, 1=Iron, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour, 9=CHIM
-;
-; Notes:
-; - Global (not per-character).
-; - Invalid tier IDs are ignored; only 0,1,2,3,4,5,6,9 are accepted.
-; - Preset 0 uses normal splash files; presets 1/2/3 use preset-prefixed files.
-; - Draugr eye presets: 0=ORIGINAL, 1=BLUE, 2=PURPLE, 3=RED.
-; - Missing source/live files or failed backup creation skip only that affected asset.
-; - Changes may not visually appear until next UI reload / game launch due to UI caching.
-;
+; Immediately swaps global packaged assets; native stores no tier/preset state.
+; Modes: 0=restore backup, 1=dynamic, 2=static packaged source.
+; Public INI validation currently allows only modes 0 and 1.
+; Tiers: 0 Defiant, 1 Iron, 2 Silver, 3 Gold, 4 Ebon, 5 Platinum, 6 Devour, 9 CHIM.
+; Splash presets: 0 normal, 1/2/3 preset-prefixed; CHIM falls back for 2/3.
+; Draugr eye presets: 0 ORIGINAL, 1 BLUE, 2 PURPLE, 3 RED.
+; Non-Iron Soul live files get numbered BACKUP copies before replacement.
+; Missing files skip only the affected asset; UI caching may need reload/restart.
 Function ApplyDynamicSplash(Int tierId, Int presetId) Global Native
 Function ApplyDynamicLevelWidget(Int tierId) Global Native
 Function ApplyDynamicDraugrEyes(Int presetId) Global Native
 
 
+; --- CURSOR CONTROL ---
 ; =====================
-; --- Cursor Control ---
-; =====================
 ;
-; Toggles in-game menu cursor suppression via SKSE plugin.
-; Implementation detail:
-; - 1st True: moves cursor to right edge
-; - 2nd True: hides cursor and moves it off-screen to the right
-; - Additional True calls re-apply hidden/off-screen-right state
-; - Restores visibility/position when unsuppressed
-; - A single False restores the initial saved state
-;
-;   suppress = True  -> advance suppression step (move-right, then hide/off-screen-right)
-;   suppress = False -> restore original state
-;
+; CursorHide=0 no-ops. True advances move-right -> hide/off-screen.
+; Later True calls reapply suppression; one False restores the saved state.
 Function SuppressCursor(Bool suppress) Global Native
 
 
-; ==================
-; --- Music Fade ---
+; --- MUSIC FADE ---
 ; ==================
 ;
-; Native music fades driven by the SKSE plugin (no Papyrus Utility.Wait usage).
-; Pass the Music sound category and current menu slider value when fading out.
-;
+; MusicFade=0 no-ops. FadeOut caches menuVolume as the FadeIn restore target.
 Function MusicFadeOut(SoundCategory musicCategory, Float seconds = 2.0, Float menuVolume = -1.0) Global Native
 Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0) Global Native
 
 
-; =========================
-; --- Health Monitoring ---
+; --- HEALTH MONITORING ---
 ; =========================
 ;
-; Starts/stops native SKSE health polling:
-;  - 0.1s fixed interval
-; Native monitor / slow-motion only. Does not dispatch death events to the controller.
-;
+; Starts/stops 0.1s native health polling for slow motion only.
+; Does not dispatch death events to Papyrus.
 Function StartHealthMonitor() Global Native
 Function StopHealthMonitor() Global Native
 
 
-; ===============================
-; --- DATASTORE – READ ACCESS ---
+; --- DATASTORE - READ ACCESS ---
 ; ===============================
 
-; Reads an integer value from MainData.
-; If the key does not exist or is not an integer, returns the fallback.
+; Reads an Int from MainData, or fallback when missing/wrong type.
 Int Function DataGetInt(String key, Int fallback = 0) Global Native
 
-; Reads a string value from MainData.
-; If the key does not exist or is not a string, returns the fallback.
+; Reads a String from MainData, or fallback when missing/wrong type.
 String Function DataGetString(String key, String fallback = "") Global Native
 
-; Returns true if the key exists in MainData.
+; True when MainData contains the key.
 Bool Function DataHasKey(String key) Global Native
 
-; Gets current-character MainData values for a friendly console/debug section.
-; section="" returns all known sections; accepted sections are:
-; identity, core, luck, ui, soul, dsr, bosses, defiant, journal.
+; Friendly current-character dump for console/debug output.
+; section="" dumps all; known sections include identity, core, luck, ui, soul,
+; dsr, bosses, defiant, and journal.
 String Function DataGetCharacterData(String guid, String section = "") Global Native
 
 
-; ================================
-; --- DATASTORE – WRITE ACCESS ---
+; --- DATASTORE - WRITE ACCESS ---
 ; ================================
 
-; Writes an integer value to MainData.
-; This always marks the datastore dirty.
+; Writes an Int and marks MainData dirty if the key is valid.
 Function DataSetInt(String key, Int value) Global Native
 
-; Writes a string value to MainData.
-; This always marks the datastore dirty.
+; Writes a String and marks MainData dirty if key/value are valid.
 Function DataSetString(String key, String value) Global Native
 
-; Writes an integer value ONLY if it differs from the existing value.
-;
-; Returns:
-;   true  - value changed and datastore marked dirty
-;   false - value was identical and no write occurred
-;
-; This SHOULD be used for hot paths.
-;
+; Hot-path Int write. True only when the stored value changed.
+; False means unchanged or invalid key.
 Bool Function DataSetIntIfChanged(String key, Int value) Global Native
 
-; Writes an integer value for console/debug editing.
-;
-; Returns:
-;   true  - value is now stored exactly, including unchanged values
-;   false - write was rejected (invalid key)
-;
+; Console/debug Int write. True means the value is stored exactly.
 Bool Function DataSetIntChecked(String key, Int value) Global Native
 
-; Writes a string value ONLY if it differs from the existing value.
-;
-; Returns:
-;   true  - value changed and datastore marked dirty
-;   false - value was identical and no write occurred
-;
-; This SHOULD be used for hot paths.
-;
+; Hot-path String write. True only when the stored value changed.
+; False means unchanged, invalid key, or value too long.
 Bool Function DataSetStringIfChanged(String key, String value) Global Native
 
-; Writes a string value for console/debug editing.
-;
-; Returns:
-;   true  - value is now stored exactly, including unchanged values
-;   false - write was rejected (invalid key or value too long)
-;
+; Console/debug String write. True means the value is stored exactly.
 Bool Function DataSetStringChecked(String key, String value) Global Native
 
-; Deletes a key from MainData if it exists.
+; Deletes a MainData key if it exists.
 Function DataDeleteKey(String key) Global Native
 
 
-; =================================
-; --- DATASTORE – FLUSH CONTROL ---
+; --- DATASTORE - FLUSH CONTROL ---
 ; =================================
 
-; Flushes MainData, and MirrorData when MirrorDataBackup=1, if the datastore is dirty.
+; Flushes dirty MainData, and MirrorData when MirrorDataBackup=1.
 Function DataFlushIfDirty() Global Native
