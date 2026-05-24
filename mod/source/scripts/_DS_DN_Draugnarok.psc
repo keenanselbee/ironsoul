@@ -422,10 +422,10 @@ EndFunction
 
 int Function GetDraugnarokOverrideMode()
 
-	If !IronSoul
+	If !IronSoul || !IronSoul.Persistence
 		Return OVERRIDE_NONE
 	EndIf
-	Return ClampDraugnarokOverrideMode(IronSoul.GetDraugnarokOverrideMode(PlayerRef))
+	Return ClampDraugnarokOverrideMode(IronSoul.Persistence.GetDraugnarokOverrideMode(PlayerRef))
 
 EndFunction
 
@@ -443,7 +443,7 @@ EndFunction
 bool Function SetDraugnarokOverrideMode(int aiMode, bool abApplyNow = True)
 
 	aiMode = ClampDraugnarokOverrideMode(aiMode)
-	If !IronSoul
+	If !IronSoul || !IronSoul.Persistence
 		LogError("Cannot set Draugnarok override: Iron Soul controller unavailable.")
 		Return False
 	EndIf
@@ -451,7 +451,7 @@ bool Function SetDraugnarokOverrideMode(int aiMode, bool abApplyNow = True)
 		LogInfo("Cannot force Draugnarok on while DraugnarokSystem=0.", True)
 		Return False
 	EndIf
-	If !IronSoul.SetDraugnarokOverrideMode(PlayerRef, aiMode, True)
+	If !IronSoul.Persistence.SetDraugnarokOverrideMode(PlayerRef, aiMode, True)
 		LogError("Cannot set Draugnarok override: current character GUID unavailable.")
 		Return False
 	EndIf
@@ -1659,23 +1659,57 @@ bool Function IsAlduinLooseForDraugnarok()
 
 EndFunction
 
-int Function NormalizeIronSoulPreset(int aiPreset)
+int Function NormalizeIronSoulPresetOrdinal(int aiPresetOrdinal)
 
-	If aiPreset >= 1 && aiPreset <= 3
-		Return aiPreset
+	If aiPresetOrdinal == 0
+		Return 0
+	ElseIf aiPresetOrdinal >= 1 && aiPresetOrdinal <= 3
+		Return aiPresetOrdinal
+	ElseIf aiPresetOrdinal >= 5 && aiPresetOrdinal <= 7
+		Return aiPresetOrdinal
+	ElseIf aiPresetOrdinal >= 9 && aiPresetOrdinal <= 11
+		Return aiPresetOrdinal
 	EndIf
 	Return 0
 
 EndFunction
 
-int Function GetPresetThreatFloor(int aiPreset)
+int Function GetIronSoulPresetFamily(int aiPresetOrdinal)
 
-	aiPreset = NormalizeIronSoulPreset(aiPreset)
-	If aiPreset == 1
+	aiPresetOrdinal = NormalizeIronSoulPresetOrdinal(aiPresetOrdinal)
+	If aiPresetOrdinal >= 1 && aiPresetOrdinal <= 3
+		Return 1
+	ElseIf aiPresetOrdinal >= 5 && aiPresetOrdinal <= 7
 		Return 2
-	ElseIf aiPreset == 2
+	ElseIf aiPresetOrdinal >= 9 && aiPresetOrdinal <= 11
 		Return 3
-	ElseIf aiPreset == 3
+	EndIf
+	Return 0
+
+EndFunction
+
+int Function GetPresetOrdinalPlusRank(int aiPresetOrdinal)
+
+	aiPresetOrdinal = NormalizeIronSoulPresetOrdinal(aiPresetOrdinal)
+	If aiPresetOrdinal >= 1 && aiPresetOrdinal <= 3
+		Return aiPresetOrdinal - 1
+	ElseIf aiPresetOrdinal >= 5 && aiPresetOrdinal <= 7
+		Return aiPresetOrdinal - 5
+	ElseIf aiPresetOrdinal >= 9 && aiPresetOrdinal <= 11
+		Return aiPresetOrdinal - 9
+	EndIf
+	Return 0
+
+EndFunction
+
+int Function GetPresetThreatFloor(int aiPresetOrdinal)
+
+	int presetFamily = GetIronSoulPresetFamily(aiPresetOrdinal)
+	If presetFamily == 1
+		Return 2
+	ElseIf presetFamily == 2
+		Return 3
+	ElseIf presetFamily == 3
 		Return 4
 	EndIf
 	Return 1
@@ -1695,13 +1729,13 @@ EndFunction
 
 int Function GetEffectiveDraugrThreatLevel()
 
-	int preset = NormalizeIronSoulPreset(IronSoulNative.GetConfigInt("IronSoulPreset", 0))
-	If preset == 0
+	int presetOrdinal = NormalizeIronSoulPresetOrdinal(IronSoulNative.GetIronSoulPresetOrdinal())
+	If presetOrdinal == 0
 		Return ClampConfiguredDraugrThreatLevel(IronSoulNative.GetConfigInt("DraugrThreatLevel", 2))
 	EndIf
 
-	int threat = GetPresetThreatFloor(preset)
-	If IronSoulNative.GetIronSoulPresetPlus() != 0
+	int threat = GetPresetThreatFloor(presetOrdinal)
+	If GetPresetOrdinalPlusRank(presetOrdinal) != 0
 		threat += 1
 	EndIf
 	Return ClampConfiguredDraugrThreatLevel(threat)
@@ -3762,14 +3796,14 @@ string Function GetDraugnarokStateSummary()
 
 	int overrideMode = GetDraugnarokOverrideMode()
 	bool systemEnabled = IsDraugnarokSystemEnabled()
-	int preset = NormalizeIronSoulPreset(IronSoulNative.GetConfigInt("IronSoulPreset", 0))
+	int presetOrdinal = NormalizeIronSoulPresetOrdinal(IronSoulNative.GetIronSoulPresetOrdinal())
 	int threat = GetDraugrThreatLevel()
 	int questStage = GetDraugnarokQuestStage()
 	string statusLabel = GetDraugnarokStatusLabel(overrideMode, threat)
 	string overrideLabel = GetDraugnarokOverrideLabel(overrideMode)
 	string threatText = "" + threat
-	If preset != 0 && systemEnabled && threat >= 1 && IronSoulNative.GetIronSoulPresetPlus() != 0
-		threatText = threatText + "(" + preset + "+)"
+	If presetOrdinal != 0 && systemEnabled && threat >= 1 && GetPresetOrdinalPlusRank(presetOrdinal) != 0
+		threatText = threatText + "(" + presetOrdinal + ")"
 	EndIf
 
 	string summary = "Draugnarok | System=" + (systemEnabled as int) + " | Journal=" + GetDraugnarokJournalLabel(questStage) + " | Status=" + statusLabel
@@ -4268,25 +4302,25 @@ Function DoNotify(string asMsg)
 EndFunction
 
 Function LogError(String asMsg)
-	If IronSoul
-		IronSoul.LogExternalMsg("Draugnarok", LOG_ERR_LEVEL, asMsg, False)
+	If IronSoul && IronSoul.Config
+		IronSoul.Config.LogExternalMsg("Draugnarok", LOG_ERR_LEVEL, asMsg, False)
 	EndIf
 EndFunction
 
 Function LogInfo(String asMsg, Bool abSuppressNotify = False)
-	If IronSoul
-		IronSoul.LogExternalMsg("Draugnarok", LOG_INFO_LEVEL, asMsg, abSuppressNotify)
+	If IronSoul && IronSoul.Config
+		IronSoul.Config.LogExternalMsg("Draugnarok", LOG_INFO_LEVEL, asMsg, abSuppressNotify)
 	EndIf
 EndFunction
 
 Function LogDebug(String asMsg, Bool abSuppressNotify = True)
-	If IronSoul
-		IronSoul.LogExternalMsg("Draugnarok", LOG_DBG_LEVEL, asMsg, abSuppressNotify)
+	If IronSoul && IronSoul.Config
+		IronSoul.Config.LogExternalMsg("Draugnarok", LOG_DBG_LEVEL, asMsg, abSuppressNotify)
 	EndIf
 EndFunction
 
 Function JournalMajorEvent(String asEventText)
-	If IronSoul
-		IronSoul.JournalLogExternalEvent("Draugnarok", asEventText)
+	If IronSoul && IronSoul.Journal
+		IronSoul.Journal.LogExternalEvent("Draugnarok", asEventText)
 	EndIf
 EndFunction
