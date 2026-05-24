@@ -1,8 +1,38 @@
-Scriptname IronSoulUI Hidden
+Scriptname IronSoulUI extends Quest
 
 ; =========================
 ; --- Table of Contents ---
 ; =========================
+
+; --- Component Helpers ---
+; -------------------------
+; HasCoreRuntime()
+; HasMusicRuntime()
+; LogUI()
+
+; --- Presentation Runtime ---
+; ----------------------------
+; ResetTransientState()
+; RegisterMusicFadeBridge()
+; ScheduleLoadMessage()
+; RequiresFastPolling()
+; HandleLoadNotification()
+; OpenTimedMessageSWF()
+; OpenTimedMessageSWF_SFX()
+; OpenTimedMessageSWF_KeyDismiss()
+; OpenTimedMessageSWF_KeyDismissTrackedSFX()
+; OpenTimedMessageSWF_KeyDismiss_SFX()
+; OpenTimedMessageSWF_KeyDismissIronIntro()
+; OpenKeyDismissMenu()
+; PlayPresentationSFX()
+; ShouldShowIronIntro()
+; ShowIronIntro()
+; FadeMusicForTransitionSequence()
+; RestoreMusic()
+; OnKeyDown()
+; RegisterForAllKeys()
+; UnregisterForAllKeys()
+; OnMusicFadeSetVolume()
 
 ; --- Menu Naming ---
 ; -------------------
@@ -11,17 +41,451 @@ Scriptname IronSoulUI Hidden
 ; ResolveDeathMessageMenu()
 ; ResolvePermadeathMenu()
 ; ResolveRespawnMenu()
+; ResolveSoulFeatUnlockMenuFromFacts()
 ; ResolveDefiantFeatUnlockMenu()
 ; ResolveDefiantIntroMenu()
 ; ResolveDefiantTransitionMenu()
 ; ResolveCHIMTransitionMenu()
+; ResolveLuckThresholdNotification()
 
 ; --- Flavor Text ---
 ; -------------------
+; BuildLoadStatsNotification()
 ; PickCHIMLine()
 ; PickTierLoadFlavor()
 ; PickLuckLoadFlavor()
 ; PickPostDeathLoadFlavor()
+
+
+; --- Wired Dependencies & Runtime State ---
+; ==========================================
+
+IronSoulController Property Controller Auto
+
+; Music fade
+SoundCategory Property AudioCategoryMUS Auto
+
+Bool _keyDismissActive = False
+Bool _keyDismissPressed = False
+
+Bool _pendingLoadMessage = False
+Float _loadMessageAt = 0.0
+Float _pendingLoadMessageStartedAt = 0.0
+
+Float TRANSITION_SFX_FADE_SECONDS = 1.0
+
+
+; --- Component Helpers ---
+; =========================
+
+Bool Function HasCoreRuntime()
+    if !Controller
+        return False
+    endif
+    if !Controller.Config || !Controller.Identity || !Controller.Persistence
+        return False
+    endif
+    if !Controller.Death || !Controller.Tiers || !Controller.SFX
+        return False
+    endif
+    return True
+EndFunction
+
+Bool Function HasMusicRuntime()
+    if !Controller
+        return False
+    endif
+    if !Controller.Config || !AudioCategoryMUS
+        return False
+    endif
+    if !Controller.Config.IsMusicFadeEnabled()
+        return False
+    endif
+    return True
+EndFunction
+
+Function LogUI(Int level, String msg, Bool suppressNotify = False)
+    if Controller && Controller.Config
+        Controller.Config.LogComponentMsg("UI", level, msg, suppressNotify)
+        return
+    endif
+
+    String levelText = "ERR"
+    if level == IronSoulConfig.LOG_DBG()
+        levelText = "DBG"
+    elseif level == IronSoulConfig.LOG_INFO()
+        levelText = "INFO"
+    endif
+    Debug.Trace("[IronSoul] [" + levelText + "] [UI] " + msg)
+EndFunction
+
+
+; --- Presentation Runtime ---
+; ============================
+
+Function ResetTransientState()
+    _keyDismissActive = False
+    _keyDismissPressed = False
+    UnregisterForAllKeys()
+
+    _pendingLoadMessage = False
+    _loadMessageAt = 0.0
+    _pendingLoadMessageStartedAt = 0.0
+EndFunction
+
+Function RegisterMusicFadeBridge()
+    UnregisterForModEvent("IronSoul_MusicFadeSetVolume")
+    RegisterForModEvent("IronSoul_MusicFadeSetVolume", "OnMusicFadeSetVolume")
+EndFunction
+
+Function ScheduleLoadMessage(Bool isLoadGame)
+    if isLoadGame
+        Float nowRT = Utility.GetCurrentRealTime()
+        _pendingLoadMessage = True
+
+        if _pendingLoadMessageStartedAt <= 0.0
+            _pendingLoadMessageStartedAt = nowRT
+        endif
+        _loadMessageAt = nowRT + 2.00
+    else
+        _pendingLoadMessage = False
+    endif
+
+    if Controller
+        Controller.QueueUpdate(Controller.StandardPollSeconds)
+    endif
+EndFunction
+
+Bool Function RequiresFastPolling(Float watchdogSeconds)
+    if !_pendingLoadMessage
+        _pendingLoadMessageStartedAt = 0.0
+        return False
+    endif
+
+    Float nowRT = Utility.GetCurrentRealTime()
+    Float elapsed = nowRT - _pendingLoadMessageStartedAt
+    if watchdogSeconds > 0.0 && _pendingLoadMessageStartedAt > 0.0 && elapsed > watchdogSeconds
+        _pendingLoadMessage = False
+        _pendingLoadMessageStartedAt = 0.0
+        LogUI(IronSoulConfig.LOG_INFO(), "RequiresFastPolling: cleared pending load message after " + elapsed + "s")
+        return False
+    endif
+
+    return True
+EndFunction
+
+Function HandleLoadNotification(Actor player)
+    if !_pendingLoadMessage
+        return
+    endif
+
+    if Utility.GetCurrentRealTime() < _loadMessageAt
+        return
+    endif
+
+    if !HasCoreRuntime() || !player
+        return
+    endif
+
+    String guid = Controller.Identity.GetTickGuid(player)
+    if guid == ""
+        _loadMessageAt = Utility.GetCurrentRealTime() + 1.0
+        return
+    endif
+
+    _pendingLoadMessage = False
+
+    Bool postDeathFlavorPending = Controller.Death.ConsumePostDeathLoadFlavorPending(player, guid)
+
+    Int deaths     = Controller.Death.GetCurrentDeathCount(player, guid)
+    Int soulTier   = Controller.Tiers.GetCurrentTier(player, guid)
+    Int daysPassed = Utility.GetCurrentGameTime() as Int
+    Bool defiant = (soulTier == Controller.Tiers.TIER_DEFIANT && deaths >= Controller.Tiers.IRON_SOUL_MAX_LIVES && deaths < Controller.Tiers.DEFIANT_SOUL_MAX_LIVES)
+    Bool chimTier = (soulTier == Controller.Tiers.TIER_CHIM)
+
+    Int loadNotificationMode = Controller.Config.GetLoadNotificationMode()
+    if loadNotificationMode == 0
+        return
+    endif
+    Bool showStats  = (loadNotificationMode == 1 || loadNotificationMode == 2)
+    Bool showFlavor = (loadNotificationMode == 1 || loadNotificationMode == 3)
+
+    Bool luckActive = False
+    Int luckVal = 100
+    Int luckMax = 100
+    if Controller.Luck
+        luckActive = Controller.Luck.IsRuntimeAvailable()
+        if luckActive
+            luckMax = Controller.Luck.GetCurrentMax(player, guid)
+            luckVal = Controller.Luck.GetValue(player, guid)
+        endif
+    endif
+
+    if showStats
+        Debug.Notification(BuildLoadStatsNotification(deaths, luckVal, daysPassed, luckActive))
+    endif
+
+    if !showFlavor
+        return
+    endif
+
+    if postDeathFlavorPending
+        Debug.Notification(PickPostDeathLoadFlavor())
+        return
+    endif
+
+    if luckActive && luckVal < luckMax
+        Debug.Notification(PickLuckLoadFlavor(luckVal, luckMax))
+        return
+    endif
+
+    String tierFlavor = PickTierLoadFlavor(soulTier, deaths, chimTier, defiant)
+    if tierFlavor != ""
+        Debug.Notification(tierFlavor)
+    endif
+EndFunction
+
+Function OpenTimedMessageSWF(String menuName, Float duration = 6.0, Bool restoreMusic = True)
+    if menuName == ""
+        return
+    endif
+
+    if duration <= 0.0
+        duration = 0.1
+    endif
+
+    FadeMusicForTransitionSequence()
+
+    UI.CloseCustomMenu()
+    UI.OpenCustomMenu(menuName, 0)
+    Utility.WaitMenuMode(duration)
+    UI.CloseCustomMenu()
+
+    if restoreMusic
+        RestoreMusic()
+    endif
+EndFunction
+
+Function OpenTimedMessageSWF_SFX(String swfName, Float seconds, Sound sfx, Actor player, Bool restoreMusic = True)
+    PlayPresentationSFX(sfx, player)
+    OpenTimedMessageSWF(swfName, seconds, restoreMusic)
+EndFunction
+
+Function OpenTimedMessageSWF_KeyDismiss(String menuName, Float maxDuration = 6.0, Float minDismissSeconds = 6.0, Bool restoreMusic = True)
+    if menuName == ""
+        return
+    endif
+
+    FadeMusicForTransitionSequence()
+    OpenKeyDismissMenu(menuName, maxDuration, minDismissSeconds)
+
+    if restoreMusic
+        RestoreMusic()
+    endif
+EndFunction
+
+Function OpenTimedMessageSWF_KeyDismissTrackedSFX(String menuName, Float maxDuration = 6.0, Float minDismissSeconds = 6.0, Bool restoreMusic = True, Int sfxInstance = -1, Float sfxStartedAt = 0.0, Float sfxSeconds = 0.0)
+    if menuName == ""
+        return
+    endif
+
+    FadeMusicForTransitionSequence()
+    Bool dismissedByKey = OpenKeyDismissMenu(menuName, maxDuration, minDismissSeconds)
+
+    if restoreMusic
+        if Controller && Controller.SFX && dismissedByKey
+            Controller.SFX.FadeOutInstance(sfxInstance, TRANSITION_SFX_FADE_SECONDS)
+        elseif sfxInstance >= 0 && sfxStartedAt > 0.0 && sfxSeconds > 0.0
+            Float elapsedSFX = Utility.GetCurrentRealTime() - sfxStartedAt
+            if elapsedSFX < 0.0
+                elapsedSFX = 0.0
+            endif
+            Float remainingSFX = sfxSeconds - elapsedSFX
+            if remainingSFX > 0.0
+                Utility.Wait(remainingSFX)
+            endif
+        endif
+
+        RestoreMusic()
+    endif
+EndFunction
+
+Function OpenTimedMessageSWF_KeyDismiss_SFX(String swfName, Float maxSeconds, Float minDismissSeconds, Sound sfx, Actor player, Bool restoreMusic = True)
+    PlayPresentationSFX(sfx, player)
+    OpenTimedMessageSWF_KeyDismiss(swfName, maxSeconds, minDismissSeconds, restoreMusic)
+EndFunction
+
+Function OpenTimedMessageSWF_KeyDismissIronIntro(String menuName, Float maxDuration = 6.0, Float minDismissSeconds = 6.0, Sound sfx = None, Actor player = None)
+    if menuName == ""
+        return
+    endif
+
+    PlayPresentationSFX(sfx, player)
+    FadeMusicForTransitionSequence()
+    OpenKeyDismissMenu(menuName, maxDuration, minDismissSeconds)
+EndFunction
+
+Bool Function OpenKeyDismissMenu(String menuName, Float maxDuration = 6.0, Float minDismissSeconds = 6.0)
+    if menuName == ""
+        return False
+    endif
+
+    if maxDuration <= 0.0
+        maxDuration = 0.1
+    endif
+    if minDismissSeconds < 0.0
+        minDismissSeconds = 0.0
+    endif
+    if minDismissSeconds > maxDuration
+        minDismissSeconds = maxDuration
+    endif
+
+    UI.CloseCustomMenu()
+
+    _keyDismissPressed = False
+    _keyDismissActive  = False
+
+    UI.OpenCustomMenu(menuName, 0)
+
+    if minDismissSeconds > 0.0
+        Utility.WaitMenuMode(minDismissSeconds)
+    endif
+
+    Float remaining = maxDuration - minDismissSeconds
+    if remaining > 0.0
+        _keyDismissPressed = False
+        _keyDismissActive  = True
+        RegisterForAllKeys()
+
+        while remaining > 0.0 && !_keyDismissPressed
+            Utility.WaitMenuMode(0.10)
+            remaining -= 0.10
+        endwhile
+
+        _keyDismissActive = False
+        UnregisterForAllKeys()
+    endif
+
+    UI.CloseCustomMenu()
+    return _keyDismissPressed
+EndFunction
+
+Function PlayPresentationSFX(Sound sfx, Actor player)
+    if Controller && Controller.SFX
+        Controller.SFX.Play(sfx, player)
+    endif
+EndFunction
+
+Bool Function ShouldShowIronIntro(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        return False
+    endif
+
+    if !Controller.Config.IsIronSoulIntroEnabled()
+        return False
+    endif
+
+    Int liveTier = Controller.Tiers.GetCurrentTier(player, guid)
+    if liveTier != Controller.Tiers.TIER_IRON
+        return False
+    endif
+
+    if !Controller.Persistence || Controller.Persistence.IsIronIntroShown(player, guid)
+        return False
+    endif
+
+    return True
+EndFunction
+
+Bool Function ShowIronIntro(Actor player, String guid)
+    if !ShouldShowIronIntro(player, guid)
+        return False
+    endif
+
+    OpenTimedMessageSWF_KeyDismissIronIntro(SwfNoBonus("1ironintro", Controller.Config.IsSoulBonusEnabled()), 30.0, 14.5, Controller.SFX.SFXIronIntro, player)
+    Controller.Persistence.MarkIronIntroShown(player, guid)
+    Utility.Wait(1.0)
+    return True
+EndFunction
+
+Function FadeMusicForTransitionSequence()
+    if !HasMusicRuntime()
+        return
+    endif
+
+    Float menuMusicVol = Utility.GetINIFloat("fVal3:AudioMenu")
+    if menuMusicVol < 0.0 || menuMusicVol > 1.0
+        menuMusicVol = 1.0
+    endif
+
+    IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol)
+EndFunction
+
+Function RestoreMusic(Float seconds = 2.0)
+    if !HasMusicRuntime()
+        return
+    endif
+
+    if seconds <= 0.0
+        seconds = 0.1
+    endif
+    IronSoulNative.MusicFadeIn(AudioCategoryMUS, seconds)
+EndFunction
+
+Event OnKeyDown(Int keyCode)
+    if !_keyDismissActive
+        return
+    endif
+    _keyDismissPressed = True
+EndEvent
+
+Function RegisterForAllKeys()
+    RegisterForKey(1)   ; Esc
+    RegisterForKey(28)  ; Enter
+    RegisterForKey(57)  ; Space
+
+    RegisterForKey(256) ; LeftMouseButton
+    RegisterForKey(257) ; RightMouseButton
+
+    RegisterForKey(270) ; Start
+    RegisterForKey(271) ; Back
+    RegisterForKey(276) ; GamepadA
+    RegisterForKey(277) ; GamepadB
+    RegisterForKey(278) ; GamepadX
+    RegisterForKey(279) ; GamepadY
+EndFunction
+
+Function UnregisterForAllKeys()
+    UnregisterForKey(1)   ; Esc
+    UnregisterForKey(28)  ; Enter
+    UnregisterForKey(57)  ; Space
+
+    UnregisterForKey(256) ; LeftMouseButton
+    UnregisterForKey(257) ; RightMouseButton
+
+    UnregisterForKey(270) ; Start
+    UnregisterForKey(271) ; Back
+    UnregisterForKey(276) ; GamepadA
+    UnregisterForKey(277) ; GamepadB
+    UnregisterForKey(278) ; GamepadX
+    UnregisterForKey(279) ; GamepadY
+EndFunction
+
+Event OnMusicFadeSetVolume(String eventName, String strArg, Float numArg, Form sender)
+    SoundCategory cat = sender as SoundCategory
+    if !cat
+        return
+    endif
+
+    Float v = numArg
+    if v < 0.0
+        v = 0.0
+    elseif v > 1.0
+        v = 1.0
+    endif
+
+    cat.SetVolume(v)
+EndEvent
 
 
 ; --- Menu Naming ---
@@ -97,6 +561,36 @@ String Function ResolveRespawnMenu(Int soulTier) Global
     return TierMenuPrefix(soulTier) + "respawn"
 EndFunction
 
+String Function ResolveSoulFeatUnlockMenuFromFacts(Int soulTier, Bool soulBonusEnabled, Bool dragonSoulReviveEnabled, Int platinumVariant, Int ebonVariant) Global
+    Int unlockTier = IronSoulTiers.NormalizeSoulFeatUnlockTier(soulTier)
+
+    if unlockTier == 6
+        if !soulBonusEnabled && !dragonSoulReviveEnabled
+            return "6devourfeatunlocknobonusnodsr"
+        elseif !soulBonusEnabled
+            return "6devourfeatunlocknobonus"
+        elseif !dragonSoulReviveEnabled
+            return "6devourfeatunlocknodsr"
+        endif
+        return "6devourfeatunlock"
+    elseif unlockTier == 5
+        String menuP = "5platinumfeatunlockmiraak"
+        if platinumVariant == 1
+            menuP = "5platinumfeatunlockmolagbal"
+        endif
+        return SwfNoBonus(menuP, soulBonusEnabled)
+    elseif unlockTier == 4
+        String menuE = "4ebonfeatunlockharkon"
+        if ebonVariant == 1
+            menuE = "4ebonfeatunlockalduin"
+        endif
+        return SwfNoBonus(menuE, soulBonusEnabled)
+    elseif unlockTier == 3
+        return SwfNoBonus("3goldfeatunlock", soulBonusEnabled)
+    endif
+    return SwfNoBonus("2silverfeatunlock", soulBonusEnabled)
+EndFunction
+
 String Function ResolveDefiantFeatUnlockMenu(Bool soulFatigueEnabled) Global
     String base = "0defiantfeatunlock"
     if !soulFatigueEnabled
@@ -153,9 +647,27 @@ String Function ResolveCHIMTransitionMenu(Int curTier) Global
     return "9chimdeath"
 EndFunction
 
+String Function ResolveLuckThresholdNotification(Int tier) Global
+    if tier == 1
+        return "Your luck is returning."
+    elseif tier == 2
+        return "Your luck has improved."
+    elseif tier == 3
+        return "The odds favor you."
+    endif
+    return "You're feeling lucky."
+EndFunction
+
 
 ; --- Flavor Text ---
 ; ===================
+
+String Function BuildLoadStatsNotification(Int deaths, Int luck, Int daysPassed, Bool luckActive) Global
+    if luckActive
+        return "Deaths: " + deaths + " | Luck: " + luck + " | Days Passed: " + daysPassed
+    endif
+    return "Deaths: " + deaths + " | Days Passed: " + daysPassed
+EndFunction
 
 String Function PickCHIMLine(Int idx) Global
     if idx == 0
@@ -309,5 +821,5 @@ String Function PickPostDeathLoadFlavor() Global
     elseif r == 3
         return "The vision lingers, warning of what could be."
     endif
-    return "You stand with foreknowledge you never wanted."
+    return "You stand with knowledge you never wanted."
 EndFunction
