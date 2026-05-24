@@ -7,34 +7,35 @@ Iron Soul: Dead God's Dream
 ===========================
 
 Iron Soul is a permadeath roguelite system for Skyrim with configurable death rules, Dragon Soul Revive,
-and persistent progression, expanding into a multi-character saga built around Heart Shards and escalating undead pressure.
+and persistent progression, expanding into a multi-character saga built around Heartstones and escalating undead pressure.
 
 Version
 -------
 
-0.7: Heart Shards
+0.7: The Missing Heart
 
 
 Current TODO
 ------------
 
-- Introduce Heart Shards of Lorkhan as permanent discoveries that can be found across multiple characters.
-- Use Heart Shard progress to unlock account-level perks that persist beyond individual character deaths.
-- Add permanent account-level perk unlocks tied to Heart Shard progress.
+- Introduce Heartstones as permanent discoveries that can be found across multiple characters. These may drop from randomly strong enemies or be found spawned in the world.
+- Use Heartstone progress to unlock account-level perks that persist beyond individual character deaths.
+- Add permanent account-level perk unlocks tied to Heartstone progress.
 - Integrate cinematic dragon soul absorption. Make DSR wind effect isolated.
+- See if swfs can be replaced by prismaUI? Then see if text strings can be localized outside the scripts.
 
 
 Roadmap
 -------
 
 V2: Echoes of Lorkhan
-- Add a dream system. After the first shard is collected, the player has a chance to receive dreams while sleeping.
-- More shards collected increase dream chance, expand the dream pool, and cause more metaphysical shards to appear in Skyrim. "The Heart wants to be whole again..."
-- Dreams focus mostly on historical echoes tied to Lorkhan, the Heart, Kagrenac, the Dwemer, the Tribunal, Red Mountain, and the player's growing connection to the shards.
+- Add a dream system. After the first Heartstone is absorbed, the player has a chance to receive dreams while sleeping.
+- More Heartstones absorbed increase dream chance, expand the dream pool, and cause more metaphysical Heartstones to appear in Skyrim. "The Heart wants to be whole again..."
+- Dreams focus mostly on historical echoes tied to Lorkhan, the Heart, Kagrenac, the Dwemer, the Tribunal, Red Mountain, and the player's growing connection to the Heartstones.
 - Dreams include quick scenes and distorted echoes involving Kagrenac's use of the Tools, the disappearance of the Dwemer, Dagoth Ur's fall, and the Tribunal's later use of the Heart.
 - Early dreams are fragmented and ambiguous, making it unclear whether the voice guiding the player is Lorkhan, the Heart itself, or something else speaking through it.
-- Flesh out the history around Lorkhan, the Heart, and the player's connection to the shards.
-- Expand the Heart mystery into a stronger story layer that recontextualizes the V1 shard hunt.
+- Flesh out the history around Lorkhan, the Heart, and the player's connection to the Heartstones.
+- Expand the Heart mystery into a stronger story layer that recontextualizes the V1 Heartstone hunt.
 
 V3: The Dragon Cult Rises
 - Rework Draugnarok raid pressure so the endgame source is Labyrinthian and the active pressure network flows from dragon priest barrows.
@@ -54,9 +55,9 @@ V3: The Dragon Cult Rises
 
 V4: Return of the Dead God
 - Add a full quest powered by the dream system, building on the historical Heart dreams introduced in V2.
-- As more shards are collected, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
+- As more Heartstones are absorbed, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
 - Dreams reveal that only the Heart's power can make Alduin truly vulnerable.
-- Once all shards have been collected, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
+- Once all Heartstones have been absorbed, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
 - If the player uses the Tools on the Heart before the correct ritual is known, the game quits outright.
 - A final dream falsely instructs the player to strike the Heart with Sunder once, then Keening once. Following this instruction triggers Dagoth Ur's reveal and awakens Dagoth Soul.
 - Reveal that the apparent voice of Lorkhan is actually Dagoth Ur's dream-shadow manipulating the player.
