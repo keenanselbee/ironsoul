@@ -1,8 +1,21 @@
-Scriptname IronSoulSFX Hidden
+Scriptname IronSoulSFX extends Quest
 
 ; =========================
 ; --- Table of Contents ---
 ; =========================
+
+; --- Component Helpers ---
+; -------------------------
+; HasCoreRuntime()
+
+; --- Component Runtime ---
+; -------------------------
+; Play()
+; PlayInstance()
+; FadeOutInstance()
+; PickHeavyBreathingForPlayer()
+; CanPlayConfiguredSFX()
+; IsOwnedSFXEnabled()
 
 ; --- Playback Policy ---
 ; -----------------------
@@ -13,12 +26,130 @@ Scriptname IronSoulSFX Hidden
 ; ---------------------
 ; ResolveSoulFeatUnlockSFX()
 ; PickHeavyBreathingSFX()
+; PickRandomSFX4()
 ; PickDragonSoulReviveCastSFX()
 ; PickDragonSoulReviveSFX()
 
 
-; --- Playback Policy ---
-; =======================
+; --- Wired Dependencies & Runtime State ---
+; ==========================================
+
+IronSoulController Property Controller Auto
+
+; This component owns shared UI, death, respawn, luck, and heavy-breathing
+; sounds. Tier and Dragon Soul Revive sounds stay with their owning components.
+Sound Property SFXIronIntro Auto
+Sound Property SFXDeath Auto
+Sound Property SFXPermadeath Auto
+Sound Property SFXRespawn Auto
+Sound Property SFXLuckRoll Auto
+Sound Property SFXLuckFailure Auto
+Sound Property SFXLuckSuccess Auto
+Sound Property SFXHeavyBreathing0 Auto ; MaleKhajiit
+Sound Property SFXHeavyBreathing1 Auto ; MaleOrc
+Sound Property SFXHeavyBreathing2 Auto ; MaleEvenToned
+Sound Property SFXHeavyBreathing3 Auto ; MaleElfHaughty
+Sound Property SFXHeavyBreathing4 Auto ; MaleArgonian
+Sound Property SFXHeavyBreathing5 Auto ; FemaleOrc
+Sound Property SFXHeavyBreathing6 Auto ; FemaleEvenToned
+Sound Property SFXHeavyBreathing7 Auto ; FemaleKhajiit
+Sound Property SFXHeavyBreathing8 Auto ; FemaleElfHaughty
+Sound Property SFXHeavyBreathing9 Auto ; FemaleArgonian
+
+
+; --- Component Helpers ---
+; =========================
+
+Bool Function HasCoreRuntime()
+    if !Controller
+        return False
+    endif
+    if !Controller.Config
+        return False
+    endif
+    return True
+EndFunction
+
+
+; --- Component Runtime ---
+; =========================
+
+Function Play(Sound sfx, Actor source)
+    if !CanPlayConfiguredSFX(sfx, source)
+        return
+    endif
+    sfx.Play(source)
+EndFunction
+
+Int Function PlayInstance(Sound sfx, Actor source)
+    if !CanPlayConfiguredSFX(sfx, source)
+        return -1
+    endif
+    return sfx.Play(source)
+EndFunction
+
+Function FadeOutInstance(Int instanceId, Float seconds = 1.0)
+    if instanceId < 0
+        return
+    endif
+    if seconds <= 0.0
+        Sound.StopInstance(instanceId)
+        return
+    endif
+
+    Int steps = 10
+    Float stepCount = steps as Float
+    Float stepTime = seconds / stepCount
+    Int i = steps
+    while i > 0
+        Float volume = ((i - 1) as Float) / stepCount
+        Sound.SetInstanceVolume(instanceId, volume)
+        Utility.Wait(stepTime)
+        i -= 1
+    endwhile
+
+    Sound.StopInstance(instanceId)
+EndFunction
+
+Sound Function PickHeavyBreathingForPlayer(Actor player)
+    return PickHeavyBreathingSFX(player, SFXHeavyBreathing0, SFXHeavyBreathing1, SFXHeavyBreathing2, SFXHeavyBreathing3, SFXHeavyBreathing4, SFXHeavyBreathing5, SFXHeavyBreathing6, SFXHeavyBreathing7, SFXHeavyBreathing8, SFXHeavyBreathing9)
+EndFunction
+
+Bool Function CanPlayConfiguredSFX(Sound sfx, Actor source)
+    if !HasCoreRuntime()
+        return False
+    endif
+    if !CanPlaySFX(Controller.Config.IsSFXEnabled(), Controller.Config.IsUninstallMode(), Controller.IsModDisabled())
+        return False
+    endif
+    if !sfx || !source
+        return False
+    endif
+    return IsOwnedSFXEnabled(sfx)
+EndFunction
+
+Bool Function IsOwnedSFXEnabled(Sound sfx)
+    if !sfx
+        return False
+    endif
+
+    if sfx == SFXIronIntro
+        return Controller.Config.IsIronIntroSFXEnabled()
+    elseif sfx == SFXDeath
+        return Controller.Config.IsDeathSFXEnabled()
+    elseif sfx == SFXPermadeath
+        return Controller.Config.IsPermadeathSFXEnabled()
+    elseif sfx == SFXRespawn
+        return Controller.Config.IsRespawnSFXEnabled()
+    elseif sfx == SFXLuckRoll
+        return Controller.Config.IsLuckRollSFXEnabled()
+    elseif sfx == SFXLuckFailure || sfx == SFXLuckSuccess
+        return Controller.Config.IsLuckOutcomeSFXEnabled()
+    elseif sfx == SFXHeavyBreathing0 || sfx == SFXHeavyBreathing1 || sfx == SFXHeavyBreathing2 || sfx == SFXHeavyBreathing3 || sfx == SFXHeavyBreathing4 || sfx == SFXHeavyBreathing5 || sfx == SFXHeavyBreathing6 || sfx == SFXHeavyBreathing7 || sfx == SFXHeavyBreathing8 || sfx == SFXHeavyBreathing9
+        return Controller.Config.IsRespawnHeavyBreathingSFXEnabled()
+    endif
+    return False
+EndFunction
 
 Bool Function CanPlaySFX(Bool sfxEnabled, Bool uninstallMode, Bool modDisabled) Global
     if !sfxEnabled
@@ -68,7 +199,7 @@ Bool Function IsSFXCategoryEnabled(Sound sfx, Sound ironIntro, Sound death, Soun
         return heavyBreathingEnabled
     endif
 
-    return True
+    return False
 EndFunction
 
 
@@ -106,25 +237,25 @@ Sound Function PickHeavyBreathingSFX(Actor player, Sound heavy0, Sound heavy1, S
         raceId = raceNow.GetFormID()
     endif
 
-    if raceId == 0x00013747
+    if raceId == 0x00013747 ; OrcRace
         if sex == 1
             picked = heavy5
         else
             picked = heavy1
         endif
-    elseif raceId == 0x00013745
+    elseif raceId == 0x00013745 ; KhajiitRace
         if sex == 1
             picked = heavy7
         else
             picked = heavy0
         endif
-    elseif raceId == 0x00013740
+    elseif raceId == 0x00013740 ; ArgonianRace
         if sex == 1
             picked = heavy9
         else
             picked = heavy4
         endif
-    elseif raceId == 0x00013742 || raceId == 0x00013743 || raceId == 0x00013749
+    elseif raceId == 0x00013742 || raceId == 0x00013743 || raceId == 0x00013749 ; Dark/High/Wood Elf
         if sex == 1
             picked = heavy8
         else
@@ -164,60 +295,39 @@ Sound Function PickHeavyBreathingSFX(Actor player, Sound heavy0, Sound heavy1, S
     return heavy9
 EndFunction
 
-Sound Function PickDragonSoulReviveCastSFX(Sound cast1, Sound cast2, Sound cast3, Sound cast4) Global
+Sound Function PickRandomSFX4(Sound sfx1, Sound sfx2, Sound sfx3, Sound sfx4) Global
     Int r = Utility.RandomInt(1, 4)
     Sound picked = None
 
-    if r == 1 && cast1
-        picked = cast1
-    elseif r == 2 && cast2
-        picked = cast2
-    elseif r == 3 && cast3
-        picked = cast3
-    elseif r == 4 && cast4
-        picked = cast4
+    if r == 1 && sfx1
+        picked = sfx1
+    elseif r == 2 && sfx2
+        picked = sfx2
+    elseif r == 3 && sfx3
+        picked = sfx3
+    elseif r == 4 && sfx4
+        picked = sfx4
     endif
 
     if !picked
-        if cast1
-            picked = cast1
-        elseif cast2
-            picked = cast2
-        elseif cast3
-            picked = cast3
-        elseif cast4
-            picked = cast4
+        if sfx1
+            picked = sfx1
+        elseif sfx2
+            picked = sfx2
+        elseif sfx3
+            picked = sfx3
+        elseif sfx4
+            picked = sfx4
         endif
     endif
 
     return picked
 EndFunction
 
+Sound Function PickDragonSoulReviveCastSFX(Sound cast1, Sound cast2, Sound cast3, Sound cast4) Global
+    return PickRandomSFX4(cast1, cast2, cast3, cast4)
+EndFunction
+
 Sound Function PickDragonSoulReviveSFX(Sound revive1, Sound revive2, Sound revive3, Sound revive4) Global
-    Int r = Utility.RandomInt(1, 4)
-    Sound picked = None
-
-    if r == 1 && revive1
-        picked = revive1
-    elseif r == 2 && revive2
-        picked = revive2
-    elseif r == 3 && revive3
-        picked = revive3
-    elseif r == 4 && revive4
-        picked = revive4
-    endif
-
-    if !picked
-        if revive1
-            picked = revive1
-        elseif revive2
-            picked = revive2
-        elseif revive3
-            picked = revive3
-        elseif revive4
-            picked = revive4
-        endif
-    endif
-
-    return picked
+    return PickRandomSFX4(revive1, revive2, revive3, revive4)
 EndFunction
