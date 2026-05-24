@@ -61,6 +61,101 @@ Scriptname IronSoulConsoleCommands Hidden
 ; - Privileged character state write/reset/destructive commands and manual raid triggers require EnableDebug=1 in ironsoul.ini.
 
 
+; =========================
+; --- Table of Contents ---
+; =========================
+
+; --- Helper & Parsing ---
+; ------------------------
+; ClampTier()
+; IsCanonicalTier()
+; IsNormalTier()
+; ClampThreatLevel()
+; ClampLuckLevel()
+; ClampDeaths()
+; ParsePersistFlag()
+; ConfigFlagUninstallMode()
+; ConfigFlagDraugnarokRefresh()
+; HasConfigKeyFlag()
+; ParseForceMode()
+
+; --- Controller / GUID / Persistence Helpers ---
+; -----------------------------------------------
+; ResolveControllerQuest()
+; ResolveDraugnarokQuest()
+; IsDebugEnabled()
+; IsCosaveRecoveryBackupEnabled()
+; MakeScopedKey()
+; ResolveGuid()
+; ReadScopedInt()
+; WriteScopedInt()
+; WriteScopedIntChecked()
+; IsDigitChar()
+; IsStrictIntText()
+; StartsWithText()
+; StripCurrentGuidScope()
+; NormalizeDataRawKey()
+; ResolveKnownDataBase()
+; KnownDataValueType()
+; IsAllowedRawDataBase()
+; ResolveDataTargetKey()
+; TierLabel()
+; DifficultyLabel()
+; PresetPlusText()
+; NormalizeIronSoulPresetOrdinal()
+; GetIronSoulPresetFamily()
+; GetPresetOrdinalPlusRank()
+; NormalizeBoolInt()
+; GetPresetThreatFloor()
+; GetPresetLuckLevel()
+; GetEffectivePermadeath()
+; GetEffectiveDeathReset()
+; GetEffectiveDefiantSoul()
+; GetEffectiveDraugrThreatLevel()
+; GetEffectiveLuckLevel()
+; IronSoulPresetConfigText()
+; NormalizeStateLabel()
+
+; --- State & Tier Commands ---
+; -----------------------------
+; GetHelp()
+; GetIronSoulState()
+; SetTier()
+; GetLuck()
+; SetLuck()
+; SetDeaths()
+; SetDragonSoulsState()
+; ResetTier()
+; ResetCharacterData()
+; PurgeData()
+; GetData()
+; SetData()
+; TriggerDraugnarokRaid()
+; DraugnarokState()
+; DraugnarokRaidChance()
+; SetDraugnarokOverride()
+; DraugnarokForceOn()
+; DraugnarokForceOff()
+; DraugnarokOverrideReset()
+; DraugnarokSmallRaid()
+; DraugnarokServiceRaid()
+; DraugnarokTownRaid()
+; DraugnarokMediumRaid()
+; DraugnarokPillageRaid()
+; DraugnarokMinorCapitalRaid()
+; DraugnarokGateRaid()
+; DraugnarokCapitalRaid()
+
+; --- INI / Config Commands ---
+; -----------------------------
+; GetIniValueLine()
+; SafeUninstallGuidance()
+; RefreshDraugnarokRuntime()
+; GetIni()
+; SetIni()
+; ReloadIni()
+
+
 ; ========================
 ; --- Helper & Parsing ---
 ; ========================
@@ -124,88 +219,22 @@ Int Function ParsePersistFlag(String persistFlag) Global
     return -1
 EndFunction
 
-String Function GetIniKeyBase(String k) Global
-    Int dot = StringUtil.Find(k, ".")
-    if dot != -1
-        Int len = StringUtil.GetLength(k)
-        if dot + 1 < len
-            return StringUtil.Substring(k, dot + 1)
-        endif
-    endif
-    return k
+Int Function ConfigFlagUninstallMode() Global
+    return 16
 EndFunction
 
-Bool Function IsUninstallModeKey(String k) Global
-    String keyBase = GetIniKeyBase(k)
-    return keyBase == "UninstallMode" || keyBase == "uninstallmode" || keyBase == "UNINSTALLMODE"
+Int Function ConfigFlagDraugnarokRefresh() Global
+    return 32
 EndFunction
 
-Bool Function IsDraugnarokSystemKey(String k) Global
-    String keyBase = GetIniKeyBase(k)
-    return keyBase == "DraugnarokSystem" || keyBase == "draugnaroksystem" || keyBase == "DRAUGNAROKSYSTEM"
-EndFunction
-
-Bool Function IsIronSoulPresetKey(String k) Global
-    String keyBase = GetIniKeyBase(k)
-    return keyBase == "IronSoulPreset" || keyBase == "ironsoulpreset" || keyBase == "IRONSOULPRESET"
-EndFunction
-
-Bool Function IsPresetLockedCoreKey(String k) Global
-    String keyBase = GetIniKeyBase(k)
-    if keyBase == "Permadeath" || keyBase == "permadeath" || keyBase == "PERMADEATH"
-        return True
-    elseif keyBase == "DeathReset" || keyBase == "deathreset" || keyBase == "DEATHRESET"
-        return True
-    elseif keyBase == "DefiantSoul" || keyBase == "defiantsoul" || keyBase == "DEFIANTSOUL"
-        return True
-    elseif keyBase == "LuckLevel" || keyBase == "lucklevel" || keyBase == "LUCKLEVEL"
-        return True
-    endif
-    return False
-EndFunction
-
-Bool Function IsDraugrThreatLevelKey(String k) Global
-    String keyBase = GetIniKeyBase(k)
-    return keyBase == "DraugrThreatLevel" || keyBase == "draugrthreatlevel" || keyBase == "DRAUGRTHREATLEVEL"
-EndFunction
-
-Bool Function IsLuckLevelKey(String k) Global
-    String keyBase = GetIniKeyBase(k)
-    return keyBase == "LuckLevel" || keyBase == "lucklevel" || keyBase == "LUCKLEVEL"
-EndFunction
-
-Bool Function IsIronSoulPresetValueText(String value) Global
-    Int len = StringUtil.GetLength(value)
-    if len <= 0
+Bool Function HasConfigKeyFlag(Int flags, Int flag) Global
+    if flag <= 0
         return False
     endif
 
-    Int plusCount = 0
-    String baseValue = value
-    while len > 0 && StringUtil.GetNthChar(baseValue, len - 1) == "+"
-        plusCount += 1
-        if plusCount > 2
-            return False
-        endif
-        len -= 1
-        if len <= 0
-            return False
-        endif
-        baseValue = StringUtil.Substring(baseValue, 0, len)
-    endwhile
-
-    if !IsStrictIntText(baseValue)
-        return False
-    endif
-
-    Int presetValue = baseValue as Int
-    if presetValue < 0 || presetValue > 3
-        return False
-    endif
-    if plusCount > 0 && presetValue == 0
-        return False
-    endif
-    return True
+    Int quotient = flags / flag
+    Int evenPart = (quotient / 2) * 2
+    return quotient - evenPart == 1
 EndFunction
 
 Int Function ParseForceMode(String forceMode) Global
@@ -265,9 +294,15 @@ String Function MakeScopedKey(String baseKey, String guid) Global
     return baseKey + ":" + guid
 EndFunction
 
-String Function ResolveGuid(Actor playerRef) Global
+String Function ResolveGuid(Actor playerRef, IronSoulController controller = None) Global
     if !playerRef
         return ""
+    endif
+    if !controller
+        controller = ResolveControllerQuest()
+    endif
+    if controller && controller.Identity
+        return controller.Identity.GetTickGuid(playerRef)
     endif
     return StorageUtil.GetStringValue(playerRef, "IS_9975", "")
 EndFunction
@@ -591,30 +626,25 @@ String Function TierLabel(Int tierValue) Global
     return "Iron"
 EndFunction
 
-String Function DifficultyLabel(Int difficultyValue) Global
-    difficultyValue = NormalizeIronSoulPreset(difficultyValue)
-    if difficultyValue == 0
+String Function DifficultyLabel(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal == 0
         return "Custom"
     endif
 
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
     String label = "Dreamer"
-    if difficultyValue == 2
+    if presetFamily == 2
         label = "Harbinger"
-    elseif difficultyValue == 3
+    elseif presetFamily == 3
         label = "Apocalypse"
     endif
 
-    return label + PresetPlusText()
+    return label + PresetPlusText(presetOrdinal)
 EndFunction
 
-String Function PresetPlusText() Global
-    Int plusCount = IronSoulNative.GetIronSoulPresetPlus()
-    if plusCount < 0
-        plusCount = 0
-    elseif plusCount > 2
-        plusCount = 2
-    endif
-
+String Function PresetPlusText(Int presetOrdinal) Global
+    Int plusCount = GetPresetOrdinalPlusRank(presetOrdinal)
     String text = ""
     while plusCount > 0
         text = text + "+"
@@ -623,9 +653,39 @@ String Function PresetPlusText() Global
     return text
 EndFunction
 
-Int Function NormalizeIronSoulPreset(Int presetValue) Global
-    if presetValue >= 1 && presetValue <= 3
-        return presetValue
+Int Function NormalizeIronSoulPresetOrdinal(Int presetOrdinal) Global
+    if presetOrdinal == 0
+        return 0
+    elseif presetOrdinal >= 1 && presetOrdinal <= 3
+        return presetOrdinal
+    elseif presetOrdinal >= 5 && presetOrdinal <= 7
+        return presetOrdinal
+    elseif presetOrdinal >= 9 && presetOrdinal <= 11
+        return presetOrdinal
+    endif
+    return 0
+EndFunction
+
+Int Function GetIronSoulPresetFamily(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal >= 1 && presetOrdinal <= 3
+        return 1
+    elseif presetOrdinal >= 5 && presetOrdinal <= 7
+        return 2
+    elseif presetOrdinal >= 9 && presetOrdinal <= 11
+        return 3
+    endif
+    return 0
+EndFunction
+
+Int Function GetPresetOrdinalPlusRank(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal >= 1 && presetOrdinal <= 3
+        return presetOrdinal - 1
+    elseif presetOrdinal >= 5 && presetOrdinal <= 7
+        return presetOrdinal - 5
+    elseif presetOrdinal >= 9 && presetOrdinal <= 11
+        return presetOrdinal - 9
     endif
     return 0
 EndFunction
@@ -637,91 +697,92 @@ Int Function NormalizeBoolInt(Int value, Int fallback) Global
     return fallback
 EndFunction
 
-Int Function GetPresetThreatFloor(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    if presetValue == 1
+Int Function GetPresetThreatFloor(Int presetOrdinal) Global
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    if presetFamily == 1
         return 2
-    elseif presetValue == 2
+    elseif presetFamily == 2
         return 3
-    elseif presetValue == 3
+    elseif presetFamily == 3
         return 4
     endif
     return 1
 EndFunction
 
-Int Function GetPresetLuckLevel(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    if presetValue == 1
+Int Function GetPresetLuckLevel(Int presetOrdinal) Global
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    if presetFamily == 1
         return 4
-    elseif presetValue == 2
+    elseif presetFamily == 2
         return 3
-    elseif presetValue == 3
+    elseif presetFamily == 3
         return 2
     endif
     return 5
 EndFunction
 
-Int Function GetEffectivePermadeath(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    if presetValue == 1
+Int Function GetEffectivePermadeath(Int presetOrdinal) Global
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    if presetFamily == 1
         return 0
-    elseif presetValue == 2 || presetValue == 3
+    elseif presetFamily == 2 || presetFamily == 3
         return 1
     endif
     return NormalizeBoolInt(IronSoulNative.GetConfigInt("Permadeath", 1), 1)
 EndFunction
 
-Int Function GetEffectiveDeathReset(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    if presetValue == 1 || presetValue == 2
+Int Function GetEffectiveDeathReset(Int presetOrdinal) Global
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    if presetFamily == 1 || presetFamily == 2
         return 1
-    elseif presetValue == 3
+    elseif presetFamily == 3
         return 0
     endif
     return NormalizeBoolInt(IronSoulNative.GetConfigInt("DeathReset", 1), 1)
 EndFunction
 
-Int Function GetEffectiveDefiantSoul(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    if presetValue == 1 || presetValue == 2
+Int Function GetEffectiveDefiantSoul(Int presetOrdinal) Global
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    if presetFamily == 1 || presetFamily == 2
         return 1
-    elseif presetValue == 3
+    elseif presetFamily == 3
         return 0
     endif
     return NormalizeBoolInt(IronSoulNative.GetConfigInt("DefiantSoul", 1), 1)
 EndFunction
 
-Int Function GetEffectiveDraugrThreatLevel(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    if presetValue == 0
+Int Function GetEffectiveDraugrThreatLevel(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal == 0
         return ClampThreatLevel(IronSoulNative.GetConfigInt("DraugrThreatLevel", 2))
     endif
 
-    Int threatLevel = GetPresetThreatFloor(presetValue)
-    if IronSoulNative.GetConfigInt("DraugnarokSystem", 1) != 0 && IronSoulNative.GetIronSoulPresetPlus() >= 1
+    Int threatLevel = GetPresetThreatFloor(presetOrdinal)
+    if IronSoulNative.GetConfigInt("DraugnarokSystem", 1) != 0 && GetPresetOrdinalPlusRank(presetOrdinal) >= 1
         threatLevel += 1
     endif
     return ClampThreatLevel(threatLevel)
 EndFunction
 
-Int Function GetEffectiveLuckLevel(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    if presetValue == 0
+Int Function GetEffectiveLuckLevel(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal == 0
         return ClampLuckLevel(IronSoulNative.GetConfigInt("LuckLevel", 5))
     endif
 
-    Int luckLevel = GetPresetLuckLevel(presetValue)
-    if IronSoulNative.GetIronSoulPresetPlus() >= 2
+    Int luckLevel = GetPresetLuckLevel(presetOrdinal)
+    if GetPresetOrdinalPlusRank(presetOrdinal) >= 2
         luckLevel -= 1
     endif
     return ClampLuckLevel(luckLevel)
 EndFunction
 
-String Function IronSoulPresetConfigText(Int presetValue) Global
-    presetValue = NormalizeIronSoulPreset(presetValue)
-    String text = "" + presetValue
-    if presetValue != 0
-        text = text + PresetPlusText()
+String Function IronSoulPresetConfigText(Int presetOrdinal) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    String text = "" + presetFamily
+    if presetFamily != 0
+        text = text + PresetPlusText(presetOrdinal)
     endif
     return text
 EndFunction
@@ -747,28 +808,6 @@ String Function NormalizeStateLabel(String value) Global
 
     return value
 EndFunction
-
-Function SyncDeathsGlobal(Int deathsValue) Global
-    ; 0x000B12 in Iron Soul - Dead God's Dream.esp (IronSoul_DeathCount global)
-    GlobalVariable deathsGlobal = Game.GetFormFromFile(2834, "Iron Soul - Dead God's Dream.esp") as GlobalVariable
-    if deathsGlobal
-        deathsGlobal.SetValue(deathsValue as Float)
-    endif
-EndFunction
-
-Function SyncDeathActorValue(Actor playerRef, Int deathsValue) Global
-    Int charSheetCompat = IronSoulNative.GetConfigInt("EnableCharacterSheetCompatibility", 0)
-    if charSheetCompat == 0 || !playerRef
-        return
-    endif
-
-    Float current = playerRef.GetActorValue("DEPRECATED05")
-    Float desired = deathsValue as Float
-    if current != desired
-        playerRef.SetActorValue("DEPRECATED05", desired)
-    endif
-EndFunction
-
 
 ; =============================
 ; --- State & Tier Commands ---
@@ -810,23 +849,32 @@ String Function GetIronSoulState() Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
 
-    Int tierValue = ClampTier(ReadScopedInt(playerRef, "IS_2204", 1))
-    Int difficultyValue = NormalizeIronSoulPreset(IronSoulNative.GetConfigInt("IronSoulPreset", 0))
-    Int deathValue = ClampDeaths(ReadScopedInt(playerRef, "IS_8155", 0))
-    Int totalDeathValue = ClampDeaths(ReadScopedInt(playerRef, "IS_9132", 0))
-    Int soulsTotal = ClampDeaths(ReadScopedInt(playerRef, "IS_9646", 0))
-    String soulBonusState = NormalizeStateLabel(controller.GetAppliedSoulBonusSpellCompactLabel(playerRef))
-    String soulFatigueState = NormalizeStateLabel(controller.GetAppliedSoulFatigueSpellCompactLabel(playerRef))
+    if !controller.Tiers
+        return "Error: IronSoulTiers is not wired."
+    endif
+    if !controller.Death
+        return "Error: IronSoulDeath is not wired."
+    endif
+    if !controller.Effects
+        return "Error: IronSoulEffects is not wired."
+    endif
+
+    Int tierValue = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
+    Int difficultyValue = NormalizeIronSoulPresetOrdinal(IronSoulNative.GetIronSoulPresetOrdinal())
+    Int deathValue = ClampDeaths(controller.Death.GetCurrentDeathCount(playerRef, guid))
+    Int totalDeathValue = ClampDeaths(controller.Death.GetTotalDeaths(playerRef, guid))
+    Int soulsTotal = ClampDeaths(controller.Tiers.GetDragonSoulsTotal(playerRef, guid))
+    String soulBonusState = NormalizeStateLabel(controller.Effects.GetAppliedSoulBonusSpellCompactLabel(playerRef))
+    String soulFatigueState = NormalizeStateLabel(controller.Effects.GetAppliedSoulFatigueSpellCompactLabel(playerRef))
     return "GUID=" + guid \
         + " | Difficulty=" + DifficultyLabel(difficultyValue) \
         + " | Tier=" + TierLabel(tierValue) + "(" + tierValue + ")" \
@@ -847,14 +895,19 @@ String Function SetTier(Int tierValue, String forceMode = "") Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
+    endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
+    if !controller.Death
+        return "Error: IronSoulDeath is not wired."
+    endif
+    if !controller.Tiers
+        return "Error: IronSoulTiers is not wired."
     endif
 
     Int parsedForce = ParseForceMode(forceMode)
@@ -866,51 +919,7 @@ String Function SetTier(Int tierValue, String forceMode = "") Global
         return "Error: tier must be one of 0, 1, 2, 3, 4, 5, 6, or 9."
     endif
 
-    Int previousTier = ClampTier(ReadScopedInt(playerRef, "IS_2204", 1))
-    Int clampedTier = tierValue
-    if parsedForce == 1
-        WriteScopedInt(playerRef, "IS_2719", 1)
-    endif
-    WriteScopedInt(playerRef, "IS_2204", clampedTier)
-
-    if clampedTier == 9
-        controller.SetCHIMEnteredByConsole(playerRef, guid, True)
-    else
-        controller.SetCHIMEnteredByConsole(playerRef, guid, False)
-    endif
-
-    if clampedTier == 0
-        Int seedTier = previousTier
-        if seedTier == 0
-            seedTier = controller.GetDefiantTrackedTier(playerRef, guid)
-        endif
-        controller.InitializeDefiantState(playerRef, guid, seedTier)
-        controller.SetDefiantEnteredByConsole(playerRef, guid, True)
-    else
-        controller.ClearDefiantState(playerRef, guid)
-    endif
-
-    controller.SyncLuckNotifiedTierToCurrent(playerRef, guid)
-    controller.SyncSoulPresentationAndStats(playerRef, guid)
-
-    ; Keep dynamic assets aligned with the new tier.
-    controller.ApplyDynamicPresetAssetsForTier(clampedTier)
-    IronSoulNative.ApplyDynamicLevelWidget(clampedTier)
-    IronSoulNative.DataFlushIfDirty()
-
-    Bool manualTierOverride = (ReadScopedInt(playerRef, "IS_2719", 0) == 1)
-    String msg = "Tier set to " + clampedTier + " (" + TierLabel(clampedTier) + ")."
-    if manualTierOverride
-        if parsedForce == 1
-            msg = msg + " Manual override is active until ResetTier or a progression transition reclaims tier control."
-        else
-            msg = msg + " Add f or force to is st to force manual override. Use is rt or ResetTier to enable normal functionality again. Manual override remains active until ResetTier or a progression transition reclaims tier control."
-        endif
-    elseif parsedForce == 0
-        msg = msg + " Add f or force to is st to force manual override. Use is rt or ResetTier to enable normal functionality again."
-    endif
-
-    return msg
+    return controller.Tiers.SetTierFromConsole(playerRef, guid, tierValue, parsedForce)
 EndFunction
 
 String Function GetLuck() Global
@@ -919,23 +928,26 @@ String Function GetLuck() Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
 
-    ; Follow the same live path used by controller runtime logic.
+    if !controller.Luck
+        return "Error: IronSoulLuck is not wired."
+    endif
+
+    ; Follow the same live path used by runtime Luck logic.
     Int nowSec = Utility.GetCurrentRealTime() as Int
-    controller.LuckEnsureLoaded(playerRef, guid, nowSec)
+    controller.Luck.EnsureLoaded(playerRef, guid, nowSec)
 
-    Int maxLuck = controller.GetCurrentMaxLuck(playerRef, guid)
+    Int maxLuck = controller.Luck.GetCurrentMax(playerRef, guid)
 
-    Int luck = controller.GetLuckValue(playerRef, guid)
+    Int luck = controller.Luck.GetValue(playerRef, guid)
     if luck < 0
         luck = 0
     elseif luck > maxLuck
@@ -955,19 +967,22 @@ String Function SetLuck(Int luckValue) Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
 
-    Int maxLuck = controller.GetCurrentMaxLuck(playerRef, guid)
+    if !controller.Luck
+        return "Error: IronSoulLuck is not wired."
+    endif
 
-    Int appliedLuck = controller.SetLuckValue(playerRef, guid, luckValue)
+    Int maxLuck = controller.Luck.GetCurrentMax(playerRef, guid)
+
+    Int appliedLuck = controller.Luck.SetValue(playerRef, guid, luckValue)
     if appliedLuck < 0
         return "Error: failed to set luck."
     endif
@@ -986,24 +1001,29 @@ String Function SetDeaths(Int deathsValue) Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
+    if !controller.Death
+        return "Error: IronSoulDeath is not wired."
+    endif
+    if !controller.Tiers
+        return "Error: IronSoulTiers is not wired."
+    endif
+    if !controller.Effects
+        return "Error: IronSoulEffects is not wired."
+    endif
 
-    Int previousTier = ClampTier(ReadScopedInt(playerRef, "IS_2204", 1))
+    Int previousTier = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
     Int clampedDeaths = ClampDeaths(deathsValue)
-    WriteScopedInt(playerRef, "IS_8155", clampedDeaths)
-    SyncDeathsGlobal(clampedDeaths)
-    SyncDeathActorValue(playerRef, clampedDeaths)
-    controller.SyncSoulPresentationAndStats(playerRef, guid)
-    controller.HandleProgressionRelevantChange(playerRef, guid)
-    Int actualDeaths = ClampDeaths(ReadScopedInt(playerRef, "IS_8155", 0))
+    controller.Death.SetCurrentDeathCount(playerRef, guid, clampedDeaths)
+    controller.Tiers.HandleProgressionRelevantChange(playerRef, guid)
+    Int actualDeaths = ClampDeaths(controller.Death.GetCurrentDeathCount(playerRef, guid))
     IronSoulNative.DataFlushIfDirty()
 
     if actualDeaths == clampedDeaths
@@ -1025,27 +1045,19 @@ String Function SetDragonSoulsState(Int totalValue) Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
+    if !controller.Tiers
+        return "Error: IronSoulTiers is not wired."
+    endif
 
-    Int clampedTotal = ClampDeaths(totalValue)
-    Int liveSouls = playerRef.GetActorValue("DragonSouls") as Int
-    liveSouls = ClampDeaths(liveSouls)
-
-    ; Re-baseline the observed snapshot to current live souls so heartbeat sees no gain delta.
-    WriteScopedInt(playerRef, "IS_9646", clampedTotal)
-    WriteScopedInt(playerRef, "IS_7440", liveSouls)
-    controller.HandleProgressionRelevantChange(playerRef, guid)
-    IronSoulNative.DataFlushIfDirty()
-
-    return "SoulsTotal set to " + clampedTotal + "."
+    return controller.Tiers.SetDragonSoulsTotalFromConsole(playerRef, guid, totalValue)
 EndFunction
 
 String Function ResetTier() Global
@@ -1058,44 +1070,19 @@ String Function ResetTier() Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
-
-    Int targetTier = ClampTier(controller.GetResetTargetTier(playerRef, guid))
-    Int liveTier = ClampTier(ReadScopedInt(playerRef, "IS_2204", 1))
-    if liveTier == 0 && controller.WasDefiantEnteredByConsole(playerRef, guid)
-        targetTier = ClampTier(controller.GetDefiantTrackedTier(playerRef, guid))
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
     endif
-    WriteScopedInt(playerRef, "IS_2719", 0)
-    controller.SetCHIMEnteredByConsole(playerRef, guid, False)
-
-    if targetTier == 0
-        if liveTier != 0
-            Int seedTier = liveTier
-            if !IsNormalTier(seedTier)
-                seedTier = controller.GetDefiantTrackedTier(playerRef, guid)
-            endif
-            controller.InitializeDefiantState(playerRef, guid, seedTier)
-        endif
-    else
-        controller.ClearDefiantState(playerRef, guid)
+    if !controller.Tiers
+        return "Error: IronSoulTiers is not wired."
     endif
 
-    WriteScopedInt(playerRef, "IS_2204", targetTier)
-    controller.SyncLuckNotifiedTierToCurrent(playerRef, guid)
-    controller.SyncSoulPresentationAndStats(playerRef, guid)
-    controller.ApplyDynamicPresetAssetsForTier(targetTier)
-    IronSoulNative.ApplyDynamicLevelWidget(targetTier)
-    IronSoulNative.DataFlushIfDirty()
-
-    return "Tier reset to " + targetTier + " (" + TierLabel(targetTier) + "). Auto-upgrade restored."
+    return controller.Tiers.ResetTierFromConsole(playerRef, guid)
 EndFunction
 
 String Function ResetCharacterData() Global
@@ -1108,22 +1095,24 @@ String Function ResetCharacterData() Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
+    if !controller.Cleanup
+        return "Error: IronSoulCleanup component is not available."
+    endif
 
-    if !controller.TryConsumeDestructiveCommandConfirmation("resetcharacterdata", guid)
-        controller.ArmDestructiveCommandConfirmation("resetcharacterdata", guid, 10.0)
+    if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("resetcharacterdata", guid)
+        controller.Cleanup.ArmDestructiveCommandConfirmation("resetcharacterdata", guid, 10.0)
         return "This will reset Iron Soul tracked data for the current character only. Enter is resetcharacterdata or is rcd again within 10 seconds to confirm."
     endif
 
-    if !controller.ResetCurrentCharacterData(playerRef, guid)
+    if !controller.Cleanup.ResetCurrentCharacterData(playerRef, guid)
         return "Error: failed to reset Iron Soul tracked data for the current character."
     endif
 
@@ -1140,22 +1129,24 @@ String Function PurgeData() Global
         return "Error: player reference is not available."
     endif
 
-    String guid = ResolveGuid(playerRef)
-    if guid == ""
-        return "Error: character GUID is not initialized yet."
-    endif
-
     IronSoulController controller = ResolveControllerQuest()
     if !controller
         return "Error: IronSoulControllerQuest is not available."
     endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return "Error: character GUID is not initialized yet."
+    endif
+    if !controller.Cleanup
+        return "Error: IronSoulCleanup component is not available."
+    endif
 
-    if !controller.TryConsumeDestructiveCommandConfirmation("purgedata", guid)
-        controller.ArmDestructiveCommandConfirmation("purgedata", guid, 10.0)
+    if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("purgedata", guid)
+        controller.Cleanup.ArmDestructiveCommandConfirmation("purgedata", guid, 10.0)
         return "This will purge Iron Soul tracked data for all characters except the current character. Enter is purgedata or is pd again within 10 seconds to confirm."
     endif
 
-    Int purgedCount = controller.PurgeHistoricalCharacterData(guid)
+    Int purgedCount = controller.Cleanup.PurgeHistoricalCharacterData(guid)
     String suffix = "s"
     if purgedCount == 1
         suffix = ""
@@ -1390,6 +1381,13 @@ String Function GetIniValueLine(String k, Int fallback) Global
     return k + "=" + IronSoulNative.GetConfigInt(k, fallback)
 EndFunction
 
+String Function SafeUninstallGuidance(Bool persistToIni) Global
+    if persistToIni
+        return " Safe uninstall is armed for next load: save, reload, wait for the disabled message, then save again before removing the mod."
+    endif
+    return " Cache-only UninstallMode will not run the safe uninstall flow on next load unless it is persisted to ironsoul.ini."
+EndFunction
+
 String Function RefreshDraugnarokRuntime() Global
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     if !draugnarok
@@ -1402,76 +1400,7 @@ String Function RefreshDraugnarokRuntime() Global
 EndFunction
 
 String Function GetIni() Global
-        ; Max 5 settings per line.
-    Int preset = NormalizeIronSoulPreset(IronSoulNative.GetConfigInt("IronSoulPreset", 0))
-    return "[Difficulty]\n" \
-        + "IronSoulPreset=" + IronSoulPresetConfigText(preset) + ", " \
-        + "Permadeath=" + GetEffectivePermadeath(preset) + ", " \
-        + "DeathReset=" + GetEffectiveDeathReset(preset) + ", " \
-        + "DefiantSoul=" + GetEffectiveDefiantSoul(preset) + ", " \
-        + "DraugrThreatLevel=" + GetEffectiveDraugrThreatLevel(preset) + ", " \
-        + "LuckLevel=" + GetEffectiveLuckLevel(preset) + "\n" \
-        + "[General]\n" \
-        + GetIniValueLine("CharacterJournal", 1) + ", " \
-        + GetIniValueLine("DeathMessage", 1) + ", " \
-        + GetIniValueLine("DragonSoulAnticheat", 1) + ", " \
-        + GetIniValueLine("DragonSoulIncreaseNotification", 1) + ", " \
-        + GetIniValueLine("IronSoulIntro", 1) + "\n" \
-        + GetIniValueLine("LoadNotificationMode", 1) + ", " \
-        + GetIniValueLine("SoulBonus", 1) + ", " \
-        + GetIniValueLine("SoulFatigue", 1) + ", " \
-        + GetIniValueLine("SoulFeats", 1) + "\n" \
-        + "[DragonSoulRevive]\n" \
-        + GetIniValueLine("DragonSoulRevive", 1) + ", " \
-        + GetIniValueLine("DragonSoulReviveLimit", 1) + ", " \
-        + GetIniValueLine("DragonSoulReviveMessage", 1) + ", " \
-        + GetIniValueLine("DragonSoulReviveTransform", 1) + "\n" \
-        + "[Respawn]\n" \
-        + GetIniValueLine("LuckReminderNotification", 1) + ", " \
-        + GetIniValueLine("LuckRollMessageMode", 1) + ", " \
-        + GetIniValueLine("Respawn", 1) + ", " \
-        + GetIniValueLine("RespawnMessage", 1) + "\n" \
-        + "[Draugnarok]\n" \
-        + GetIniValueLine("DraugnarokSystem", 1) + ", " \
-        + GetIniValueLine("DraugnarokBaseIntervalHours", 8) + ", " \
-        + GetIniValueLine("DraugnarokCooldownIntervals", 3) + ", " \
-        + GetIniValueLine("DraugnarokForceCleanupIntervals", 6) + ", " \
-        + GetIniValueLine("DraugnarokGatePressureIntervals", 6) + "\n" \
-        + GetIniValueLine("DraugnarokJournalMode", 1) + ", " \
-        + GetIniValueLine("DraugnarokLevelProgression", 1) + ", " \
-        + GetIniValueLine("DraugnarokNotificationMode", 1) + ", " \
-        + GetIniValueLine("DraugnarokVisibleQuest", 1) + ", " \
-        + GetIniValueLine("DraugnarokWeatherMode", 1) + "\n" \
-        + GetIniValueLine("RaidSmall", 1) + ", " \
-        + GetIniValueLine("RaidService", 1) + ", " \
-        + GetIniValueLine("RaidTown", 1) + ", " \
-        + GetIniValueLine("RaidMedium", 1) + ", " \
-        + GetIniValueLine("RaidPillage", 1) + "\n" \
-        + GetIniValueLine("RaidMinorCapital", 1) + ", " \
-        + GetIniValueLine("RaidGate", 1) + ", " \
-        + GetIniValueLine("RaidCapital", 1) + "\n" \
-        + GetIniValueLine("RoadEncounters", 1) + ", " \
-        + GetIniValueLine("WildernessEncounters", 1) + "\n" \
-        + "[Plugin]\n" \
-        + GetIniValueLine("CosaveRecoveryBackup", 1) + ", " \
-        + GetIniValueLine("MirrorDataBackup", 1) + ", " \
-        + GetIniValueLine("CursorHide", 1) + ", " \
-        + GetIniValueLine("DynamicDraugrEyes", 1) + ", " \
-        + GetIniValueLine("DynamicLevelWidget", 1) + ", " \
-        + GetIniValueLine("DynamicSplash", 1) + "\n" \
-        + GetIniValueLine("MusicFade", 1) + ", " \
-        + GetIniValueLine("SlowMoOnDeath", 1) + "\n" \
-        + "[Sound]\n" \
-        + GetIniValueLine("MusicVolumeOverride", -1) + ", " \
-        + GetIniValueLine("SFX", 1) + "\n" \
-        + "[Experimental]\n" \
-        + GetIniValueLine("EnableCharacterSheetCompatibility", 0) + "\n" \
-        + "[Debug]\n" \
-        + GetIniValueLine("EnableDebug", 0) + ", " \
-        + GetIniValueLine("EnableLogging", 0) + ", " \
-        + GetIniValueLine("EnableLogNotifications", 0) + ", " \
-        + GetIniValueLine("LogLevel", 2) + ", " \
-        + GetIniValueLine("UninstallMode", 0)
+    return IronSoulNative.GetConfigSummary()
 EndFunction
 
 String Function SetIni(String k, String value, String persistFlag = "t") Global
@@ -1485,82 +1414,78 @@ String Function SetIni(String k, String value, String persistFlag = "t") Global
     endif
 
     Bool persistToIni = (parsedPersist == 1)
-    Bool valueIsInt = IsStrictIntText(value)
-    Int intValue = 0
 
-    if IsIronSoulPresetKey(k)
-        if !IsIronSoulPresetValueText(value)
-            return "Error: IronSoulPreset must be 0, 1, 1+, 1++, 2, 2+, 2++, 3, 3+, or 3++."
-        endif
-    else
-        if !valueIsInt
-            return "Error: INI key '" + k + "' requires an integer value."
-        endif
-        intValue = value as Int
+    String validationError = IronSoulNative.GetConfigSetError(k, value)
+    if validationError != ""
+        return validationError
     endif
 
-    Int currentPreset = NormalizeIronSoulPreset(IronSoulNative.GetConfigInt("IronSoulPreset", 0))
-    if !IsIronSoulPresetKey(k)
-        if currentPreset != 0 && (IsPresetLockedCoreKey(k) || IsDraugrThreatLevelKey(k))
-            return "Error: IronSoulPreset must be 0 (Override) before setting " + GetIniKeyBase(k) + ". Current preset is " + DifficultyLabel(currentPreset) + "."
-        endif
+    String canonicalKey = IronSoulNative.GetConfigKeyCanonical(k)
+    if canonicalKey == ""
+        return "Error: unknown INI key '" + k + "'."
     endif
 
-    if IsDraugrThreatLevelKey(k)
-        if intValue < 1 || intValue > 5
-            return "Error: DraugrThreatLevel must be 1, 2, 3, 4, or 5."
-        endif
+    String displayName = IronSoulNative.GetConfigKeyDisplayName(k)
+    if displayName == ""
+        displayName = k
     endif
 
-    if IsLuckLevelKey(k)
-        if intValue < 1 || intValue > 5
-            return "Error: LuckLevel must be 1, 2, 3, 4, or 5."
-        endif
-    endif
-
+    Int keyFlags = IronSoulNative.GetConfigKeyFlags(k)
     Bool ok = IronSoulNative.SetConfigString(k, value, persistToIni)
     if !ok
-        return "Error: failed to set INI key '" + k + "'."
+        return "Error: failed to set INI key '" + displayName + "'."
     endif
 
     IronSoulController controller = ResolveControllerQuest()
+    Bool configLoaded = False
     if controller
-        controller.LoadConfig()
-        Int soulTier = 1
-        Actor playerRef = Game.GetPlayer()
-        if playerRef
-            String guid = ResolveGuid(playerRef)
-            if guid != ""
-                controller.SyncSoulPresentationAndStats(playerRef, guid)
-                controller.SyncLuckNotifiedTierToCurrent(playerRef, guid)
-                soulTier = ClampTier(ReadScopedInt(playerRef, "IS_2204", 1))
+        configLoaded = controller.LoadConfig()
+        if configLoaded
+            Int soulTier = 1
+            Actor playerRef = Game.GetPlayer()
+            if playerRef
+                String guid = ResolveGuid(playerRef, controller)
+                if guid != ""
+                    if controller.Effects
+                        controller.Effects.SyncSoulPresentationAndStats(playerRef, guid)
+                    endif
+                    if controller.Luck
+                        controller.Luck.SyncNotifiedTierToCurrent(playerRef, guid)
+                    endif
+                    if controller.Tiers
+                        soulTier = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
+                    endif
+                    if controller.Globals
+                        controller.Globals.SyncAll(playerRef, guid)
+                    endif
+                endif
             endif
+            if controller.Config
+                controller.Config.ApplyDynamicPresetAssetsForTier(soulTier)
+            endif
+            IronSoulNative.ApplyDynamicLevelWidget(soulTier)
         endif
-        controller.ApplyDynamicPresetAssetsForTier(soulTier)
-        IronSoulNative.ApplyDynamicLevelWidget(soulTier)
     endif
     String mode = "cache-only"
     if persistToIni
         mode = "persisted"
     endif
 
-    String result = "Set " + k + "=" + value + " (" + mode + ")."
-    if controller
-        result = result + " Controller config cache refreshed."
+    String result = "Set " + displayName + "=" + value + " (" + mode + ")."
+    if configLoaded
+        result = result + " Iron Soul config component refreshed."
+    elseif controller
+        result = result + " Native cache refreshed, but controller config refresh failed; check the Iron Soul log for the missing component."
     else
         result = result + " Native cache refreshed, but controller was unavailable."
     endif
 
-    if IsDraugnarokSystemKey(k) || IsDraugrThreatLevelKey(k) || IsIronSoulPresetKey(k)
+    if HasConfigKeyFlag(keyFlags, ConfigFlagDraugnarokRefresh())
         result = result + RefreshDraugnarokRuntime()
     endif
 
-    if IsUninstallModeKey(k) && intValue == 1
-        if persistToIni
-            result = result + " Safe uninstall is armed for next load: save, reload, wait for the disabled message, then save again before removing the mod."
-        else
-            result = result + " Cache-only UninstallMode will not run the safe uninstall flow on next load unless it is persisted to ironsoul.ini."
-        endif
+    if HasConfigKeyFlag(keyFlags, ConfigFlagUninstallMode()) && IronSoulNative.GetConfigInt(canonicalKey, 0) == 1
+        result = result + SafeUninstallGuidance(persistToIni)
     endif
     return result
 EndFunction
@@ -1572,21 +1497,43 @@ String Function ReloadIni() Global
     endif
 
     IronSoulController controller = ResolveControllerQuest()
+    String result = ""
     if controller
-        controller.LoadConfig()
-        Int soulTier = 1
-        Actor playerRef = Game.GetPlayer()
-        if playerRef
-            String guid = ResolveGuid(playerRef)
-            if guid != ""
-                controller.SyncSoulPresentationAndStats(playerRef, guid)
-                controller.SyncLuckNotifiedTierToCurrent(playerRef, guid)
-                soulTier = ClampTier(ReadScopedInt(playerRef, "IS_2204", 1))
+        if controller.LoadConfig()
+            Int soulTier = 1
+            Actor playerRef = Game.GetPlayer()
+            if playerRef
+                String guid = ResolveGuid(playerRef, controller)
+                if guid != ""
+                    if controller.Effects
+                        controller.Effects.SyncSoulPresentationAndStats(playerRef, guid)
+                    endif
+                    if controller.Luck
+                        controller.Luck.SyncNotifiedTierToCurrent(playerRef, guid)
+                    endif
+                    if controller.Tiers
+                        soulTier = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
+                    endif
+                    if controller.Globals
+                        controller.Globals.SyncAll(playerRef, guid)
+                    endif
+                endif
             endif
+            if controller.Config
+                controller.Config.ApplyDynamicPresetAssetsForTier(soulTier)
+            endif
+            IronSoulNative.ApplyDynamicLevelWidget(soulTier)
+            result = "Reloaded ironsoul.ini into native cache and Iron Soul config component."
+        else
+            result = "Reloaded ironsoul.ini into native config cache. Controller config refresh failed; check the Iron Soul log for the missing component."
         endif
-        controller.ApplyDynamicPresetAssetsForTier(soulTier)
-        IronSoulNative.ApplyDynamicLevelWidget(soulTier)
-        return "Reloaded ironsoul.ini into native and controller config caches." + RefreshDraugnarokRuntime()
+    else
+        result = "Reloaded ironsoul.ini into native config cache. Controller was unavailable."
     endif
-    return "Reloaded ironsoul.ini into native config cache. Controller was unavailable." + RefreshDraugnarokRuntime()
+
+    result = result + RefreshDraugnarokRuntime()
+    if IronSoulNative.GetConfigInt("UninstallMode", 0) == 1
+        result = result + SafeUninstallGuidance(True)
+    endif
+    return result
 EndFunction

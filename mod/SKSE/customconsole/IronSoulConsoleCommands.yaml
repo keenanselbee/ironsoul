@@ -64,7 +64,7 @@ subs:
   - name: SetDeaths
     alias: sd
     func: SetDeaths
-    help: Sets current true death count. Value is clamped to >= 0. Requires EnableDebug=1.
+    help: Sets current death count. Value is clamped to >= 0. Requires EnableDebug=1.
     args:
       - name: deaths
         alias: -d
