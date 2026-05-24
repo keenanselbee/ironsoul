@@ -1,11 +1,11 @@
---- Iron Soul xEdit Workflow ---
-================================
+Iron Soul xEdit Workflow
+========================
 
 This workflow keeps ESP/ESM/ESL inspection useful while keeping binary plugin saves under user control.
 
 
---- Read-Only Inspection ---
-----------------------------
+Read-Only Inspection
+--------------------
 
 Use `tools/dump-esp-records.ps1` for first-pass read-only dumps and text searches:
 
@@ -22,8 +22,8 @@ Use `-StageInStockData` when SSEDump needs the repo plugin temporarily copied be
 Use `SSEEdit64.exe` for authoritative inspection when dump output is incomplete, hard to search, or master resolution fails. Load only the relevant plugin and required masters, wait for `Background Loader: finished`, and close without saving.
 
 
---- Edit Handoff ---
---------------------
+Edit Handoff
+------------
 
 Codex should propose simple plugin changes as an exact edit checklist:
 
@@ -43,8 +43,8 @@ Verification:
 The user performs and saves ESP edits in xEdit. Codex may verify the saved plugin afterward with read-only dump output or guided GUI inspection.
 
 
---- Safety Rules ---
---------------------
+Safety Rules
+------------
 
 - Treat ESP/ESM/ESL files as view-only for Codex.
 - Do not save, compact, clean, QuickAutoClean, or create plugin backups unless the user explicitly requests that exact operation.

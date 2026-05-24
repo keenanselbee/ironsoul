@@ -1,10 +1,10 @@
---- AGENTS.md ---
-=================
+AGENTS.md
+=========
 
 Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, and user-facing INI configuration.
 
---- Command Speed Rules ---
----------------------------
+Command Speed Rules
+-------------------
 
 - Zero-tool commands must not inspect files, run shell commands, check git status, summarize context, or add extra explanation.
 - `help` is the only zero-tool command. Reply immediately from the command list in the Keyword Commands section.
@@ -12,8 +12,8 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Direct-action commands are `BACKUP`, `DLL`, `LOG`, `OINI`, `OINI2`, and `RINI2`.
 
 
---- Working Rules ---
----------------------
+Working Rules
+-------------
 
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
@@ -25,8 +25,8 @@ Iron Soul is a Skyrim SE mod with Papyrus scripts, SKSE plugin source, assets, a
 - Follow `docs/style-guide.md` for naming and formatting conventions.
 
 
---- Shell Reliability ---
--------------------------
+Shell Reliability
+-----------------
 
 - The shell may start in `C:\` even when the workspace root is provided.
 - Treat `C:\Repositories\Iron Soul` as the canonical repo root for this project.
@@ -43,8 +43,8 @@ Set-Location -LiteralPath $repo
 ```
 
 
---- xEdit / ESP Inspection ---
-------------------------------
+xEdit / ESP Inspection
+----------------------
 
 - xEdit lives at `G:\Modding\LoreRim\Tools\xEdit`.
 - Use `G:\Modding\LoreRim\Tools\xEdit\SSEEdit64.exe` when ESP inspection is needed.
@@ -63,8 +63,8 @@ Set-Location -LiteralPath $repo
 - If using SSEDump64 directly, pass `-D:G:\Modding\LoreRim\Mod Organizer\Stock Game\Data`; if it fails to resolve masters, check `G:\Modding\LoreRim\Tools\xEdit\SSEDump64Exception.log` and fall back to SSEEdit64 GUI inspection.
 
 
---- Papyrus ---
----------------
+Papyrus
+-------
 
 - Iron Soul Papyrus source lives in `mod/source/scripts`.
 - Compiled scripts output to `mod/scripts`.
@@ -72,6 +72,8 @@ Set-Location -LiteralPath $repo
 - Additional Draugnarok quest/location source scripts also live in `mod/source/scripts`.
 - SKSE sources must appear before stock sources in the import list.
 - PapyrusUtil sources are required for helpers such as `StorageUtil` and `JsonUtil`.
+- Controller-owned quest components must use a local `HasCoreRuntime()` helper for required wiring checks. `IronSoulController.LoadConfig()` remains the user-facing wiring gate; feature availability helpers such as Respawn runtime availability must call `HasCoreRuntime()` but stay semantically separate. When adding new controller-owned dependency dereferences, update the local runtime guard and compile the changed script.
+- Follow `docs/style-guide.md` for Papyrus verb-prefix, predicate, logging-wrapper, persistence-key, runtime-field, and CK-facing naming conventions. Do not mass-rename legacy symbols just to satisfy the guide.
 - When changing `.psc` files, compile the changed script with `tools/compile-papyrus.ps1` when available.
 - Default compile mode writes only to `.codex-temp\PapyrusCompile`.
 - Use `tools/compile-papyrus.ps1 <ScriptName.psc> -RefreshRepoPex` only when the compiled repo `mod\scripts\<ScriptName>.pex` should be refreshed.
@@ -92,8 +94,8 @@ Imports:  C:\Repositories\Iron Soul\mod\source\scripts
 If SKSE imports are missing or ordered after stock sources, functions such as `GetINIFloat`, `GetName`, `RegisterForKey`, `UnregisterForKey`, `RegisterForModEvent`, and `UnregisterForModEvent` may fail to resolve.
 
 
---- Papyrus Compile Automation ---
-----------------------------------
+Papyrus Compile Automation
+--------------------------
 
 ```powershell
 tools\compile-papyrus.ps1 IronSoulController.psc
@@ -101,8 +103,8 @@ tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -Re
 ```
 
 
---- SKSE Plugin Build Automation ---
-------------------------------------
+SKSE Plugin Build Automation
+----------------------------
 
 - Codex may run `tools/build-skse-plugin.ps1` when the user explicitly requests SKSE plugin build verification or DLL refresh, or when Codex has changed `dev/projects/ironsoul/src` source and needs final build verification/output sync.
 - Iron Soul SKSE plugin source lives in `dev/projects/ironsoul/src`.
@@ -115,8 +117,8 @@ tools\compile-papyrus.ps1 IronSoulController.psc IronSoulConsoleCommands.psc -Re
 - Do not stage or commit the DLL from inside the script. When `dev/projects/ironsoul/src` source changed, stage `mod/SKSE/plugins/ironsoul.dll` with the same source commit that produced it. Use a standalone `build(native): update SKSE plugin binary` commit only for an explicitly requested DLL-only refresh or generated-output repair.
 
 
---- MO2 Overwrite INI Refresh ---
----------------------------------
+MO2 Overwrite INI Refresh
+-------------------------
 
 - Codex may run `tools/refresh-overwrite-ini.ps1` when `mod/SKSE/plugins/ironsoul.ini` changes or when the user explicitly asks to refresh the LoreRim+ Overwrite INI.
 - The script overwrites `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` from the repo INI, then forces these debug settings:
@@ -132,17 +134,18 @@ LogLevel = 3
 - If the refresh tool fails, leave the external overwrite INI untouched except for any partial write the tool already performed, and report the error.
 
 
---- INI Configuration ---
--------------------------
+INI Configuration
+-----------------
 
 - When adding, removing, or renaming public INI keys, update `mod/SKSE/plugins/ironsoul.ini`.
 - Also update the native allowlist in `dev/projects/ironsoul/src/config.cpp`.
 - Also update the public `gini` listing in `mod/source/scripts/IronSoulConsoleCommands.psc`.
 - After changing `mod/SKSE/plugins/ironsoul.ini`, run `tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled.
+- When adding, removing, or renaming any optional INI key that may be omitted from the shipped INI, update the centralized hidden optional INI settings list in `mod/source/scripts/IronSoulConfig.psc`; do not create partial hidden optional INI lists in owner components.
 
 
---- Keyword Commands ---
-------------------------
+Keyword Commands
+----------------
 
 Codex chat messages may trigger repo-specific keyword commands.
 
@@ -179,7 +182,7 @@ Command behavior:
 - `BACKUP`: Treat the `BACKUP` command itself as the explicit user request to copy the full contents of `C:\Repositories\Iron Soul`, including hidden files and folders such as `.git`, to a new numbered backup folder under `Z:\Backup\LoreRim\Iron Soul`; do not ask for another chat confirmation. Create `Z:\Backup\LoreRim\Iron Soul` if it is missing. Find existing backup folders matching `Iron Soul Backup N - M-D-YYYY`, use the global highest existing `N` plus one, default to `1` when none exist, and format the command execution date as `M-D-YYYY` with no zero padding, for example `5-5-2026`. Create `Iron Soul Backup <index> - <date>`, incrementing the index again if that exact folder already exists. Copy every root item from the repo with hidden items included. Report the created backup path, or report any failure and leave any partial backup folder untouched.
 - `COMMIT`: Treat the `COMMIT` command as confirmation to execute the latest commit proposal produced by `DIFF`. Before staging, verify the worktree still matches that proposal. If no current `DIFF` proposal exists, or if the worktree changed since the proposal, run the `DIFF` behavior and stop instead of committing. When executing, stage only the proposed files for each commit, run `git diff --cached --check` before each commit, use the proposed messages, and finish with commit hashes and final status.
 - `COMPILE`: Enumerate every `.psc` file under `mod/source/scripts`, then compile all of them with `tools/compile-papyrus.ps1` to `.codex-temp\PapyrusCompile` first. Do not use `-RefreshRepoPex` for this command because that switch copies every successful target. If compilation succeeds, compare each generated `.pex` against `mod/scripts\<ScriptName>.pex` with SHA-256 hashes, then copy only missing or different repo `.pex` files. Leave existing repo `.pex` files untouched for failed scripts and report copied, unchanged, and failed scripts.
-- `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages. Use multiple commits when changes are independently revertible. Group `mod/SKSE/plugins/ironsoul.dll` with the matching `dev/projects/ironsoul/src` source commit when native source changes exist; propose a standalone `build(native)` commit only for an explicit DLL-only refresh. State that `COMMIT` will execute this proposal if the worktree is unchanged.
+- `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages that follow `docs/commit-style.md`. Use multiple commits when changes are independently revertible. Write detailed bullet-list commit bodies for complex, cross-system, risky, or hard-to-infer changes, especially scripts, native source, public config, persistence, generated outputs, and user-facing text. Use discretion for simple commits: when the subject fully explains a narrow docs, asset, formatting, or housekeeping change, propose a subject-only message with no body. If the user has asked to ignore specific files for the current plan, leave those files out of the proposed commits and list them separately as intentionally unplanned. Group `mod/SKSE/plugins/ironsoul.dll` with the matching `dev/projects/ironsoul/src` source commit when native source changes exist; propose a standalone `build(native)` commit only for an explicit DLL-only refresh. State that `COMMIT` will execute this proposal if the worktree is unchanged.
 - `DLL`: Treat the `DLL` command itself as the explicit user request to refresh the repo DLL. State that `mod/SKSE/plugins/ironsoul.dll` will be refreshed on success, then run `tools/build-skse-plugin.ps1 -RefreshRepoDll` without asking for another chat confirmation.
 - `IMPLEMENT`: Treat the `IMPLEMENT` command as confirmation to execute the latest `SUGGEST` proposal or the latest explicit implementation plan proposed in chat. Before editing, verify the current request, repo context, and worktree still match that proposal; if no current proposal exists, or if the context has changed enough that the proposal may be stale, run `SUGGEST` behavior and stop instead of editing. When executing, make the narrow proposed code/file changes, run the relevant verification, refresh generated artifacts when project rules require it, and report changed files and checks. Do not stage or commit unless the user separately asks.
 - `LOG`: Run `tools/build-ironsoul-log.bat`, then summarize `tools/ironsoul-combined.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul-combined.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul-combined.log"`.
@@ -193,8 +196,8 @@ Command behavior:
 - `XEDIT: <question>`: Treat the text after the colon as the inspection question. Dump `Iron Soul - Dead God's Dream.esp` with `-StageInStockData` by default, or dump another repo `.esp`, `.esm`, or `.esl` only if the question clearly names it. Search the dump for relevant terms, answer with record signature, FormID, EditorID, and important field paths/values where possible, and say when SSEEdit64 GUI inspection is needed for confidence. Do not edit or save plugin files.
 
 
---- Verification ---
---------------------
+Verification
+------------
 
 - Run the smallest relevant check for the files changed.
 - Mention any compile, build, or test step that could not be run.
