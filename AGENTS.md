@@ -9,7 +9,7 @@ Command Speed Rules
 - Zero-tool commands must not inspect files, run shell commands, check git status, summarize context, or add extra explanation.
 - `help` is the only zero-tool command. Reply immediately from the command list in the Keyword Commands section.
 - Direct-action commands should skip unrelated repo inspection, git status checks, diff reading, and planning. Execute only their defined workflow, then report the result.
-- Direct-action commands are `BACKUP`, `DLL`, `LOG`, `OINI`, `OINI2`, and `RINI2`.
+- Direct-action commands are `BACKUP`, `DLL`, `LOG`, `OINI`, `OINI2`, `README`, `RINI2`, `ROADMAP`, and `TODO`.
 
 
 Working Rules
@@ -149,8 +149,8 @@ Keyword Commands
 
 Codex chat messages may trigger repo-specific keyword commands.
 
-- A keyword command triggers only when the entire user message, after trimming whitespace, is exactly one command word.
-- The only parameterized keyword command is `XEDIT: <question>`, which may include free-form question text after the colon.
+- A keyword command triggers only when the entire user message, after trimming whitespace, is exactly one command word, except for the parameterized commands listed below.
+- Parameterized keyword commands are `ROADMAP: <instruction>`, `TODO: <instruction>`, and `XEDIT: <question>`, which may include free-form text after the colon.
 - `help` is the only lowercase command. All other commands are uppercase.
 - If an unknown uppercase single-word command is received, reply with `Unknown command. Type help.`
 - Commands must still follow all safety, staging, compile, build, xEdit, and external-path rules in this file.
@@ -170,9 +170,12 @@ LOG      Build tools/ironsoul-combined.log, summarize it, then open it in VS Cod
 MSG      Generate a commit message for the currently staged files.
 OINI     Open the repo INI in VS Code.
 OINI2    Open the LoreRim+ Overwrite INI in VS Code for inspection.
+README  Open README.md and suggest focused README updates.
 RINI2    Refresh the LoreRim+ Overwrite INI from the repo INI.
+ROADMAP  Update README Roadmap, or apply a ROADMAP: instruction.
 STATUS   Assess project direction and repo health, then recommend next work.
-SUGGEST  Suggest the smartest minimal implementation course without editing.
+SUGGEST  Suggest the smartest minimal implementation course without editing, or advocate a larger rework if it makes more sense.
+TODO     Update README Current TODO, or apply a TODO: instruction.
 XEDIT    Summarize the main plugin, or answer an XEDIT: question from a fresh ESP dump.
 ```
 
@@ -189,9 +192,14 @@ Command behavior:
 - `MSG`: Read only the currently staged files and staged diff needed to understand them, then generate a commit message in chat that follows `docs/commit-style.md`. Do not edit files, stage, commit, inspect unstaged changes, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. If no files are staged, say so and stop.
 - `OINI`: Open `C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini` in VS Code. Use `code --reuse-window "C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini"`.
 - `OINI2`: Open `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` in VS Code for inspection only. Use `code --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. Do not manually edit the overwrite INI.
+- `README`: Open `C:\Repositories\Iron Soul\README.md` in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\README.md"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\README.md"`. Then quickly read `README.md` and, if useful, run a narrow `git -C "C:\Repositories\Iron Soul" status --short` check. Use recent chat history and obvious repo status to suggest concise README changes in chat. Do not edit files, stage, commit, inspect broad diffs, refresh generated artifacts, build, or compile.
 - `RINI2`: Run `tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled. Report any failure.
+- `ROADMAP`: Treat `ROADMAP` as `ROADMAP: update`. Update the `README.md` Roadmap section from the recent current-chat project history. Keep the edit narrow: read `README.md`, use available chat context, avoid unrelated repo inspection, and edit only the Roadmap section unless the user's ROADMAP instruction clearly names another README section. Preserve still-relevant long-term direction, remove or revise stale items, add concise bullets for important newly discovered future work, and keep the section strategic rather than an implementation checklist. Do not stage, commit, compile, build, refresh generated artifacts, or launch external editors. Report the changed roadmap bullets.
+- `ROADMAP: <instruction>`: Treat the text after the colon as a brief instruction for updating the `README.md` Roadmap section. `ROADMAP: update` follows the same behavior as `ROADMAP`. `ROADMAP: add <idea>` adds a concise bullet to the Roadmap section unless the instruction names another section. Other instructions such as remove, revise, prioritize, move, or split should make the narrow corresponding edit. Do not use this command for code changes.
 - `STATUS`: Run a read-only project direction and health check. Do not edit files, stage, commit, refresh generated artifacts, build, compile, launch GUI tools, or open files. Read `README.md` first; its Current TODO and ROADMAP sections are the primary direction source. Also read any separate `ROADMAP*` or `TODO*` files if they exist, plus meaningful repo TODO/FIXME markers. Check expected repo structure, key automation scripts, and required external tools/paths from this file for missing or broken pieces. Treat git as background context only: mention uncommitted changes, unpushed commits, or recent commits only when they affect project health, block likely next work, or explain current direction. Report project direction, health issues, risks, and the most likely next work in priority order.
 - `SUGGEST`: Run a read-only assessment of the current request or active problem and recommend the smartest minimal implementation course. Do not edit files, stage, commit, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. Inspect only the repo context needed to avoid guessing. Recommend the best next action, likely files or systems involved, the smallest safe implementation shape, key risks, and the verification that should be run before committing.
+- `TODO`: Treat `TODO` as `TODO: update`. Update the `README.md` Current TODO section from the recent current-chat project history. Keep the edit narrow: read `README.md`, use available chat context, avoid unrelated repo inspection, and edit only the Current TODO section unless the user's TODO instruction clearly names another README todo/roadmap section. Preserve still-relevant work, remove or revise stale items, add concise bullets for important newly discovered work, and keep the section practical rather than exhaustive. Do not stage, commit, compile, build, refresh generated artifacts, or launch external editors. Report the changed TODO bullets.
+- `TODO: <instruction>`: Treat the text after the colon as a brief instruction for updating `README.md` todos. `TODO: update` follows the same behavior as `TODO`. `TODO: add <idea>` adds a concise bullet to the Current TODO section unless the instruction names another section. Other instructions such as remove, revise, prioritize, or split should make the narrow corresponding edit. Do not use this command for code changes.
 - `XEDIT`: Run `tools/dump-esp-records.ps1 "Iron Soul - Dead God's Dream.esp" -StageInStockData`, summarize the plugin's major records and wiring from the dump, then suggest likely next changes. Do not edit or save plugin files.
 - `XEDIT: <question>`: Treat the text after the colon as the inspection question. Dump `Iron Soul - Dead God's Dream.esp` with `-StageInStockData` by default, or dump another repo `.esp`, `.esm`, or `.esl` only if the question clearly names it. Search the dump for relevant terms, answer with record signature, FormID, EditorID, and important field paths/values where possible, and say when SSEEdit64 GUI inspection is needed for confidence. Do not edit or save plugin files.
 
