@@ -127,9 +127,10 @@ Quest Property DLC1VQ08 Auto
 Quest Property DLC2MQ06 Auto
 
 ; Tier-specific UI SFX
-Sound Property SFXDefiantTransition Auto
 Sound Property SFXCHIMTransition Auto
-Sound Property SFXDefiantReset Auto
+Sound Property SFXDefiantRestore Auto
+Sound Property SFXDefiantRestoreFeat Auto
+Sound Property SFXDefiantTransition Auto
 Sound Property SFXHeartstoneAbsorb Auto
 Sound Property SFXFeatDefiant Auto
 Sound Property SFXFeatSilver Auto
