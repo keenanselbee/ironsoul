@@ -15,12 +15,91 @@ Version
 0.7: The Missing Heart
 
 
+Requirements
+------------
+
+Hard Requirements
+- Skyrim Special Edition / Anniversary Edition.
+- SKSE64.
+- Address Library for SKSE Plugins, required by `ironsoul.dll` through CommonLibSSE NG relocation/versionlib support.
+- PapyrusUtil SE, required by core scripts for `StorageUtil`.
+
+Soft Requirements
+- Respawn - Soulslike Edition: enables optional respawn integration. Without it, Iron Soul still works and falls back to Death behavior.
+- ConsoleUtil Extended: only needed for custom console commands.
+- Skyrim Character Sheet: optional total-death display compatibility through `EnableCharacterSheetCompatibility`.
+- SkyUI and Inventory Interface Information Injector (I4): optional inventory icon/classification support for shipped `inventoryinjector` JSON files and item icons.
+
+
 Current TODO
 ------------
 
-- Introduce Heartstones as permanent discoveries that can be found across multiple characters. These may drop from randomly strong enemies or be found spawned in the world.
-- Use Heartstone progress to unlock account-level perks that persist beyond individual character deaths.
-- Add permanent account-level perk unlocks tied to Heartstone progress.
+Heartstones
+
+```text
+| Heartstones Found | Unlocked Tier           | Quest Milestone                 | Starting Found Heartstones |
+| 0                 | Dormant Heartstone      | Dormant Heartstones can spawn   | 0                          |
+| 5                 | Stirring Heartstone     | First major dream               | 1                          |
+| 10                | Resonant Heartstone     | Strong dream escalation         | 2                          |
+| 25                | Awakened Heartstone     | Heart influence becomes obvious | 3                          |
+| 40                | Transcendent Heartstone | Late-game metaphysical pressure | 4                          |
+| 50                | Heart complete          | Manifest the Heart              | 5                          |
+| 100               | Whole Heart             | Completionist restoration state | 10                         |
+```
+
+Proposed Heartstones:
+
+```text
+| Family   | Weapon Effect                      | Armor/Apparel Effect               | Implementation               |
+| Tonal    | Improve selected weapon temper     | Improve selected armor temper      | Scripted item selection      |
+| Sundered | Armor-piercing damage              | Fortify armor rating               | Perk condition / AV modifier |
+| Wail     | Magicka damage / interrupt casters | Spell absorption / Fortify Magicka | Standard effects, tune       |
+| Pact     | Reduce target damage briefly       | Resist magic / resist damage       | Temporary debuff + AV        |
+| Red      | Fire damage                        | Resist fire                        | Standard enchantments        |
+| Ash      | Lingering fire/ash damage          | Resist fire + disease              | Standard effects             |
+| Blood    | Absorb health                      | Fortify health                     | Standard enchantments        |
+| Breath   | Absorb stamina                     | Fortify stamina                    | Standard enchantments        |
+| Memory   | Soul trap                          | Fortify enchanting                 | Standard + AV modifier       |
+| Dreaming | Fear or calm on hit                | Fortify illusion                   | Standard illusion + AV       |
+| Missing  | Absorb magicka                     | Fortify magicka                    | Standard enchantments        |
+| Mortal   | Bonus damage to undead             | Resist disease                     | Keyword condition            |
+| Scar     | Bleed / lingering damage           | Fortify health regen               | Magic effect + AV            |
+| Oath     | Bonus damage below half health     | Fortify block                      | Perk condition + AV          |
+| Betrayal | Sneak attack bonus                 | Fortify sneak / muffle             | Perk condition + AV          |
+| Pilgrim  | Turn undead                        | Fortify restoration                | Standard effects             |
+| Brass    | Stagger chance                     | Fortify heavy armor                | Perk proc + AV               |
+| Glass    | Critical chance                    | Fortify light armor                | Perk proc + AV               |
+| Storm    | Shock damage                       | Resist shock                       | Standard enchantments        |
+| Rime     | Frost damage                       | Resist frost                       | Standard enchantments        |
+| Thorn    | Poison damage                      | Resist poison                      | Standard effects             |
+| Burden   | Slow target                        | Fortify carry weight               | Standard slow + AV           |
+| Gale     | Weapon speed                       | Movement speed                     | AV modifiers, test           |
+| Mirror   | Retaliatory damage on hit          | Reflect damage                     | Scripted retaliation         |
+| Aegis    | Weaken target attack damage        | Resist normal weapons              | Temporary debuff + AV        |
+| Hunger   | Stamina drain                      | Reduced stamina costs              | Standard / AV effects        |
+| Crown    | Calm / command chance              | Fortify speech                     | Standard illusion + AV       |
+| Rune     | Bonus damage after spellcast       | Magicka regen                      | Small script / perk proc     |
+| Vigil    | Turn undead / reveal undead        | Detect dead                        | Standard effects             |
+| Doom     | Fear on hit                        | Shout recovery bonus               | Standard fear + AV           |
+```
+
+- Create Heartstone item records and assets as Sigil Stone-adjacent MiscObjects using the spherical soul gem mesh as the visual base.
+- Build Heartstones as tiered account-wide unlocks with varied effects; new characters can choose a small set of unlocked Heartstones, likely three.
+- Make Heartstones visually scale with power so their red glow intensifies as the character levels or as the chosen Heartstone tier improves.
+- Define Heart Spawns as the target number of active Heartstones present in the world at one time, calculated from difficulty preset plus override setting; for example, A++ can keep 9 Heartstones active.
+- Add a curated Heartstone spawn-location pool, weighted toward dungeons and hard-to-reach places rather than the general game world.
+- Re-roll active Heartstone locations on each player load so the world hunt changes between characters and reloads.
+- Add a Heartstone proximity heartbeat that only pulses when the nearest active Heartstone is in the player's current cell, with sound intensity/frequency scaling by distance.
+- Prototype Heartstone inventory use with a MiscObject `OnEquipped` detector; verify SkyUI behavior, the cannot-equip message, stacked copies, leveled-list/container acquisition, and save/load reliability.
+- Keep Heartstone item scripts minimal: use the item only as an activation detector, then hand real logic to an Iron Soul quest/controller path.
+- Add Heartstone activation flow that opens a choice menu, consumes one Heartstone only after confirmed use, and supports cancel without removing the item.
+- When recorded deaths are above 0, Heartstone activation offers Enhance Item or Purge Death; with 0 deaths, only Enhance Item is shown.
+- Add a restore-death Heartstone action that purges one recorded death, plays the Heartstone absorb presentation, and drains the orb's red colour as its essence is absorbed.
+- Explore Heartstone item empowerment using the B612 ItemSelect pattern to select a weapon or armor piece and raise its temper quality or add different enchantments.
+- Add persistence for unlocked Heartstone tiers, selected new-game Heartstones, absorbed Heartstone progress, active world spawn locations, and relocation timing.
+
+General
+
 - Integrate cinematic dragon soul absorption. Make DSR wind effect isolated.
 - See if swfs can be replaced by prismaUI? Then see if text strings can be localized outside the scripts.
 
@@ -57,6 +136,7 @@ V4: Return of the Dead God
 - Add a full quest powered by the dream system, building on the historical Heart dreams introduced in V2.
 - As more Heartstones are absorbed, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
 - Dreams reveal that only the Heart's power can make Alduin truly vulnerable.
+- Require 50 total account-wide Heartstones absorbed to complete the saga-long Heart collection and unlock the Heart's manifestation path.
 - Once all Heartstones have been absorbed, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
 - If the player uses the Tools on the Heart before the correct ritual is known, the game quits outright.
 - A final dream falsely instructs the player to strike the Heart with Sunder once, then Keening once. Following this instruction triggers Dagoth Ur's reveal and awakens Dagoth Soul.
@@ -68,3 +148,17 @@ V4: Return of the Dead God
 - Any incorrect use of the Tools on the manifested Heart, other than the Dagoth sequence or the Mora-taught sequence, quits the game outright.
 - Choose to accept Dagoth Ur's dream-shadow and awaken Dagoth Soul, or bargain with Mora for the forbidden knowledge needed to resist Dagoth and awaken Shezarrine Soul.
 - Main Quest edit: Alduin is unkillable at the Throat of the World until the Heart of Lorkhan quest is completed. When he reaches 0 HP, he does not die; instead, he recovers, deals increased damage, and taunts the player.
+
+
+Credits
+-------
+
+- [Simple Dragonsoul Resurrect](https://www.nexusmods.com/skyrimspecialedition/mods/94507), by Mokeine: foundation credit for core Dragon Soul Revive concepts.
+- [STB Widgets](https://www.nexusmods.com/skyrimspecialedition/mods/136148), by STB team: credit for `lvlWidget` assets and framework.
+- [Draugnarok SE](https://www.nexusmods.com/skyrimspecialedition/mods/12849), by unuroboros: credit for original Draugnarok systems/content adapted into Iron Soul.
+- [Draugrs - My patches SE by Xtudo](https://www.nexusmods.com/skyrimspecialedition/mods/123225), by Xtudo: credit for draugr eye asset basis used by dynamic draugr eye visuals.
+- [High Quality Dice Skins](https://www.nexusmods.com/baldursgate3/mods/1220), by Sir William Snugglepuff: credit for dice visual source material used by Luck roll presentation.
+- [Spherical Soulgems SSE](https://www.nexusmods.com/skyrimspecialedition/mods/66634), by Fishbiter: credit for sigil stone mesh source material used as the Heartstone visual base.
+- [Spherical Soulgems SSE - Particle Lights for ENB](https://www.nexusmods.com/skyrimspecialedition/mods/66668), by DeterministicFreeWill: credit for ENB particle light/glow source material used by Heartstone visuals.
+
+Permission evidence is kept in `docs/permissions`.
