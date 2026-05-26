@@ -142,6 +142,7 @@ INI Configuration
 - Also update the public `gini` listing in `mod/source/scripts/IronSoulConsoleCommands.psc`.
 - After changing `mod/SKSE/plugins/ironsoul.ini`, run `tools/refresh-overwrite-ini.ps1` to refresh the LoreRim+ Overwrite INI with debug logging enabled.
 - When adding, removing, or renaming any optional INI key that may be omitted from the shipped INI, update the centralized hidden optional INI settings list in `mod/source/scripts/IronSoulConfig.psc`; do not create partial hidden optional INI lists in owner components.
+- Individual sound-effect toggles such as `HeartstoneAbsorbSFX` are hidden optional INI settings and must not be added to the shipped `mod/SKSE/plugins/ironsoul.ini`. The shipped `[Sound]` section should contain only `MusicVolumeOverride` and the global `SFX` toggle unless the user explicitly asks to expose another public sound key.
 
 
 Keyword Commands

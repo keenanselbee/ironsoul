@@ -39,9 +39,9 @@ Heartstones
 ```text
 | Heartstones Found | Unlocked Tier           | Quest Milestone                 | Starting Found Heartstones |
 | 0                 | Dormant Heartstone      | Dormant Heartstones can spawn   | 0                          |
-| 5                 | Stirring Heartstone     | First major dream               | 1                          |
+| 5                 | Kindled Heartstone      | First major dream               | 1                          |
 | 10                | Resonant Heartstone     | Strong dream escalation         | 2                          |
-| 25                | Awakened Heartstone     | Heart influence becomes obvious | 3                          |
+| 25                | Sublime Heartstone      | Heart influence becomes obvious | 3                          |
 | 40                | Transcendent Heartstone | Late-game metaphysical pressure | 4                          |
 | 50                | Heart complete          | Manifest the Heart              | 5                          |
 | 100               | Whole Heart             | Completionist restoration state | 10                         |
@@ -148,6 +148,16 @@ V4: Return of the Dead God
 - Any incorrect use of the Tools on the manifested Heart, other than the Dagoth sequence or the Mora-taught sequence, quits the game outright.
 - Choose to accept Dagoth Ur's dream-shadow and awaken Dagoth Soul, or bargain with Mora for the forbidden knowledge needed to resist Dagoth and awaken Shezarrine Soul.
 - Main Quest edit: Alduin is unkillable at the Throat of the World until the Heart of Lorkhan quest is completed. When he reaches 0 HP, he does not die; instead, he recovers, deals increased damage, and taunts the player.
+
+V5: Discord Integration
+- Add Discord channel integration for the journal system so journal entries and major milestones can be logged to configured Discord channels.
+- Add daily challenges that can reward Heartstones for accomplishments, such as completing an objective and receiving 3 Heartstones.
+- Build opt-in network communication into the mod stack, including configuration, failure handling, and safeguards around external Discord posting.
+
+V6: City Recovery
+- Add Quartermaster and Cleric support NPCs to cities, unlocked separately for each city.
+- Clerics can resurrect fallen city residents once unlocked for that city.
+- Quartermasters can supply city guards with silver swords once unlocked for that city.
 
 
 Credits

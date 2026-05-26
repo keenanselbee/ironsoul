@@ -76,8 +76,8 @@ Config path: [b]Data/SKSE/plugins/ironsoul.ini[/b]
 [*][b]Respawn[/b]: turn Optional Respawn Integration on/off.
 [*][b]DragonSoulRevive[/b]: turn Dragon Soul Revive on/off.
 [*][b]DeathMessage[/b], [b]RespawnMessage[/b], [b]LoadNotificationMode[/b], [b]LuckReminderNotification[/b], [b]LuckRollMessageMode[/b]: control message/UI behavior.
-[*][b]SoulFeats[/b], [b]DeathReset[/b], [b]SoulBonus[/b], [b]SoulFatigue[/b]: control progression and stat-modifier behavior.
-[*][b]DefiantResetSFX[/b], [b]DeathsPurgedSFX[/b]: control reset-related SFX behavior.
+[*][b]SoulFeats[/b], [b]SoulBonus[/b], [b]SoulFatigue[/b]: control progression and stat-modifier behavior.
+[*][b]DefiantResetSFX[/b], [b]HeartstoneAbsorbSFX[/b]: control restore and Heartstone purge SFX behavior.
 [*][b]DragonSoulAnticheat[/b]: controls anti-cheat filtering for Dragon Soul gain deltas.
 [*][b]CHIM[/b]: enables CHIM transition path.
 [*][b]EnableCharacterSheetCompatibility[/b]: mirrors death count to DEPRECATED05.
