@@ -60,6 +60,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsHeartstoneMessageEnabled()
 ; IsHeartstoneNotificationEnabled()
 ; GetHeartstoneInventoryMode()
+; GetHeartstoneTonalMaxTemper()
 ; IsSFXEnabled()
 ; IsMusicFadeEnabled()
 ; IsIronIntroSFXEnabled()
@@ -141,6 +142,7 @@ Bool _ironSoulIntroEnabled = True
 Bool _heartstoneMessageEnabled = True
 Bool _heartstoneNotificationEnabled = True
 Int _heartstoneInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
+Int _heartstoneTonalMaxTemper = 10
 Bool _sfxEnabled = True
 Bool _musicFadeEnabled = True
 Bool _ironIntroSFXEnabled = True
@@ -189,6 +191,7 @@ Function ResetDefaults()
     _heartstoneMessageEnabled = True
     _heartstoneNotificationEnabled = True
     _heartstoneInventoryMode = 1
+    _heartstoneTonalMaxTemper = 10
 
     ; Gameplay / integration
     _respawnEnabled = True
@@ -274,6 +277,7 @@ Function LoadFromIni()
     _heartstoneMessageEnabled = ReadFeatureEnabled("HeartstoneMessage", True)
     _heartstoneNotificationEnabled = ReadFeatureEnabled("HeartstoneNotification", True)
     _heartstoneInventoryMode = ReadIntRange("HeartstoneInventoryMode", _heartstoneInventoryMode, 0, 3)
+    _heartstoneTonalMaxTemper = ReadIntRange("HeartstoneTonalMaxTemper", _heartstoneTonalMaxTemper, 1, 100)
 
     _soulBonusEnabled = ReadFeatureEnabled("SoulBonus", True)
     _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournal", True)
@@ -408,6 +412,10 @@ EndFunction
 
 Int Function GetHeartstoneInventoryMode()
     return _heartstoneInventoryMode
+EndFunction
+
+Int Function GetHeartstoneTonalMaxTemper()
+    return _heartstoneTonalMaxTemper
 EndFunction
 
 Bool Function IsSFXEnabled()
@@ -630,7 +638,8 @@ Function LogSnapshot()
         + " UninstallMode=" + _uninstallMode \
         + " HeartstoneMessage=" + _heartstoneMessageEnabled \
         + " HeartstoneNotification=" + _heartstoneNotificationEnabled \
-        + " HeartstoneInventoryMode=" + _heartstoneInventoryMode)
+        + " HeartstoneInventoryMode=" + _heartstoneInventoryMode \
+        + " HeartstoneTonalMaxTemper=" + _heartstoneTonalMaxTemper)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Systems: LuckLevel=" + _luckLevel \
         + " SoulBonus=" + _soulBonusEnabled \

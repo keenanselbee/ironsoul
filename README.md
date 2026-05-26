@@ -23,12 +23,13 @@ Hard Requirements
 - SKSE64.
 - Address Library for SKSE Plugins, required by `ironsoul.dll` through CommonLibSSE NG relocation/versionlib support.
 - PapyrusUtil SE, required by core scripts for `StorageUtil`.
+- SkyUI.
 
 Soft Requirements
 - Respawn - Soulslike Edition: enables optional respawn integration. Without it, Iron Soul still works and falls back to Death behavior.
 - ConsoleUtil Extended: only needed for custom console commands.
 - Skyrim Character Sheet: optional total-death display compatibility through `EnableCharacterSheetCompatibility`.
-- SkyUI and Inventory Interface Information Injector (I4): optional inventory icon/classification support for shipped `inventoryinjector` JSON files and item icons.
+- Inventory Interface Information Injector (I4): optional inventory icon/classification support for shipped `inventoryinjector` JSON files and item icons.
 
 
 Current TODO
@@ -95,7 +96,7 @@ Proposed Heartstones:
 - Add Heartstone activation flow that opens a choice menu, consumes one Heartstone only after confirmed use, and supports cancel without removing the item.
 - When recorded deaths are above 0, Heartstone activation offers Enhance Item or Purge Death; with 0 deaths, only Enhance Item is shown.
 - Add a restore-death Heartstone action that purges one recorded death, plays the Heartstone absorb presentation, and drains the orb's red colour as its essence is absorbed.
-- Explore Heartstone item empowerment using the B612 ItemSelect pattern to select a weapon or armor piece and raise its temper quality or add different enchantments.
+- Explore Heartstone item empowerment through Iron Soul native filtered selection sessions displayed with an injected SkyUI InventoryMenu item selector, starting with weapon and armor temper quality.
 - Add persistence for unlocked Heartstone tiers, selected new-game Heartstones, absorbed Heartstone progress, active world spawn locations, and relocation timing.
 
 General
@@ -165,10 +166,9 @@ Credits
 
 - [Simple Dragonsoul Resurrect](https://www.nexusmods.com/skyrimspecialedition/mods/94507), by Mokeine: foundation credit for core Dragon Soul Revive concepts.
 - [STB Widgets](https://www.nexusmods.com/skyrimspecialedition/mods/136148), by STB team: credit for `lvlWidget` assets and framework.
+- [B612](https://www.nexusmods.com/skyrimspecialedition/mods/127701), by shazdeh2: credit for the item-selection UI foundation and derivative injected InventoryMenu SWF basis.
 - [Draugnarok SE](https://www.nexusmods.com/skyrimspecialedition/mods/12849), by unuroboros: credit for original Draugnarok systems/content adapted into Iron Soul.
 - [Draugrs - My patches SE by Xtudo](https://www.nexusmods.com/skyrimspecialedition/mods/123225), by Xtudo: credit for draugr eye asset basis used by dynamic draugr eye visuals.
 - [High Quality Dice Skins](https://www.nexusmods.com/baldursgate3/mods/1220), by Sir William Snugglepuff: credit for dice visual source material used by Luck roll presentation.
 - [Spherical Soulgems SSE](https://www.nexusmods.com/skyrimspecialedition/mods/66634), by Fishbiter: credit for sigil stone mesh source material used as the Heartstone visual base.
-- [Spherical Soulgems SSE - Particle Lights for ENB](https://www.nexusmods.com/skyrimspecialedition/mods/66668), by DeterministicFreeWill: credit for ENB particle light/glow source material used by Heartstone visuals.
-
-Permission evidence is kept in `docs/permissions`.
+- [Spherical Soulgems SSE - Particle Lights for ENB](https://www.nexusmods.com/skyrimspecialedition/mods/66668), by DeterministicFreeWill: credit for ENB particle light/glow source.

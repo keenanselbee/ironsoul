@@ -63,6 +63,8 @@ Scriptname IronSoulNative Hidden
 ; ApplyDynamicSplash()
 ; ApplyDynamicLevelWidget()
 ; ApplyDynamicDraugrEyes()
+; OpenMenu()
+; CloseMenu()
 
 ; --- Cursor Control ---
 ; ----------------------
@@ -78,13 +80,17 @@ Scriptname IronSoulNative Hidden
 ; StartHealthMonitor()
 ; StopHealthMonitor()
 
-; --- Tonal Heartstone Inventory Tempering ---
-; --------------------------------------------
-; TonalCaptureSelectedInventoryItem()
-; TonalApplyCapturedInventoryTemper()
-; TonalReleaseCapturedInventoryItem()
-; TonalGetLastResult()
-; TonalGetLastResultText()
+; --- Heartstone Enhancement ---
+; ------------------------------
+; HeartstoneBuildEnhanceSession()
+; HeartstoneGetEnhanceSessionOptionCount()
+; HeartstoneGetEnhanceSessionOptionLabel()
+; HeartstoneRefreshEnhanceSessionInventoryRows()
+; HeartstoneApplyEnhanceSessionOption()
+; HeartstoneApplyEnhanceSessionInventoryRow()
+; HeartstoneReleaseEnhanceSession()
+; HeartstoneGetEnhanceResult()
+; HeartstoneGetEnhanceResultText()
 
 ; --- DataStore Read Access ---
 ; -----------------------------
@@ -173,6 +179,10 @@ Function ApplyDynamicSplash(Int tierId, Int presetId) Global Native
 Function ApplyDynamicLevelWidget(Int tierId) Global Native
 Function ApplyDynamicDraugrEyes(Int presetId) Global Native
 
+; Queues a vanilla UI menu open/close request. Returns false when native UI queue is unavailable.
+Bool Function OpenMenu(String menuName) Global Native
+Bool Function CloseMenu(String menuName) Global Native
+
 
 ; --- CURSOR CONTROL ---
 ; =====================
@@ -199,23 +209,34 @@ Function StartHealthMonitor() Global Native
 Function StopHealthMonitor() Global Native
 
 
-; --- TONAL HEARTSTONE INVENTORY TEMPERING ---
-; ============================================
+; --- HEARTSTONE ENHANCEMENT ---
+; ==============================
 
-; Captures the currently selected InventoryMenu item for no-drop Tonal tempering.
-; Returns a positive session token on success; 0 means TonalGetLastResult* explains the failure.
-Int Function TonalCaptureSelectedInventoryItem(Int addLevels, Int maxTemperLevel) Global Native
+; Builds an Iron Soul-owned filtered enhancement session.
+; effectId 1 is Tonal tempering. Returns 0 when no valid session can be built.
+Int Function HeartstoneBuildEnhanceSession(Int effectId, Int power, Int cap) Global Native
 
-; Applies the captured additive temper upgrade. True means the item was changed.
-Bool Function TonalApplyCapturedInventoryTemper(Int token) Global Native
+; Returns the number of displayable options in a session.
+Int Function HeartstoneGetEnhanceSessionOptionCount(Int sessionToken) Global Native
 
-; Releases a captured token after cancel/failure. Safe to call for already-applied tokens.
-Function TonalReleaseCapturedInventoryItem(Int token) Global Native
+; Returns one display label for an option index.
+String Function HeartstoneGetEnhanceSessionOptionLabel(Int sessionToken, Int optionIndex) Global Native
 
-; Result code/text for the most recent Tonal native operation.
-Int Function TonalGetLastResult() Global Native
-String Function TonalGetLastResultText() Global Native
+; Rebuilds the InventoryMenu row whitelist for a session and returns rowIndex_:_label entries.
+String Function HeartstoneRefreshEnhanceSessionInventoryRows(Int sessionToken) Global Native
 
+; Applies and consumes one session option. False means HeartstoneGetEnhanceResult* explains the failure.
+Bool Function HeartstoneApplyEnhanceSessionOption(Int sessionToken, Int optionIndex) Global Native
+
+; Applies and consumes one visible InventoryMenu row from the latest row refresh.
+Bool Function HeartstoneApplyEnhanceSessionInventoryRow(Int sessionToken, Int rowIndex) Global Native
+
+; Releases a session after cancel/failure. Safe to call for already-consumed tokens.
+Function HeartstoneReleaseEnhanceSession(Int sessionToken) Global Native
+
+; Result code/text for the most recent Heartstone enhancement native operation.
+Int Function HeartstoneGetEnhanceResult() Global Native
+String Function HeartstoneGetEnhanceResultText() Global Native
 
 ; --- DATASTORE - READ ACCESS ---
 ; ===============================

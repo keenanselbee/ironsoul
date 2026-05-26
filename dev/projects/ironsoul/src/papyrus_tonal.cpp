@@ -7,8 +7,11 @@
 #include <cstdint>
 #include <format>
 #include <limits>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace IronSoul::Papyrus::Tonal
 {
@@ -26,7 +29,15 @@ namespace
         kApplyFailed = 7,
         kInvalidToken = 8,
         kInvalidRequest = 9,
-        kAmbiguousStack = 10
+        kAmbiguousStack = 10,
+        kInvalidOption = 11,
+        kNoEligibleOptions = 12,
+        kUnsupportedEffect = 13
+    };
+
+    enum class HeartstoneEffect : std::int32_t
+    {
+        kTonalTemper = 1
     };
 
     enum class TokenMode
@@ -53,8 +64,24 @@ namespace
         std::int32_t newLevel{ 0 };
     };
 
-    std::unordered_map<std::int32_t, TonalToken> g_tokens;
-    std::int32_t g_nextToken = 1;
+    struct HeartstoneEnhanceOption
+    {
+        TonalToken token;
+        std::string label;
+    };
+
+    struct HeartstoneEnhanceSession
+    {
+        std::int32_t token{ 0 };
+        HeartstoneEffect effect{ HeartstoneEffect::kTonalTemper };
+        std::int32_t power{ 0 };
+        std::int32_t cap{ 0 };
+        std::vector<HeartstoneEnhanceOption> options;
+        std::unordered_map<std::int32_t, TonalToken> rowTokens;
+    };
+
+    std::unordered_map<std::int32_t, HeartstoneEnhanceSession> g_enhanceSessions;
+    std::int32_t g_nextEnhanceSession = 1;
     TonalResult g_lastResult = TonalResult::kOk;
     std::string g_lastResultText = "OK";
 
@@ -213,91 +240,6 @@ namespace
         return it->second.first;
     }
 
-    RE::TESForm* GetExtraListOwner(const RE::ExtraDataList* a_extraList)
-    {
-        return a_extraList ? const_cast<RE::ExtraDataList*>(a_extraList)->GetOwner() : nullptr;
-    }
-
-    bool ExtraListsMatchSelectedTraits(const RE::ExtraDataList* a_selected, const RE::ExtraDataList* a_candidate)
-    {
-        if (!a_selected || !a_candidate) {
-            return false;
-        }
-        if (a_selected == a_candidate) {
-            return true;
-        }
-        if (a_selected->GetCount() != a_candidate->GetCount()) {
-            return false;
-        }
-        if (GetTemperLevel(GetTemperHealth(a_selected)) != GetTemperLevel(GetTemperHealth(a_candidate))) {
-            return false;
-        }
-        if (GetExtraListOwner(a_selected) != GetExtraListOwner(a_candidate)) {
-            return false;
-        }
-        if (a_selected->GetWorn() != a_candidate->GetWorn()) {
-            return false;
-        }
-
-        auto* selectedUnique = a_selected->GetByType<RE::ExtraUniqueID>();
-        auto* candidateUnique = a_candidate->GetByType<RE::ExtraUniqueID>();
-        if (selectedUnique || candidateUnique) {
-            return selectedUnique && candidateUnique &&
-                   selectedUnique->baseID == candidateUnique->baseID &&
-                   selectedUnique->uniqueID == candidateUnique->uniqueID;
-        }
-
-        return true;
-    }
-
-    RE::ExtraDataList* ResolveCanonicalExtraList(RE::TESBoundObject* a_object, RE::ExtraDataList* a_selectedExtraList)
-    {
-        auto* entry = FindCanonicalEntry(a_object);
-        if (!entry || !entry->extraLists || !a_selectedExtraList) {
-            SetLastResult(TonalResult::kAmbiguousStack, "Selected item could not be matched to one inventory instance");
-            return nullptr;
-        }
-
-        if (EntryContainsExtraList(entry, a_selectedExtraList)) {
-            return a_selectedExtraList;
-        }
-
-        RE::ExtraDataList* found = nullptr;
-        for (auto* extraList : *entry->extraLists) {
-            if (!extraList) {
-                continue;
-            }
-            if (!ExtraListsMatchSelectedTraits(a_selectedExtraList, extraList)) {
-                continue;
-            }
-            if (found) {
-                SetLastResult(TonalResult::kAmbiguousStack, "Selected item matches multiple inventory instances");
-                return nullptr;
-            }
-            found = extraList;
-        }
-
-        if (!found) {
-            SetLastResult(TonalResult::kAmbiguousStack, "Selected item could not be matched to one inventory instance");
-        }
-        return found;
-    }
-
-    std::int32_t CountExtraLists(const RE::InventoryEntryData* a_entry)
-    {
-        if (!a_entry || !a_entry->extraLists) {
-            return 0;
-        }
-
-        std::int32_t count = 0;
-        for (auto* extraList : *a_entry->extraLists) {
-            if (extraList) {
-                ++count;
-            }
-        }
-        return count;
-    }
-
     std::int32_t CountExtraListItems(const RE::InventoryEntryData* a_entry)
     {
         if (!a_entry || !a_entry->extraLists) {
@@ -318,9 +260,19 @@ namespace
         return count;
     }
 
-    std::int32_t CountPlainInventoryItems(RE::TESBoundObject* a_object)
+    std::int32_t CountExtraLists(const RE::InventoryEntryData* a_entry)
     {
-        return (std::max)(0, CountInventoryItems(a_object) - CountExtraListItems(FindCanonicalEntry(a_object)));
+        if (!a_entry || !a_entry->extraLists) {
+            return 0;
+        }
+
+        std::int32_t count = 0;
+        for (auto* extraList : *a_entry->extraLists) {
+            if (extraList) {
+                ++count;
+            }
+        }
+        return count;
     }
 
     RE::ExtraDataList* ResolveSingleExtraList(RE::InventoryEntryData* a_entry)
@@ -342,88 +294,146 @@ namespace
         return found;
     }
 
-    std::int32_t NextToken()
+    std::int32_t CountPlainInventoryItems(RE::TESBoundObject* a_object)
     {
-        if (g_nextToken <= 0) {
-            g_nextToken = 1;
-        }
-        return g_nextToken++;
+        return (std::max)(0, CountInventoryItems(a_object) - CountExtraListItems(FindCanonicalEntry(a_object)));
     }
 
-    std::optional<TonalToken> ResolveSelectedToken(std::int32_t a_addLevels, std::int32_t a_maxTemperLevel)
+    std::int32_t NextEnhanceSessionToken()
     {
-        if (a_addLevels <= 0 || a_maxTemperLevel <= 0) {
-            SetLastResult(TonalResult::kInvalidRequest, "Invalid Tonal temper request");
-            return std::nullopt;
+        if (g_nextEnhanceSession <= 0) {
+            g_nextEnhanceSession = 1;
         }
+        return g_nextEnhanceSession++;
+    }
 
-        auto* ui = RE::UI::GetSingleton();
-        auto menu = ui ? ui->GetMenu<RE::InventoryMenu>() : nullptr;
-        if (!menu) {
-            SetLastResult(TonalResult::kNoInventoryMenu, "Inventory menu is not open");
-            return std::nullopt;
-        }
-
-        auto* itemList = menu->GetRuntimeData().itemList;
-        auto* selected = itemList ? itemList->GetSelectedItem() : nullptr;
-        auto* entry = selected ? selected->data.objDesc : nullptr;
-        auto* object = entry ? entry->object : nullptr;
-        if (!entry || !object) {
-            SetLastResult(TonalResult::kNoSelectedItem, "No inventory item is selected");
-            return std::nullopt;
-        }
-
-        if (!IsPracticalTonalGear(object)) {
-            SetLastResult(TonalResult::kInvalidGear, "Selected item is not practical weapon or armor gear");
-            logger::info("Iron Soul Tonal: rejected invalid selected gear '{}'", GetFormName(object));
-            return std::nullopt;
-        }
+    HeartstoneEnhanceOption BuildTonalEnhanceOption(
+        RE::TESBoundObject* a_object,
+        RE::ExtraDataList* a_extraList,
+        TokenMode a_mode,
+        std::int32_t a_currentLevel,
+        std::int32_t a_addLevels,
+        std::int32_t a_maxTemperLevel)
+    {
+        const std::int32_t newLevel = (std::min)(a_currentLevel + a_addLevels, a_maxTemperLevel);
 
         TonalToken token;
-        token.token = NextToken();
-        token.baseFormID = object->GetFormID();
+        token.token = 0;
+        token.baseFormID = a_object ? a_object->GetFormID() : 0;
+        token.extraList = a_extraList;
         token.addLevels = a_addLevels;
         token.maxTemperLevel = a_maxTemperLevel;
+        token.mode = a_mode;
 
-        const std::int32_t extraListCount = CountExtraLists(entry);
-        if (extraListCount == 0) {
-            if (CountPlainInventoryItems(object) <= 0) {
-                SetLastResult(TonalResult::kItemMissingAtApply, "Selected plain item is no longer in inventory");
-                return std::nullopt;
-            }
-            token.mode = TokenMode::kPlainBaseStack;
-            return token;
-        }
+        return { token, FormatTemperSummary(a_object, a_currentLevel, newLevel) };
+    }
 
-        auto* extraList = ResolveSingleExtraList(entry);
-        if (!extraList) {
-            SetLastResult(TonalResult::kAmbiguousStack, "Selected inventory row contains multiple item instances");
+    std::optional<HeartstoneEnhanceOption> BuildTonalEnhanceOptionFromInventoryEntry(
+        RE::InventoryEntryData* a_entry,
+        std::int32_t a_addLevels,
+        std::int32_t a_maxTemperLevel)
+    {
+        auto* object = a_entry ? a_entry->object : nullptr;
+        if (!object || a_entry->countDelta <= 0 || !IsPracticalTonalGear(object)) {
             return std::nullopt;
         }
 
-        if (extraList->GetCount() > 1) {
-            SetLastResult(TonalResult::kAmbiguousStack, "Selected item stack has shared instance data");
+        const std::int32_t extraListCount = CountExtraLists(a_entry);
+        if (extraListCount == 0) {
+            if (CountPlainInventoryItems(object) <= 0) {
+                return std::nullopt;
+            }
+            return BuildTonalEnhanceOption(
+                object,
+                nullptr,
+                TokenMode::kPlainBaseStack,
+                0,
+                a_addLevels,
+                a_maxTemperLevel);
+        }
+
+        auto* extraList = ResolveSingleExtraList(a_entry);
+        if (!extraList || extraList->GetCount() > 1) {
             return std::nullopt;
         }
 
         const std::int32_t currentLevel = GetTemperLevel(GetTemperHealth(extraList));
-        if (currentLevel < 0) {
-            SetLastResult(TonalResult::kInvalidGear, "Selected item has invalid temper health");
-            return std::nullopt;
-        }
-        if (currentLevel >= a_maxTemperLevel) {
-            SetLastResult(TonalResult::kAlreadyCapped, "Selected item is already at the Tonal temper cap");
+        if (currentLevel < 0 || currentLevel >= a_maxTemperLevel) {
             return std::nullopt;
         }
 
-        auto* canonicalExtraList = ResolveCanonicalExtraList(object, extraList);
-        if (!canonicalExtraList) {
-            return std::nullopt;
+        return BuildTonalEnhanceOption(
+            object,
+            extraList,
+            TokenMode::kExistingExtraList,
+            currentLevel,
+            a_addLevels,
+            a_maxTemperLevel);
+    }
+
+    void AppendSerializedRow(std::string& a_output, std::int32_t a_rowIndex, std::string_view a_label)
+    {
+        if (!a_output.empty()) {
+            a_output += "_|_";
+        }
+        a_output += std::format("{}_:_{}", a_rowIndex, a_label);
+    }
+
+    std::vector<HeartstoneEnhanceOption> BuildTonalEnhanceOptions(std::int32_t a_addLevels, std::int32_t a_maxTemperLevel)
+    {
+        std::vector<HeartstoneEnhanceOption> options;
+
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (!player || a_addLevels <= 0 || a_maxTemperLevel <= 0) {
+            return options;
         }
 
-        token.mode = TokenMode::kExistingExtraList;
-        token.extraList = canonicalExtraList;
-        return token;
+        const auto inventory = player->GetInventory([](RE::TESBoundObject& a_item) {
+            return IsPracticalTonalGear(std::addressof(a_item));
+        });
+
+        for (const auto& [object, itemData] : inventory) {
+            if (!object || itemData.first <= 0 || !IsPracticalTonalGear(object)) {
+                continue;
+            }
+
+            auto* entry = FindCanonicalEntry(object);
+            const std::int32_t plainCount = (std::max)(0, itemData.first - CountExtraListItems(entry));
+            if (plainCount > 0) {
+                options.push_back(BuildTonalEnhanceOption(
+                    object,
+                    nullptr,
+                    TokenMode::kPlainBaseStack,
+                    0,
+                    a_addLevels,
+                    a_maxTemperLevel));
+            }
+
+            if (!entry || !entry->extraLists) {
+                continue;
+            }
+
+            for (auto* extraList : *entry->extraLists) {
+                if (!extraList || extraList->GetCount() > 1) {
+                    continue;
+                }
+
+                const std::int32_t currentLevel = GetTemperLevel(GetTemperHealth(extraList));
+                if (currentLevel < 0 || currentLevel >= a_maxTemperLevel) {
+                    continue;
+                }
+
+                options.push_back(BuildTonalEnhanceOption(
+                    object,
+                    extraList,
+                    TokenMode::kExistingExtraList,
+                    currentLevel,
+                    a_addLevels,
+                    a_maxTemperLevel));
+            }
+        }
+
+        return options;
     }
 
     bool ApplyTemperToExistingExtraList(RE::TESBoundObject* a_object, const TonalToken& a_token, TemperApplySummary& a_summary)
@@ -495,43 +505,139 @@ namespace
         return true;
     }
 
-    static std::int32_t TonalCaptureSelectedInventoryItem(RE::StaticFunctionTag*, std::int32_t a_addLevels, std::int32_t a_maxTemperLevel)
+    static std::int32_t HeartstoneBuildEnhanceSession(
+        RE::StaticFunctionTag*,
+        std::int32_t a_effectID,
+        std::int32_t a_power,
+        std::int32_t a_cap)
     {
-        auto token = ResolveSelectedToken(a_addLevels, a_maxTemperLevel);
-        if (!token) {
-            logger::info("Iron Soul Tonal: capture failed: {}", g_lastResultText);
+        if (a_power <= 0 || a_cap <= 0) {
+            SetLastResult(TonalResult::kInvalidRequest, "Invalid Heartstone enhancement request");
             return 0;
         }
 
-        const std::int32_t tokenID = token->token;
-        g_tokens[tokenID] = *token;
-        SetLastResult(TonalResult::kOk, "OK");
-        auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(token->baseFormID);
-        const float capturedHealth = token->extraList ? GetTemperHealth(token->extraList) : 1.0F;
-        const std::int32_t capturedLevel = GetTemperLevel(capturedHealth);
-        logger::info(
-            "Iron Soul Tonal: captured selected inventory item token={} form={:08X} item='{}' mode={} addLevels={} maxLevel={} health={:.9f} level=+{}",
-            tokenID,
-            token->baseFormID,
-            GetFormName(object),
-            GetTokenModeName(token->mode),
-            token->addLevels,
-            token->maxTemperLevel,
-            capturedHealth,
-            capturedLevel);
-        return tokenID;
-    }
-
-    static bool TonalApplyCapturedInventoryTemper(RE::StaticFunctionTag*, std::int32_t a_token)
-    {
-        auto tokenIt = g_tokens.find(a_token);
-        if (tokenIt == g_tokens.end()) {
-            SetLastResult(TonalResult::kInvalidToken, "Tonal selection token is invalid or expired");
-            return false;
+        if (a_effectID != static_cast<std::int32_t>(HeartstoneEffect::kTonalTemper)) {
+            SetLastResult(TonalResult::kUnsupportedEffect, "Unsupported Heartstone enhancement effect");
+            return 0;
         }
 
-        TonalToken token = tokenIt->second;
-        auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(token.baseFormID);
+        HeartstoneEnhanceSession session;
+        session.token = NextEnhanceSessionToken();
+        session.effect = HeartstoneEffect::kTonalTemper;
+        session.power = a_power;
+        session.cap = a_cap;
+        session.options = BuildTonalEnhanceOptions(a_power, a_cap);
+
+        if (session.options.empty()) {
+            SetLastResult(TonalResult::kNoEligibleOptions, "No eligible gear can be strengthened");
+            logger::info("Iron Soul Heartstone: no eligible enhancement options effect={} power={} cap={}", a_effectID, a_power, a_cap);
+            return 0;
+        }
+
+        const std::int32_t sessionToken = session.token;
+        const std::size_t optionCount = session.options.size();
+        g_enhanceSessions[sessionToken] = std::move(session);
+        SetLastResult(TonalResult::kOk, "OK");
+        logger::info(
+            "Iron Soul Heartstone: built enhancement session token={} effect={} power={} cap={} options={}",
+            sessionToken,
+            a_effectID,
+            a_power,
+            a_cap,
+            optionCount);
+        return sessionToken;
+    }
+
+    static std::int32_t HeartstoneGetEnhanceSessionOptionCount(RE::StaticFunctionTag*, std::int32_t a_sessionToken)
+    {
+        auto sessionIt = g_enhanceSessions.find(a_sessionToken);
+        if (sessionIt == g_enhanceSessions.end()) {
+            SetLastResult(TonalResult::kInvalidToken, "Heartstone enhancement session is invalid or expired");
+            return 0;
+        }
+
+        return static_cast<std::int32_t>(sessionIt->second.options.size());
+    }
+
+    static std::string HeartstoneGetEnhanceSessionOptionLabel(
+        RE::StaticFunctionTag*,
+        std::int32_t a_sessionToken,
+        std::int32_t a_optionIndex)
+    {
+        auto sessionIt = g_enhanceSessions.find(a_sessionToken);
+        if (sessionIt == g_enhanceSessions.end()) {
+            SetLastResult(TonalResult::kInvalidToken, "Heartstone enhancement session is invalid or expired");
+            return "";
+        }
+
+        const auto& options = sessionIt->second.options;
+        if (a_optionIndex < 0 || static_cast<std::size_t>(a_optionIndex) >= options.size()) {
+            SetLastResult(TonalResult::kInvalidOption, "Heartstone enhancement option is invalid");
+            return "";
+        }
+
+        return options[static_cast<std::size_t>(a_optionIndex)].label;
+    }
+
+    static std::string HeartstoneRefreshEnhanceSessionInventoryRows(RE::StaticFunctionTag*, std::int32_t a_sessionToken)
+    {
+        auto sessionIt = g_enhanceSessions.find(a_sessionToken);
+        if (sessionIt == g_enhanceSessions.end()) {
+            SetLastResult(TonalResult::kInvalidToken, "Heartstone enhancement session is invalid or expired");
+            return "";
+        }
+
+        auto& session = sessionIt->second;
+        session.rowTokens.clear();
+
+        auto* ui = RE::UI::GetSingleton();
+        auto menu = ui ? ui->GetMenu<RE::InventoryMenu>() : nullptr;
+        auto* itemList = menu ? menu->GetRuntimeData().itemList : nullptr;
+        if (!itemList) {
+            SetLastResult(TonalResult::kNoInventoryMenu, "Inventory menu is not open");
+            return "";
+        }
+
+        std::string serializedRows;
+        for (std::uint32_t rowIndex = 0; rowIndex < itemList->items.size(); ++rowIndex) {
+            auto* item = itemList->items[rowIndex];
+            auto* entry = item ? item->data.objDesc : nullptr;
+            auto option = BuildTonalEnhanceOptionFromInventoryEntry(entry, session.power, session.cap);
+            if (!option) {
+                continue;
+            }
+
+            const auto row = static_cast<std::int32_t>(rowIndex);
+            session.rowTokens[row] = option->token;
+            AppendSerializedRow(serializedRows, row, option->label);
+        }
+
+        if (session.rowTokens.empty()) {
+            SetLastResult(TonalResult::kNoEligibleOptions, "No eligible visible inventory rows can be strengthened");
+            logger::info(
+                "Iron Soul Heartstone: no eligible InventoryMenu rows for session={} effect={} power={} cap={}",
+                a_sessionToken,
+                static_cast<std::int32_t>(session.effect),
+                session.power,
+                session.cap);
+            return "";
+        }
+
+        SetLastResult(TonalResult::kOk, "OK");
+        logger::info(
+            "Iron Soul Heartstone: refreshed enhancement session rows session={} rows={}",
+            a_sessionToken,
+            session.rowTokens.size());
+        return serializedRows;
+    }
+
+    bool ApplyEnhanceToken(
+        std::int32_t a_sessionToken,
+        std::int32_t a_selectionIndex,
+        std::string_view a_selectionKind,
+        const TonalToken& a_token)
+    {
+        auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(a_token.baseFormID);
         if (!object) {
             SetLastResult(TonalResult::kItemMissingAtApply, "Selected item form is no longer available");
             return false;
@@ -543,29 +649,36 @@ namespace
 
         TemperApplySummary summary;
         const bool applied =
-            token.mode == TokenMode::kExistingExtraList ?
-                ApplyTemperToExistingExtraList(object, token, summary) :
-                ApplyTemperToPlainBaseStack(object, token, summary);
+            a_token.mode == TokenMode::kExistingExtraList ?
+                ApplyTemperToExistingExtraList(object, a_token, summary) :
+                ApplyTemperToPlainBaseStack(object, a_token, summary);
 
         if (!applied) {
-            logger::warn("Iron Soul Tonal: apply failed token={} form={:08X}: {}", a_token, token.baseFormID, g_lastResultText);
+            logger::warn(
+                "Iron Soul Heartstone: apply failed session={} {}={} form={:08X}: {}",
+                a_sessionToken,
+                a_selectionKind,
+                a_selectionIndex,
+                a_token.baseFormID,
+                g_lastResultText);
             return false;
         }
 
-        g_tokens.erase(tokenIt);
         const std::string resultText = FormatTemperSummary(object, summary.currentLevel, summary.newLevel);
         SetLastResult(TonalResult::kOk, resultText);
         if (auto* player = RE::PlayerCharacter::GetSingleton()) {
             RE::SendUIMessage::SendInventoryUpdateMessage(player, object);
         }
         logger::info(
-            "Iron Soul Tonal: applied inventory temper token={} form={:08X} item='{}' mode={} addLevels={} maxLevel={} health={:.9f}->{:.9f} level=+{}->+{} result='{}'",
-            a_token,
-            token.baseFormID,
+            "Iron Soul Heartstone: applied enhancement session={} {}={} form={:08X} item='{}' mode={} power={} cap={} health={:.9f}->{:.9f} level=+{}->+{} result='{}'",
+            a_sessionToken,
+            a_selectionKind,
+            a_selectionIndex,
+            a_token.baseFormID,
             GetFormName(object),
-            GetTokenModeName(token.mode),
-            token.addLevels,
-            token.maxTemperLevel,
+            GetTokenModeName(a_token.mode),
+            a_token.addLevels,
+            a_token.maxTemperLevel,
             summary.currentHealth,
             summary.newHealth,
             summary.currentLevel,
@@ -574,18 +687,74 @@ namespace
         return true;
     }
 
-    static void TonalReleaseCapturedInventoryItem(RE::StaticFunctionTag*, std::int32_t a_token)
+    static bool HeartstoneApplyEnhanceSessionOption(
+        RE::StaticFunctionTag*,
+        std::int32_t a_sessionToken,
+        std::int32_t a_optionIndex)
     {
-        g_tokens.erase(a_token);
+        auto sessionIt = g_enhanceSessions.find(a_sessionToken);
+        if (sessionIt == g_enhanceSessions.end()) {
+            SetLastResult(TonalResult::kInvalidToken, "Heartstone enhancement session is invalid or expired");
+            return false;
+        }
+
+        HeartstoneEnhanceSession session = std::move(sessionIt->second);
+        g_enhanceSessions.erase(sessionIt);
+
+        if (a_optionIndex < 0 || static_cast<std::size_t>(a_optionIndex) >= session.options.size()) {
+            SetLastResult(TonalResult::kInvalidOption, "Heartstone enhancement option is invalid");
+            return false;
+        }
+
+        if (session.effect != HeartstoneEffect::kTonalTemper) {
+            SetLastResult(TonalResult::kUnsupportedEffect, "Unsupported Heartstone enhancement effect");
+            return false;
+        }
+
+        const TonalToken token = session.options[static_cast<std::size_t>(a_optionIndex)].token;
+        return ApplyEnhanceToken(a_sessionToken, a_optionIndex, "option", token);
+    }
+
+    static bool HeartstoneApplyEnhanceSessionInventoryRow(
+        RE::StaticFunctionTag*,
+        std::int32_t a_sessionToken,
+        std::int32_t a_rowIndex)
+    {
+        auto sessionIt = g_enhanceSessions.find(a_sessionToken);
+        if (sessionIt == g_enhanceSessions.end()) {
+            SetLastResult(TonalResult::kInvalidToken, "Heartstone enhancement session is invalid or expired");
+            return false;
+        }
+
+        HeartstoneEnhanceSession session = std::move(sessionIt->second);
+        g_enhanceSessions.erase(sessionIt);
+
+        auto rowIt = session.rowTokens.find(a_rowIndex);
+        if (rowIt == session.rowTokens.end()) {
+            SetLastResult(TonalResult::kInvalidOption, "Heartstone enhancement inventory row is invalid");
+            return false;
+        }
+
+        if (session.effect != HeartstoneEffect::kTonalTemper) {
+            SetLastResult(TonalResult::kUnsupportedEffect, "Unsupported Heartstone enhancement effect");
+            return false;
+        }
+
+        return ApplyEnhanceToken(a_sessionToken, a_rowIndex, "row", rowIt->second);
+    }
+
+    static void HeartstoneReleaseEnhanceSession(RE::StaticFunctionTag*, std::int32_t a_sessionToken)
+    {
+        g_enhanceSessions.erase(a_sessionToken);
         SetLastResult(TonalResult::kOk, "OK");
     }
 
-    static std::int32_t TonalGetLastResult(RE::StaticFunctionTag*)
+    static std::int32_t HeartstoneGetEnhanceResult(RE::StaticFunctionTag*)
     {
         return static_cast<std::int32_t>(g_lastResult);
     }
 
-    static std::string TonalGetLastResultText(RE::StaticFunctionTag*)
+    static std::string HeartstoneGetEnhanceResultText(RE::StaticFunctionTag*)
     {
         return g_lastResultText;
     }
@@ -593,10 +762,14 @@ namespace
 
     void Register(RE::BSScript::IVirtualMachine* a_vm)
     {
-        a_vm->RegisterFunction("TonalCaptureSelectedInventoryItem", IronSoul::Papyrus::kScriptName, TonalCaptureSelectedInventoryItem);
-        a_vm->RegisterFunction("TonalApplyCapturedInventoryTemper", IronSoul::Papyrus::kScriptName, TonalApplyCapturedInventoryTemper);
-        a_vm->RegisterFunction("TonalReleaseCapturedInventoryItem", IronSoul::Papyrus::kScriptName, TonalReleaseCapturedInventoryItem);
-        a_vm->RegisterFunction("TonalGetLastResult", IronSoul::Papyrus::kScriptName, TonalGetLastResult);
-        a_vm->RegisterFunction("TonalGetLastResultText", IronSoul::Papyrus::kScriptName, TonalGetLastResultText);
+        a_vm->RegisterFunction("HeartstoneBuildEnhanceSession", IronSoul::Papyrus::kScriptName, HeartstoneBuildEnhanceSession);
+        a_vm->RegisterFunction("HeartstoneGetEnhanceSessionOptionCount", IronSoul::Papyrus::kScriptName, HeartstoneGetEnhanceSessionOptionCount);
+        a_vm->RegisterFunction("HeartstoneGetEnhanceSessionOptionLabel", IronSoul::Papyrus::kScriptName, HeartstoneGetEnhanceSessionOptionLabel);
+        a_vm->RegisterFunction("HeartstoneRefreshEnhanceSessionInventoryRows", IronSoul::Papyrus::kScriptName, HeartstoneRefreshEnhanceSessionInventoryRows);
+        a_vm->RegisterFunction("HeartstoneApplyEnhanceSessionOption", IronSoul::Papyrus::kScriptName, HeartstoneApplyEnhanceSessionOption);
+        a_vm->RegisterFunction("HeartstoneApplyEnhanceSessionInventoryRow", IronSoul::Papyrus::kScriptName, HeartstoneApplyEnhanceSessionInventoryRow);
+        a_vm->RegisterFunction("HeartstoneReleaseEnhanceSession", IronSoul::Papyrus::kScriptName, HeartstoneReleaseEnhanceSession);
+        a_vm->RegisterFunction("HeartstoneGetEnhanceResult", IronSoul::Papyrus::kScriptName, HeartstoneGetEnhanceResult);
+        a_vm->RegisterFunction("HeartstoneGetEnhanceResultText", IronSoul::Papyrus::kScriptName, HeartstoneGetEnhanceResultText);
     }
 }

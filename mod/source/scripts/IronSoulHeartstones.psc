@@ -1,12 +1,5 @@
 Scriptname IronSoulHeartstones extends Quest
 
-Import b612
-
-; Compile note: Tonal Heartstone enhancement uses B612's classic
-; b612_ItemSelect API. Full B612 bundles the matching runtime PEX, but its
-; source package may only include a deprecated placeholder for this script, so
-; the reference source may need the older compilable b612_ItemSelect source.
-
 ; Heartstones
 ; by Camilonwe of Alinor
 ; A Discourse On A Curious Exception To The Finality Of Death
@@ -98,6 +91,7 @@ Message Property HeartstoneUnavailableMsg Auto
 Sound Property SFXHeartstoneAbsorb Auto
 
 Int HEARTSTONE_TYPE_TONAL = 1
+Int HEARTSTONE_EFFECT_TONAL = 1
 Int HEARTSTONE_INVENTORY_MODE_LEGACY = 0
 Int HEARTSTONE_INVENTORY_MODE_REOPEN = 1
 Int HEARTSTONE_INVENTORY_MODE_CLOSE = 2
@@ -105,22 +99,30 @@ Int HEARTSTONE_INVENTORY_MODE_MIXED = 3
 String HEARTSTONE_ITEM_ENHANCED_MENU = "heartstoneitemenhanced"
 String HEARTSTONE_DEATH_PURGED_MENU = "heartstonedeathpurged"
 String HEARTSTONE_INVENTORY_MENU = "InventoryMenu"
+String HEARTSTONE_ITEM_SELECT_SWF = "ironsoul_itemselect"
+String HEARTSTONE_ITEM_SELECT_ROOT = "_root.ironsoul_itemselect.ItemSelect_mc"
+String HEARTSTONE_ITEM_SELECT_LOAD_EVENT = "IronSoul_ItemSelect_Load"
+String HEARTSTONE_ITEM_SELECT_SELECT_EVENT = "IronSoul_ItemSelect_Select"
 Float HEARTSTONE_PRESENTATION_MAX_SECONDS = 8.0
 Float HEARTSTONE_PRESENTATION_DISMISS_SECONDS = 2.0
 Int TONAL_TEMPER_MAX_LEVEL = 10
+Int TONAL_TEMPER_CONFIG_MAX_LEVEL = 100
 Int TONAL_RESULT_ALREADY_CAPPED = 4
 Int TONAL_RESULT_AMBIGUOUS_STACK = 10
 
 Bool _handlingUse = False
 Bool _tonalSelectionActive = False
-Bool _tonalSelectionMade = False
+Bool _tonalItemSelectActive = False
+Bool _tonalItemSelectLoaded = False
+Bool _tonalItemSelectFailed = False
+Bool _tonalItemSelectNoRows = False
 Actor _pendingTonalPlayer = None
 Form _pendingTonalHeartstoneBaseItem = None
 Int _pendingTonalHeartstoneType = 0
 Int _pendingTonalHeartstoneTier = 0
-Int _pendingTonalToken = 0
-String _pendingTonalCaptureFailure = ""
-b612_ItemSelect _tonalItemSelect = None
+Int _pendingTonalSessionToken = 0
+Int _pendingTonalSelectedIndex = -1
+Int _pendingTonalMaxTemper = 10
 
 Function ResetTransientState()
     _handlingUse = False
@@ -204,16 +206,16 @@ Function ReopenInventoryAfterHeartstoneAction(Bool enhanceAction)
     Utility.WaitMenuMode(0.1)
 EndFunction
 
-String Function GetTonalResultText()
-    String resultText = IronSoulNative.TonalGetLastResultText()
+String Function GetHeartstoneEnhanceResultText()
+    String resultText = IronSoulNative.HeartstoneGetEnhanceResultText()
     if resultText == ""
-        return "Unknown Tonal failure"
+        return "Unknown Heartstone enhancement failure"
     endif
     return resultText
 EndFunction
 
-Function NotifyTonalFailure(Bool applyFailure = False)
-    Int result = IronSoulNative.TonalGetLastResult()
+Function NotifyHeartstoneEnhanceFailure(Bool applyFailure = False)
+    Int result = IronSoulNative.HeartstoneGetEnhanceResult()
     if result == TONAL_RESULT_ALREADY_CAPPED
         Debug.Notification("The Heartstone cannot strengthen that item further.")
     elseif result == TONAL_RESULT_AMBIGUOUS_STACK
@@ -340,98 +342,160 @@ Bool Function TryEnhanceTonalItem(Actor player, Form heartstoneBaseItem, Int hea
         return False
     endif
 
-    b612_ItemSelect itemSelect = b612.GetItemSelect()
-    if !itemSelect
-        LogHeartstones(IronSoulConfig.LOG_ERR(), "TryEnhanceTonalItem: B612 item select is not available")
-        Debug.MessageBox("B612 item selection is not available.")
+    Int addLevels = ResolveTonalAddLevels(heartstoneTier)
+    Int maxTemper = GetTonalMaxTemperLevel()
+    Int sessionToken = IronSoulNative.HeartstoneBuildEnhanceSession(HEARTSTONE_EFFECT_TONAL, addLevels, maxTemper)
+    if sessionToken <= 0
+        String buildFailureText = GetHeartstoneEnhanceResultText()
+        Debug.Notification("The Heartstone finds no eligible weapon or armor to strengthen.")
+        LogHeartstones(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: No Tonal enhancement options type=" + heartstoneType + " tier=" + heartstoneTier + " maxTemper=" + maxTemper + " result=" + buildFailureText)
         return False
     endif
 
-    if !StartTonalEnhancementState(player, heartstoneBaseItem, heartstoneType, heartstoneTier, itemSelect)
+    if !StartTonalEnhancementState(player, heartstoneBaseItem, heartstoneType, heartstoneTier, sessionToken, maxTemper)
+        IronSoulNative.HeartstoneReleaseEnhanceSession(sessionToken)
         return False
     endif
 
-    Bool selecting = True
-    while selecting
-        if player.GetItemCount(heartstoneBaseItem) <= 0
-            LogHeartstones(IronSoulConfig.LOG_ERR(), "TryEnhanceTonalItem: Player no longer has exact Tonal Heartstone base form during selection")
-            Debug.MessageBox("The Heartstone is no longer in your inventory.")
-            ClearTonalEnhancementState()
-            return False
-        endif
+    Int selectedIndex = ShowHeartstoneEnhanceList(sessionToken)
+    if selectedIndex < 0
+        LogHeartstones(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: Tonal enhancement selection canceled type=" + heartstoneType + " tier=" + heartstoneTier)
+        ClearTonalEnhancementState()
+        return False
+    endif
 
-        _tonalSelectionMade = False
-        _pendingTonalToken = 0
-        _pendingTonalCaptureFailure = ""
-
-        RegisterForModEvent("b612_ItemSelect_Select", "Onb612_ItemSelect_Select")
-        Int selectedIndex = itemSelect.Show(0, False, "VendorItemWeapon,VendorItemArmor")
-        UnregisterForModEvent("b612_ItemSelect_Select")
-
-        Bool itemSelected = _tonalSelectionMade || selectedIndex >= 0
-
-        if !itemSelected
-            LogHeartstones(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: Tonal enhancement selection canceled type=" + heartstoneType + " tier=" + heartstoneTier)
-            ClearTonalEnhancementState()
-            return False
-        endif
-        if _pendingTonalToken > 0
-            return CompleteTonalEnhancement()
-        endif
-
-        String failureText = _pendingTonalCaptureFailure
-        if failureText == ""
-            failureText = "No Tonal item token was captured"
-            Debug.Notification("The Heartstone cannot strengthen that item.")
-        else
-            NotifyTonalFailure(False)
-        endif
-        LogHeartstones(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: Tonal selection rejected; reopening selector type=" + heartstoneType + " tier=" + heartstoneTier + " result=" + failureText)
-    endwhile
-
-    ClearTonalEnhancementState()
-    return False
+    _pendingTonalSelectedIndex = selectedIndex
+    return CompleteTonalEnhancement()
 EndFunction
 
-Bool Function StartTonalEnhancementState(Actor player, Form heartstoneBaseItem, Int heartstoneType, Int heartstoneTier, b612_ItemSelect itemSelect)
+Bool Function StartTonalEnhancementState(Actor player, Form heartstoneBaseItem, Int heartstoneType, Int heartstoneTier, Int sessionToken, Int maxTemper)
     ClearTonalEnhancementState()
 
     _tonalSelectionActive = True
-    _tonalSelectionMade = False
     _pendingTonalPlayer = player
     _pendingTonalHeartstoneBaseItem = heartstoneBaseItem
     _pendingTonalHeartstoneType = heartstoneType
     _pendingTonalHeartstoneTier = heartstoneTier
-    _pendingTonalToken = 0
-    _pendingTonalCaptureFailure = ""
-    _tonalItemSelect = itemSelect
+    _pendingTonalSessionToken = sessionToken
+    _pendingTonalSelectedIndex = -1
+    _pendingTonalMaxTemper = maxTemper
 
-    LogHeartstones(IronSoulConfig.LOG_INFO(), "StartTonalEnhancementState: Started Tonal item selection tier=" + heartstoneTier)
+    LogHeartstones(IronSoulConfig.LOG_INFO(), "StartTonalEnhancementState: Started Tonal filtered item selection tier=" + heartstoneTier + " maxTemper=" + maxTemper + " session=" + sessionToken)
     return True
 EndFunction
 
-Event Onb612_ItemSelect_Select(String eventName, String strArg, Float numArg, Form formArg)
-    if !_tonalSelectionActive
-        return
+Int Function ShowHeartstoneEnhanceList(Int sessionToken)
+    Int optionCount = IronSoulNative.HeartstoneGetEnhanceSessionOptionCount(sessionToken)
+    if optionCount <= 0
+        return -1
     endif
-    if _tonalSelectionMade
+
+    _tonalItemSelectActive = True
+    _tonalItemSelectLoaded = False
+    _tonalItemSelectFailed = False
+    _tonalItemSelectNoRows = False
+    _pendingTonalSelectedIndex = -1
+    RegisterForModEvent(HEARTSTONE_ITEM_SELECT_LOAD_EVENT, "OnIronSoul_ItemSelect_Load")
+    RegisterForModEvent(HEARTSTONE_ITEM_SELECT_SELECT_EVENT, "OnIronSoul_ItemSelect_Select")
+
+    Bool inventoryWasOpen = UI.IsMenuOpen(HEARTSTONE_INVENTORY_MENU)
+    if !inventoryWasOpen && !IronSoulNative.OpenMenu(HEARTSTONE_INVENTORY_MENU)
+        LogHeartstones(IronSoulConfig.LOG_ERR(), "ShowHeartstoneEnhanceList: InventoryMenu could not be queued")
+        ClearHeartstoneItemSelectWait()
+        Debug.MessageBox("The Heartstone selection menu is not available.")
+        return -1
+    endif
+
+    Float waited = 0.0
+    while !UI.IsMenuOpen(HEARTSTONE_INVENTORY_MENU) && waited < 2.0
+        Utility.WaitMenuMode(0.1)
+        waited += 0.1
+    endwhile
+
+    if !UI.IsMenuOpen(HEARTSTONE_INVENTORY_MENU)
+        LogHeartstones(IronSoulConfig.LOG_ERR(), "ShowHeartstoneEnhanceList: InventoryMenu did not open")
+        ClearHeartstoneItemSelectWait()
+        Debug.MessageBox("The Heartstone selection menu is not available.")
+        return -1
+    endif
+
+    InjectHeartstoneItemSelect()
+
+    waited = 0.0
+    while UI.IsMenuOpen(HEARTSTONE_INVENTORY_MENU) && !_tonalItemSelectLoaded && !_tonalItemSelectFailed && waited < 2.0
+        Utility.WaitMenuMode(0.1)
+        waited += 0.1
+    endwhile
+
+    if !_tonalItemSelectLoaded || _tonalItemSelectFailed
+        Bool noEligibleRows = _tonalItemSelectNoRows
+        if noEligibleRows
+            LogHeartstones(IronSoulConfig.LOG_INFO(), "ShowHeartstoneEnhanceList: Iron Soul item select found no eligible rows session=" + sessionToken)
+        else
+            LogHeartstones(IronSoulConfig.LOG_ERR(), "ShowHeartstoneEnhanceList: Iron Soul item select failed to load session=" + sessionToken + " loaded=" + _tonalItemSelectLoaded + " failed=" + _tonalItemSelectFailed)
+        endif
+        if !inventoryWasOpen
+            IronSoulNative.CloseMenu(HEARTSTONE_INVENTORY_MENU)
+        endif
+        ClearHeartstoneItemSelectWait()
+        if !noEligibleRows
+            Debug.MessageBox("The Heartstone selection menu is not available.")
+        endif
+        return -1
+    endif
+
+    while UI.IsMenuOpen(HEARTSTONE_INVENTORY_MENU) && _pendingTonalSelectedIndex < 0 && !_tonalItemSelectFailed
+        Utility.WaitMenuMode(0.1)
+    endwhile
+
+    ClearHeartstoneItemSelectWait()
+    return _pendingTonalSelectedIndex
+EndFunction
+
+Function InjectHeartstoneItemSelect()
+    String[] args = new String[2]
+    args[0] = HEARTSTONE_ITEM_SELECT_SWF
+    args[1] = Utility.RandomInt(1000, 10000)
+    UI.InvokeStringA(HEARTSTONE_INVENTORY_MENU, "_root.createEmptyMovieClip", args)
+    UI.InvokeString(HEARTSTONE_INVENTORY_MENU, "_root." + HEARTSTONE_ITEM_SELECT_SWF + ".loadMovie", HEARTSTONE_ITEM_SELECT_SWF + ".swf")
+EndFunction
+
+Function ClearHeartstoneItemSelectWait()
+    UnregisterForModEvent(HEARTSTONE_ITEM_SELECT_LOAD_EVENT)
+    UnregisterForModEvent(HEARTSTONE_ITEM_SELECT_SELECT_EVENT)
+    _tonalItemSelectActive = False
+    _tonalItemSelectLoaded = False
+    _tonalItemSelectFailed = False
+    _tonalItemSelectNoRows = False
+EndFunction
+
+Event OnIronSoul_ItemSelect_Load(String eventName, String strArg, Float numArg, Form formArg)
+    if !_tonalItemSelectActive
         return
     endif
 
-    _tonalSelectionMade = True
-    if _tonalItemSelect
-        _pendingTonalToken = IronSoulNative.TonalCaptureSelectedInventoryItem(ResolveTonalAddLevels(_pendingTonalHeartstoneTier), TONAL_TEMPER_MAX_LEVEL)
-        if _pendingTonalToken <= 0
-            _pendingTonalCaptureFailure = GetTonalResultText()
-        else
-            _pendingTonalCaptureFailure = ""
-        endif
-        Utility.WaitMenuMode(0.1)
-        _tonalItemSelect.CloseMenu(HEARTSTONE_INVENTORY_MENU)
-    else
-        _pendingTonalCaptureFailure = "B612 item select reference is missing"
-        LogHeartstones(IronSoulConfig.LOG_ERR(), "Onb612_ItemSelect_Select: B612 item select reference is missing")
+    String serializedRows = IronSoulNative.HeartstoneRefreshEnhanceSessionInventoryRows(_pendingTonalSessionToken)
+    if serializedRows == ""
+        String resultText = GetHeartstoneEnhanceResultText()
+        _tonalItemSelectFailed = True
+        _tonalItemSelectNoRows = True
+        LogHeartstones(IronSoulConfig.LOG_INFO(), "OnIronSoul_ItemSelect_Load: No eligible InventoryMenu rows session=" + _pendingTonalSessionToken + " result=" + resultText)
+        Debug.Notification("The Heartstone finds no eligible weapon or armor to strengthen.")
+        IronSoulNative.CloseMenu(HEARTSTONE_INVENTORY_MENU)
+        return
     endif
+
+    UI.InvokeString(HEARTSTONE_INVENTORY_MENU, HEARTSTONE_ITEM_SELECT_ROOT + ".setAllowedRows", serializedRows)
+    _tonalItemSelectLoaded = True
+EndEvent
+
+Event OnIronSoul_ItemSelect_Select(String eventName, String strArg, Float numArg, Form formArg)
+    if !_tonalItemSelectActive
+        return
+    endif
+
+    _pendingTonalSelectedIndex = numArg as Int
+    IronSoulNative.CloseMenu(HEARTSTONE_INVENTORY_MENU)
 EndEvent
 
 Bool Function CompleteTonalEnhancement()
@@ -439,10 +503,12 @@ Bool Function CompleteTonalEnhancement()
     Form heartstoneBaseItem = _pendingTonalHeartstoneBaseItem
     Int heartstoneType = _pendingTonalHeartstoneType
     Int heartstoneTier = _pendingTonalHeartstoneTier
-    Int token = _pendingTonalToken
+    Int sessionToken = _pendingTonalSessionToken
+    Int selectedIndex = _pendingTonalSelectedIndex
+    Int maxTemper = _pendingTonalMaxTemper
     Int addLevels = ResolveTonalAddLevels(heartstoneTier)
 
-    if !player || !heartstoneBaseItem || token <= 0
+    if !player || !heartstoneBaseItem || sessionToken <= 0 || selectedIndex < 0
         ClearTonalEnhancementState()
         return False
     endif
@@ -454,16 +520,17 @@ Bool Function CompleteTonalEnhancement()
         return False
     endif
 
-    Bool enhanced = IronSoulNative.TonalApplyCapturedInventoryTemper(token)
+    Bool enhanced = IronSoulNative.HeartstoneApplyEnhanceSessionInventoryRow(sessionToken, selectedIndex)
     if !enhanced
-        String resultText = GetTonalResultText()
-        NotifyTonalFailure(True)
+        String resultText = GetHeartstoneEnhanceResultText()
+        NotifyHeartstoneEnhanceFailure(True)
         LogHeartstones(IronSoulConfig.LOG_ERR(), "CompleteTonalEnhancement: Native Tonal apply failed type=" + heartstoneType + " tier=" + heartstoneTier + " result=" + resultText)
+        _pendingTonalSessionToken = 0
         ClearTonalEnhancementState()
         return False
     endif
-    _pendingTonalToken = 0
-    String enhanceResultText = GetTonalResultText()
+    _pendingTonalSessionToken = 0
+    String enhanceResultText = GetHeartstoneEnhanceResultText()
 
     CloseInventoryForHeartstoneAction()
     PlayItemEnhancedPresentation(player)
@@ -471,10 +538,20 @@ Bool Function CompleteTonalEnhancement()
     AwardHeartglass(player, heartstoneType, heartstoneTier)
     NotifyHeartstoneSuccess("Tonal Heartstone strengthened " + enhanceResultText)
 
-    LogHeartstones(IronSoulConfig.LOG_INFO(), "CompleteTonalEnhancement: Enhanced selected inventory item with Tonal Heartstone type=" + heartstoneType + " tier=" + heartstoneTier + " addLevels=" + addLevels + " maxLevel=" + TONAL_TEMPER_MAX_LEVEL + " result=" + enhanceResultText)
+    LogHeartstones(IronSoulConfig.LOG_INFO(), "CompleteTonalEnhancement: Enhanced selected inventory item with Tonal Heartstone type=" + heartstoneType + " tier=" + heartstoneTier + " addLevels=" + addLevels + " maxLevel=" + maxTemper + " result=" + enhanceResultText)
     ClearTonalEnhancementState()
     ReopenInventoryAfterHeartstoneAction(True)
     return True
+EndFunction
+
+Int Function GetTonalMaxTemperLevel()
+    if Controller && Controller.Config
+        Int maxTemper = Controller.Config.GetHeartstoneTonalMaxTemper()
+        if maxTemper >= 1 && maxTemper <= TONAL_TEMPER_CONFIG_MAX_LEVEL
+            return maxTemper
+        endif
+    endif
+    return TONAL_TEMPER_MAX_LEVEL
 EndFunction
 
 Int Function ResolveTonalAddLevels(Int heartstoneTier)
@@ -491,21 +568,25 @@ Int Function ResolveTonalAddLevels(Int heartstoneTier)
 EndFunction
 
 Function ClearTonalEnhancementState()
-    UnregisterForModEvent("b612_ItemSelect_Select")
+    UnregisterForModEvent(HEARTSTONE_ITEM_SELECT_LOAD_EVENT)
+    UnregisterForModEvent(HEARTSTONE_ITEM_SELECT_SELECT_EVENT)
 
-    if _pendingTonalToken > 0
-        IronSoulNative.TonalReleaseCapturedInventoryItem(_pendingTonalToken)
+    if _pendingTonalSessionToken > 0
+        IronSoulNative.HeartstoneReleaseEnhanceSession(_pendingTonalSessionToken)
     endif
 
     _tonalSelectionActive = False
-    _tonalSelectionMade = False
+    _tonalItemSelectActive = False
+    _tonalItemSelectLoaded = False
+    _tonalItemSelectFailed = False
+    _tonalItemSelectNoRows = False
     _pendingTonalPlayer = None
     _pendingTonalHeartstoneBaseItem = None
     _pendingTonalHeartstoneType = 0
     _pendingTonalHeartstoneTier = 0
-    _pendingTonalToken = 0
-    _pendingTonalCaptureFailure = ""
-    _tonalItemSelect = None
+    _pendingTonalSessionToken = 0
+    _pendingTonalSelectedIndex = -1
+    _pendingTonalMaxTemper = TONAL_TEMPER_MAX_LEVEL
 EndFunction
 
 Bool Function ShowEnhanceUnavailable(Actor player, Int heartstoneType = 0, Int heartstoneTier = 0)

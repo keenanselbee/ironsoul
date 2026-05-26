@@ -96,6 +96,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "heartstonemessage", "HeartstoneMessage", "Heartstones", 1, true, 0, true, 1, 0 },
 	{ "heartstonenotification", "HeartstoneNotification", "Heartstones", 1, true, 0, true, 1, 0 },
 	{ "heartstoneinventorymode", "HeartstoneInventoryMode", "Heartstones", 1, true, 0, true, 3, 0 },
+	{ "heartstonetonalmaxtemper", "HeartstoneTonalMaxTemper", "Heartstones", 10, true, 1, true, 100, 0 },
 
 	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "mirrordatabackup", "MirrorDataBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
