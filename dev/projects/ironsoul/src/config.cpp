@@ -93,14 +93,18 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "roadencounters", "RoadEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 	{ "wildernessencounters", "WildernessEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 
-	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "Plugin", 1, true, 0, true, 1, 0 },
-	{ "mirrordatabackup", "MirrorDataBackup", "Plugin", 1, true, 0, true, 1, 0 },
-	{ "cursorhide", "CursorHide", "Plugin", 1, true, 0, true, 1, 0 },
-	{ "dynamicdraugreyes", "DynamicDraugrEyes", "Plugin", 1, true, 0, true, 1, 0 },
-	{ "dynamiclevelwidget", "DynamicLevelWidget", "Plugin", 1, true, 0, true, 1, 0 },
-	{ "dynamicsplash", "DynamicSplash", "Plugin", 1, true, 0, true, 1, 0 },
-	{ "musicfade", "MusicFade", "Plugin", 1, true, 0, true, 1, 0 },
-	{ "slowmoondeath", "SlowMoOnDeath", "Plugin", 1, true, 0, true, 1, 0 },
+	{ "heartstonemessage", "HeartstoneMessage", "Heartstones", 1, true, 0, true, 1, 0 },
+	{ "heartstonenotification", "HeartstoneNotification", "Heartstones", 1, true, 0, true, 1, 0 },
+	{ "heartstoneinventorymode", "HeartstoneInventoryMode", "Heartstones", 1, true, 0, true, 3, 0 },
+
+	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "mirrordatabackup", "MirrorDataBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "cursorhide", "CursorHide", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "dynamicdraugreyes", "DynamicDraugrEyes", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "dynamiclevelwidget", "DynamicLevelWidget", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "dynamicsplash", "DynamicSplash", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "musicfade", "MusicFade", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "slowmoondeath", "SlowMoOnDeath", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 
 	{ "musicvolumeoverride", "MusicVolumeOverride", "Sound", -1, true, -1, true, 1, 0 },
 	{ "sfx", "SFX", "Sound", 1, true, 0, true, 1, 0 },
@@ -913,7 +917,8 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		AppendConfigSummarySection(result, "DragonSoulRevive");
 		AppendConfigSummarySection(result, "Respawn");
 		AppendConfigSummarySection(result, "Draugnarok");
-		AppendConfigSummarySection(result, "Plugin");
+		AppendConfigSummarySection(result, "Heartstones");
+		AppendConfigSummarySection(result, "SKSEPlugin");
 		AppendConfigSummarySection(result, "Sound");
 		AppendConfigSummarySection(result, "Experimental");
 		AppendConfigSummarySection(result, "Debug");

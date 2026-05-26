@@ -78,6 +78,14 @@ Scriptname IronSoulNative Hidden
 ; StartHealthMonitor()
 ; StopHealthMonitor()
 
+; --- Tonal Heartstone Inventory Tempering ---
+; --------------------------------------------
+; TonalCaptureSelectedInventoryItem()
+; TonalApplyCapturedInventoryTemper()
+; TonalReleaseCapturedInventoryItem()
+; TonalGetLastResult()
+; TonalGetLastResultText()
+
 ; --- DataStore Read Access ---
 ; -----------------------------
 ; DataGetInt()
@@ -189,6 +197,24 @@ Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0) Global Na
 ; Does not dispatch death events to Papyrus.
 Function StartHealthMonitor() Global Native
 Function StopHealthMonitor() Global Native
+
+
+; --- TONAL HEARTSTONE INVENTORY TEMPERING ---
+; ============================================
+
+; Captures the currently selected InventoryMenu item for no-drop Tonal tempering.
+; Returns a positive session token on success; 0 means TonalGetLastResult* explains the failure.
+Int Function TonalCaptureSelectedInventoryItem(Int addLevels, Int maxTemperLevel) Global Native
+
+; Applies the captured additive temper upgrade. True means the item was changed.
+Bool Function TonalApplyCapturedInventoryTemper(Int token) Global Native
+
+; Releases a captured token after cancel/failure. Safe to call for already-applied tokens.
+Function TonalReleaseCapturedInventoryItem(Int token) Global Native
+
+; Result code/text for the most recent Tonal native operation.
+Int Function TonalGetLastResult() Global Native
+String Function TonalGetLastResultText() Global Native
 
 
 ; --- DATASTORE - READ ACCESS ---

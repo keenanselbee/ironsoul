@@ -57,6 +57,9 @@ Scriptname IronSoulConfig extends Quest
 ; IsCharacterSheetCompatibilityEnabled()
 ; IsCosaveRecoveryBackupEnabled()
 ; IsIronSoulIntroEnabled()
+; IsHeartstoneMessageEnabled()
+; IsHeartstoneNotificationEnabled()
+; GetHeartstoneInventoryMode()
 ; IsSFXEnabled()
 ; IsMusicFadeEnabled()
 ; IsIronIntroSFXEnabled()
@@ -135,6 +138,9 @@ Int _luckRollMessageMode = 1
 Bool _enableCharacterSheetCompatibility = False
 Bool _cosaveRecoveryBackupEnabled = True
 Bool _ironSoulIntroEnabled = True
+Bool _heartstoneMessageEnabled = True
+Bool _heartstoneNotificationEnabled = True
+Int _heartstoneInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
 Bool _sfxEnabled = True
 Bool _musicFadeEnabled = True
 Bool _ironIntroSFXEnabled = True
@@ -180,6 +186,9 @@ Function ResetDefaults()
     _dragonSoulReviveMessageEnabled = True
     _dragonSoulIncreaseNotificationEnabled = True
     _ironSoulIntroEnabled = True
+    _heartstoneMessageEnabled = True
+    _heartstoneNotificationEnabled = True
+    _heartstoneInventoryMode = 1
 
     ; Gameplay / integration
     _respawnEnabled = True
@@ -262,6 +271,9 @@ Function LoadFromIni()
     _respawnEnabled = ReadFeatureEnabled("Respawn", True)
     _respawnMessageEnabled = ReadFeatureEnabled("RespawnMessage", True)
     _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
+    _heartstoneMessageEnabled = ReadFeatureEnabled("HeartstoneMessage", True)
+    _heartstoneNotificationEnabled = ReadFeatureEnabled("HeartstoneNotification", True)
+    _heartstoneInventoryMode = ReadIntRange("HeartstoneInventoryMode", _heartstoneInventoryMode, 0, 3)
 
     _soulBonusEnabled = ReadFeatureEnabled("SoulBonus", True)
     _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournal", True)
@@ -384,6 +396,18 @@ EndFunction
 
 Bool Function IsIronSoulIntroEnabled()
     return _ironSoulIntroEnabled
+EndFunction
+
+Bool Function IsHeartstoneMessageEnabled()
+    return _heartstoneMessageEnabled
+EndFunction
+
+Bool Function IsHeartstoneNotificationEnabled()
+    return _heartstoneNotificationEnabled
+EndFunction
+
+Int Function GetHeartstoneInventoryMode()
+    return _heartstoneInventoryMode
 EndFunction
 
 Bool Function IsSFXEnabled()
@@ -603,7 +627,10 @@ Function LogSnapshot()
         + " Notify=" + _enableLogNotifications \
         + " Preset=" + _ironSoulPresetOrdinal \
         + " Permadeath=" + _permadeathEnabled \
-        + " UninstallMode=" + _uninstallMode)
+        + " UninstallMode=" + _uninstallMode \
+        + " HeartstoneMessage=" + _heartstoneMessageEnabled \
+        + " HeartstoneNotification=" + _heartstoneNotificationEnabled \
+        + " HeartstoneInventoryMode=" + _heartstoneInventoryMode)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Systems: LuckLevel=" + _luckLevel \
         + " SoulBonus=" + _soulBonusEnabled \

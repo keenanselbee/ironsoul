@@ -10,6 +10,7 @@
 #include "papyrus_journal.h"
 #include "papyrus_musicfade.h"
 #include "papyrus_runtime.h"
+#include "papyrus_tonal.h"
 
 namespace IronSoul::Papyrus
 {
@@ -35,6 +36,7 @@ namespace IronSoul::Papyrus
             HealthMonitor::Register(a_vm);
             Cursor::Register(a_vm);
             Data::Register(a_vm);
+            Tonal::Register(a_vm);
             return true;
         });
 
