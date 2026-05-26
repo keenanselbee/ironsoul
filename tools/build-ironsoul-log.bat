@@ -12,9 +12,9 @@ REM Start fresh.
 if exist "%OUT%" del "%OUT%"
 
 REM Add every line from SKSE\ironsoul.log before Papyrus filtering.
->> "%OUT%" echo ==============================
+>> "%OUT%" echo ===============================
 >> "%OUT%" echo -- SKSE Iron Soul Native Log --
->> "%OUT%" echo ==============================
+>> "%OUT%" echo ===============================
 >> "%OUT%" echo Source: "%SKSE_LOG%"
 >> "%OUT%" echo.
 
