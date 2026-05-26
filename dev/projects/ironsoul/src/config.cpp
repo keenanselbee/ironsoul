@@ -18,6 +18,8 @@ namespace IronSoul::Config
 
 	// Store case-insensitive keys (lowercased). Values are int32.
 	static std::unordered_map<std::string, std::int32_t> g_ints;
+	static std::int32_t g_effectiveDisplayPresetFamily = 0;
+	static std::int32_t g_effectiveDisplayRank = 0;
 
 	static constexpr std::int32_t kConfigFlagIronSoulPreset = 1 << 0;
 	static constexpr std::int32_t kConfigFlagPresetLockedCore = 1 << 1;
@@ -43,12 +45,11 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "ironsoulpreset", "IronSoulPreset", "Difficulty", 0, false, 0, false, 0,
 		kConfigFlagIronSoulPreset | kConfigFlagDraugnarokRefresh },
 	{ "permadeath", "Permadeath", "Difficulty", 1, true, 0, true, 1, kConfigFlagPresetLockedCore },
-	{ "deathreset", "DeathReset", "Difficulty", 1, true, 0, true, 1, kConfigFlagPresetLockedCore },
 	{ "defiantsoul", "DefiantSoul", "Difficulty", 1, true, 0, true, 1, kConfigFlagPresetLockedCore },
-	{ "draugrthreatlevel", "DraugrThreatLevel", "Difficulty", 2, true, 1, true, 5,
-		kConfigFlagDraugrThreat | kConfigFlagDraugnarokRefresh },
 	{ "lucklevel", "LuckLevel", "Difficulty", 5, true, 1, true, 5,
 		kConfigFlagPresetLockedCore | kConfigFlagLuck },
+	{ "draugrthreatlevel", "DraugrThreatLevel", "Difficulty", 2, true, 1, true, 5,
+		kConfigFlagDraugrThreat | kConfigFlagDraugnarokRefresh },
 
 	{ "characterjournal", "CharacterJournal", "General", 1, true, 0, true, 1, 0 },
 	{ "deathmessage", "DeathMessage", "General", 1, true, 0, true, 1, 0 },
@@ -103,14 +104,15 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 
 	{ "musicvolumeoverride", "MusicVolumeOverride", "Sound", -1, true, -1, true, 1, 0 },
 	{ "sfx", "SFX", "Sound", 1, true, 0, true, 1, 0 },
-	{ "slowmosfx", "SlowMoSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "deathslowmosfx", "DeathSlowMoSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "ironintrosfx", "IronIntroSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "deathsfx", "DeathSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "permadeathsfx", "PermadeathSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "respawnsfx", "RespawnSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "defianttransitionsfx", "DefiantTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "chimtransitionsfx", "CHIMTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
-	{ "defiantresetsfx", "DefiantResetSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "defiantrestoresfx", "DefiantRestoreSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "defiantrestorefeatsfx", "DefiantRestoreFeatSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "heartstoneabsorbsfx", "HeartstoneAbsorbSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivecastsfx", "DragonSoulReviveCastSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivesfx", "DragonSoulReviveSFX", "Sound", 1, true, 0, true, 1, 0 },
@@ -306,6 +308,9 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		std::string canonicalText;
 	};
 
+	static std::int32_t ClampInt(std::int32_t value, std::int32_t minValue, std::int32_t maxValue);
+	static std::int32_t GetConfigValueLocked(std::string_view canonicalKey, std::int32_t defaultValue);
+
 	static std::int32_t PresetOrdinalFromFamilyAndPlus(std::int32_t presetFamily, std::int32_t plusCount)
 	{
 		if (presetFamily <= 0) {
@@ -355,6 +360,25 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 			return presetOrdinal - 9;
 		}
 		return 0;
+	}
+
+	static std::int32_t ClampDisplayDifficultyRank(std::int32_t rank)
+	{
+		return ClampInt(rank, -1, 2);
+	}
+
+	static void ResetEffectiveDisplayDifficultyToPresetLocked()
+	{
+		const std::int32_t presetOrdinal = NormalizePresetOrdinal(GetConfigValueLocked("ironsoulpreset", 0));
+		g_effectiveDisplayPresetFamily = PresetFamilyFromOrdinal(presetOrdinal);
+		g_effectiveDisplayRank = PresetPlusFromOrdinal(presetOrdinal);
+	}
+
+	static void MaybeResetEffectiveDisplayDifficultyForKeyLocked(std::string_view key)
+	{
+		if (key == "ironsoulpreset" || key == "respawn" || key == "draugnaroksystem") {
+			ResetEffectiveDisplayDifficultyToPresetLocked();
+		}
 	}
 
 	static std::optional<ParsedConfigValue> ParseIronSoulPresetValue(std::string_view s)
@@ -545,6 +569,53 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		return "++";
 	}
 
+	static std::string DisplayDifficultyRankTextLocked(std::int32_t rank)
+	{
+		rank = ClampDisplayDifficultyRank(rank);
+		if (rank < 0) {
+			return "-";
+		}
+		if (rank == 0) {
+			return "";
+		}
+		if (rank == 1) {
+			return "+";
+		}
+		return "++";
+	}
+
+	static std::string DisplayDifficultyConfigTextLocked(std::int32_t presetFamily, std::int32_t rank)
+	{
+		if (presetFamily < 1 || presetFamily > 3) {
+			return "Custom";
+		}
+		return std::to_string(presetFamily) + DisplayDifficultyRankTextLocked(rank);
+	}
+
+	static std::string DisplayDifficultyJournalPrefixLocked(std::int32_t presetFamily, std::int32_t rank)
+	{
+		std::string text;
+		switch (presetFamily) {
+		case 1:
+			text = "[D]";
+			break;
+		case 2:
+			text = "[H]";
+			break;
+		case 3:
+			text = "[A]";
+			break;
+		default:
+			return "";
+		}
+
+		const std::string rankText = DisplayDifficultyRankTextLocked(rank);
+		if (!rankText.empty()) {
+			text.insert(text.size() - 1, rankText);
+		}
+		return text;
+	}
+
 	static std::string DifficultyLabelLocked(std::int32_t presetOrdinal)
 	{
 		presetOrdinal = NormalizePreset(presetOrdinal);
@@ -584,19 +655,6 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		}
 	}
 
-	static std::int32_t GetEffectiveDeathResetLocked(std::int32_t presetOrdinal)
-	{
-		switch (PresetFamilyFromOrdinal(presetOrdinal)) {
-		case 1:
-		case 2:
-			return 1;
-		case 3:
-			return 0;
-		default:
-			return NormalizeBool(GetConfigValueLocked("deathreset", 1), 1);
-		}
-	}
-
 	static std::int32_t GetEffectiveDefiantSoulLocked(std::int32_t presetOrdinal)
 	{
 		switch (PresetFamilyFromOrdinal(presetOrdinal)) {
@@ -629,7 +687,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 			break;
 		}
 
-		if (presetFamily != 0 && PresetPlusFromOrdinal(presetOrdinal) >= 1 &&
+		if (presetFamily != 0 && PresetPlusFromOrdinal(presetOrdinal) >= 2 &&
 			NormalizeBool(GetConfigValueLocked("draugnaroksystem", 1), 1) != 0) {
 			threatLevel += 1;
 		}
@@ -656,7 +714,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 			break;
 		}
 
-		if (presetFamily != 0 && PresetPlusFromOrdinal(presetOrdinal) >= 2) {
+		if (presetFamily != 0 && PresetPlusFromOrdinal(presetOrdinal) >= 1) {
 			luckLevel -= 1;
 		}
 
@@ -784,6 +842,23 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		return NormalizePreset(GetConfigValueLocked("ironsoulpreset", 0));
 	}
 
+	bool SetEffectiveDisplayDifficulty(std::int32_t presetFamily, std::int32_t displayRank)
+	{
+		std::lock_guard lock(g_mutex);
+		if (presetFamily < 0 || presetFamily > 3) {
+			return false;
+		}
+		g_effectiveDisplayPresetFamily = presetFamily;
+		g_effectiveDisplayRank = (presetFamily == 0) ? 0 : ClampDisplayDifficultyRank(displayRank);
+		return true;
+	}
+
+	std::string GetEffectiveDisplayDifficultyJournalPrefix()
+	{
+		std::lock_guard lock(g_mutex);
+		return DisplayDifficultyJournalPrefixLocked(g_effectiveDisplayPresetFamily, g_effectiveDisplayRank);
+	}
+
 	std::string GetConfigKeyCanonical(std::string_view key)
 	{
 		std::lock_guard lock(g_mutex);
@@ -827,11 +902,11 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		result.reserve(2048);
 		result += "[Difficulty]\n";
 		result += "IronSoulPreset=" + PresetConfigTextLocked(preset);
+		result += ", DisplayDifficulty=" + DisplayDifficultyConfigTextLocked(g_effectiveDisplayPresetFamily, g_effectiveDisplayRank);
 		result += ", Permadeath=" + std::to_string(GetEffectivePermadeathLocked(preset));
-		result += ", DeathReset=" + std::to_string(GetEffectiveDeathResetLocked(preset));
 		result += ", DefiantSoul=" + std::to_string(GetEffectiveDefiantSoulLocked(preset));
+		result += ", LuckLevel=" + std::to_string(GetEffectiveLuckLevelLocked(preset));
 		result += ", DraugrThreatLevel=" + std::to_string(GetEffectiveDraugrThreatLevelLocked(preset));
-		result += "\nLuckLevel=" + std::to_string(GetEffectiveLuckLevelLocked(preset));
 		result += "\n";
 
 		AppendConfigSummarySection(result, "General");
@@ -1011,6 +1086,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 
 		if (!persistToIni) {
 			UpsertConfigValueLocked(keyLower, *parsed);
+			MaybeResetEffectiveDisplayDifficultyForKeyLocked(keyLower);
 			RefreshInfoLoggingCacheLocked();
 			return true;
 		}
@@ -1023,6 +1099,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		}
 
 		UpsertConfigValueLocked(keyLower, *parsed);
+		MaybeResetEffectiveDisplayDifficultyForKeyLocked(keyLower);
 		RefreshInfoLoggingCacheLocked();
 
 		if (ShouldEmitInfoLogLocked()) {
@@ -1062,6 +1139,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 
 		if (!persistToIni) {
 			UpsertConfigValueLocked(keyLower, *parsed);
+			MaybeResetEffectiveDisplayDifficultyForKeyLocked(keyLower);
 			RefreshInfoLoggingCacheLocked();
 			return true;
 		}
@@ -1074,6 +1152,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		}
 
 		UpsertConfigValueLocked(keyLower, *parsed);
+		MaybeResetEffectiveDisplayDifficultyForKeyLocked(keyLower);
 		RefreshInfoLoggingCacheLocked();
 
 		if (ShouldEmitInfoLogLocked()) {
@@ -1089,6 +1168,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{
 		std::lock_guard lock(g_mutex);
 		g_ints.clear();
+		ResetEffectiveDisplayDifficultyToPresetLocked();
 		RefreshInfoLoggingCacheLocked();
 
 		const fs::path iniPath = GetIniPath();
@@ -1234,6 +1314,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		}
 
 		RefreshInfoLoggingCacheLocked();
+		ResetEffectiveDisplayDifficultyToPresetLocked();
 
 		// Accurate summary
 		if (ShouldEmitInfoLogLocked()) {

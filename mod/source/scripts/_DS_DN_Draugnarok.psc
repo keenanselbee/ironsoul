@@ -1735,7 +1735,7 @@ int Function GetEffectiveDraugrThreatLevel()
 	EndIf
 
 	int threat = GetPresetThreatFloor(presetOrdinal)
-	If GetPresetOrdinalPlusRank(presetOrdinal) != 0
+	If GetPresetOrdinalPlusRank(presetOrdinal) >= 2
 		threat += 1
 	EndIf
 	Return ClampConfiguredDraugrThreatLevel(threat)
@@ -3802,7 +3802,7 @@ string Function GetDraugnarokStateSummary()
 	string statusLabel = GetDraugnarokStatusLabel(overrideMode, threat)
 	string overrideLabel = GetDraugnarokOverrideLabel(overrideMode)
 	string threatText = "" + threat
-	If presetOrdinal != 0 && systemEnabled && threat >= 1 && GetPresetOrdinalPlusRank(presetOrdinal) != 0
+	If presetOrdinal != 0 && systemEnabled && threat >= 1 && GetPresetOrdinalPlusRank(presetOrdinal) >= 2
 		threatText = threatText + "(" + presetOrdinal + ")"
 	EndIf
 

@@ -24,6 +24,7 @@ Scriptname IronSoulUI extends Quest
 ; OpenTimedMessageSWF_KeyDismiss_SFX()
 ; OpenTimedMessageSWF_KeyDismissIronIntro()
 ; OpenKeyDismissMenu()
+; WaitKeyDismissMenu()
 ; PlayPresentationSFX()
 ; ShouldShowIronIntro()
 ; ShowIronIntro()
@@ -342,10 +343,24 @@ Bool Function OpenKeyDismissMenu(String menuName, Float maxDuration = 6.0, Float
 
     UI.CloseCustomMenu()
 
+    UI.OpenCustomMenu(menuName, 0)
+
+    return WaitKeyDismissMenu(maxDuration, minDismissSeconds)
+EndFunction
+
+Bool Function WaitKeyDismissMenu(Float maxDuration = 6.0, Float minDismissSeconds = 6.0)
+    if maxDuration <= 0.0
+        maxDuration = 0.1
+    endif
+    if minDismissSeconds < 0.0
+        minDismissSeconds = 0.0
+    endif
+    if minDismissSeconds > maxDuration
+        minDismissSeconds = maxDuration
+    endif
+
     _keyDismissPressed = False
     _keyDismissActive  = False
-
-    UI.OpenCustomMenu(menuName, 0)
 
     if minDismissSeconds > 0.0
         Utility.WaitMenuMode(minDismissSeconds)
@@ -599,16 +614,13 @@ String Function ResolveDefiantFeatUnlockMenu(Bool soulFatigueEnabled) Global
     return base
 EndFunction
 
-String Function ResolveDefiantIntroMenu(Bool soulBonusEnabled, Bool soulFatigueEnabled, Bool deathResetEnabled) Global
+String Function ResolveDefiantIntroMenu(Bool soulBonusEnabled, Bool soulFatigueEnabled) Global
     String base = "0defiantintro"
     if !soulBonusEnabled
         base = base + "nobonus"
     endif
     if !soulFatigueEnabled
         base = base + "nofatigue"
-    endif
-    if !deathResetEnabled
-        base = base + "noreset"
     endif
     return base
 EndFunction

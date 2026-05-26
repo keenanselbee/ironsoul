@@ -27,6 +27,10 @@ namespace IronSoul::Config
 	// Returns the flattened IronSoulPreset ordinal stored in the native cache.
 	std::int32_t GetIronSoulPresetOrdinal();
 
+	// Runtime display difficulty mirrors Papyrus-only runtime availability checks.
+	bool SetEffectiveDisplayDifficulty(std::int32_t presetFamily, std::int32_t displayRank);
+	std::string GetEffectiveDisplayDifficultyJournalPrefix();
+
 	// Config command metadata helpers.
 	std::string GetConfigKeyCanonical(std::string_view key);
 	std::string GetConfigKeyDisplayName(std::string_view key);

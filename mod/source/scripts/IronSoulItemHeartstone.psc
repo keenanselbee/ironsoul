@@ -1,7 +1,9 @@
 Scriptname IronSoulItemHeartstone extends ObjectReference
 
-Message Property UseMessage Auto
-Bool Property ShowPrototypeMessage = True Auto
+IronSoulController Property Controller Auto
+MiscObject Property HeartstoneBaseItem Auto
+Int Property HeartstoneType = 0 Auto
+Int Property HeartstoneTier = 0 Auto
 
 Bool _handlingUse = False
 
@@ -20,9 +22,13 @@ Event OnEquipped(Actor akActor)
 EndEvent
 
 Function HandleUse()
-    if UseMessage
-        UseMessage.Show()
-    elseif ShowPrototypeMessage
-        Debug.MessageBox("Heartstone use detected.")
+    if Controller && Controller.Heartstones
+        if HeartstoneBaseItem
+            Controller.Heartstones.TryUseHeartstone(Game.GetPlayer(), HeartstoneBaseItem, HeartstoneType, HeartstoneTier)
+        else
+            Debug.MessageBox("Iron Soul Heartstone item is not configured.")
+        endif
+    else
+        Debug.MessageBox("Iron Soul Heartstones are not configured.")
     endif
 EndFunction

@@ -103,7 +103,7 @@ namespace
         g_slowMoSfx.initialized = true;
         auto* dataHandler = RE::TESDataHandler::GetSingleton();
         if (!dataHandler) {
-            logger::warn("SlowMoSFX: TESDataHandler unavailable");
+            logger::warn("DeathSlowMoSFX: TESDataHandler unavailable");
             return false;
         }
 
@@ -111,7 +111,7 @@ namespace
             auto* form = dataHandler->LookupForm(kSlowMoLocalFormIDs[i], kPluginName);
             auto* sound = form ? form->As<RE::BGSSoundDescriptorForm>() : nullptr;
             if (!sound) {
-                logger::warn("SlowMoSFX: missing descriptor localID=0x{:06X} plugin='{}'", kSlowMoLocalFormIDs[i], kPluginName);
+                logger::warn("DeathSlowMoSFX: missing descriptor localID=0x{:06X} plugin='{}'", kSlowMoLocalFormIDs[i], kPluginName);
                 return false;
             }
             g_slowMoSfx.descriptors[i] = sound;
@@ -119,7 +119,7 @@ namespace
 
         g_slowMoSfx.enabled = true;
         if (InfoLoggingEnabled()) {
-            logger::info("SlowMoSFX: loaded {} descriptors", g_slowMoSfx.descriptors.size());
+            logger::info("DeathSlowMoSFX: loaded {} descriptors", g_slowMoSfx.descriptors.size());
         }
         return true;
     }
@@ -129,7 +129,7 @@ namespace
         if (IronSoul::Config::GetInt("SFX", 1) == 0) {
             return;
         }
-        if (IronSoul::Config::GetInt("SlowMoSFX", 1) == 0) {
+        if (IronSoul::Config::GetInt("DeathSlowMoSFX", 1) == 0) {
             return;
         }
         if (!EnsureSlowMoDescriptorsLoaded()) {
@@ -138,7 +138,7 @@ namespace
 
         auto* audioMgr = RE::BSAudioManager::GetSingleton();
         if (!audioMgr) {
-            logger::warn("SlowMoSFX: BSAudioManager unavailable");
+            logger::warn("DeathSlowMoSFX: BSAudioManager unavailable");
             return;
         }
 
@@ -150,21 +150,21 @@ namespace
         }
 
         if (!descriptor) {
-            logger::warn("SlowMoSFX: descriptor cache empty");
+            logger::warn("DeathSlowMoSFX: descriptor cache empty");
             return;
         }
 
         RE::BSSoundHandle handle{};
         if (!audioMgr->BuildSoundDataFromDescriptor(handle, descriptor, 0x1A)) {
-            logger::warn("SlowMoSFX: BuildSoundDataFromDescriptor failed");
+            logger::warn("DeathSlowMoSFX: BuildSoundDataFromDescriptor failed");
             return;
         }
         if (!handle.IsValid()) {
-            logger::warn("SlowMoSFX: invalid sound handle");
+            logger::warn("DeathSlowMoSFX: invalid sound handle");
             return;
         }
         if (!handle.Play()) {
-            logger::warn("SlowMoSFX: Play failed");
+            logger::warn("DeathSlowMoSFX: Play failed");
         }
     }
 

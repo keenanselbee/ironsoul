@@ -18,6 +18,11 @@ namespace
         return IronSoul::Config::GetIronSoulPresetOrdinal();
     }
 
+    static bool SetEffectiveDisplayDifficulty(RE::StaticFunctionTag*, std::int32_t a_presetFamily, std::int32_t a_displayRank)
+    {
+        return IronSoul::Config::SetEffectiveDisplayDifficulty(a_presetFamily, a_displayRank);
+    }
+
     static std::string GetConfigKeyCanonical(RE::StaticFunctionTag*, std::string a_key)
     {
         return IronSoul::Config::GetConfigKeyCanonical(a_key);
@@ -65,6 +70,7 @@ namespace
     {
         a_vm->RegisterFunction("GetConfigInt", kScriptName, GetConfigInt);
         a_vm->RegisterFunction("GetIronSoulPresetOrdinal", kScriptName, GetIronSoulPresetOrdinal);
+        a_vm->RegisterFunction("SetEffectiveDisplayDifficulty", kScriptName, SetEffectiveDisplayDifficulty);
         a_vm->RegisterFunction("GetConfigKeyCanonical", kScriptName, GetConfigKeyCanonical);
         a_vm->RegisterFunction("GetConfigKeyDisplayName", kScriptName, GetConfigKeyDisplayName);
         a_vm->RegisterFunction("GetConfigKeyFlags", kScriptName, GetConfigKeyFlags);

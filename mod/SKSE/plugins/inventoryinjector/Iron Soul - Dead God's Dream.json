@@ -9,7 +9,62 @@
       "assign": {
         "iconSource": "skyui/icons_ironsoul.swf",
         "iconLabel": "misc_heartstone",
-        "iconColor": "#C00000"
+        "iconColor": "#5A5A5A"
+      }
+    },
+    {
+      "match": {
+        "formType": "MiscItem",
+        "formId": "Iron Soul - Dead God's Dream.esp|B73"
+      },
+      "assign": {
+        "iconSource": "skyui/icons_ironsoul.swf",
+        "iconLabel": "misc_heartstone",
+        "iconColor": "#800000"
+      }
+    },
+    {
+      "match": {
+        "formType": "MiscItem",
+        "formId": "Iron Soul - Dead God's Dream.esp|B74"
+      },
+      "assign": {
+        "iconSource": "skyui/icons_ironsoul.swf",
+        "iconLabel": "misc_heartstone",
+        "iconColor": "#990000"
+      }
+    },
+    {
+      "match": {
+        "formType": "MiscItem",
+        "formId": "Iron Soul - Dead God's Dream.esp|B75"
+      },
+      "assign": {
+        "iconSource": "skyui/icons_ironsoul.swf",
+        "iconLabel": "misc_heartstone",
+        "iconColor": "#B30000"
+      }
+    },
+    {
+      "match": {
+        "formType": "MiscItem",
+        "formId": "Iron Soul - Dead God's Dream.esp|B76"
+      },
+      "assign": {
+        "iconSource": "skyui/icons_ironsoul.swf",
+        "iconLabel": "misc_heartstone",
+        "iconColor": "#CC0000"
+      }
+    },
+    {
+      "match": {
+        "formType": "MiscItem",
+        "formId": "Iron Soul - Dead God's Dream.esp|B77"
+      },
+      "assign": {
+        "iconSource": "skyui/icons_ironsoul.swf",
+        "iconLabel": "misc_heartstone",
+        "iconColor": "#E60000"
       }
     }
   ]

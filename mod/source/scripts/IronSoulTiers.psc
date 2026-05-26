@@ -54,7 +54,9 @@ Scriptname IronSoulTiers extends Quest
 ; InitializeDefiantState()
 ; ClearDefiantState()
 ; IsDefiantSoulFatigueTerminal()
-; TryResetFromDefiant()
+; GetDefiantQueuedFeatTier()
+; QueueDefiantFeatTierIfEligible()
+; TryRestoreFromDefiant()
 ; PromoteToDefiantTier()
 ; PromoteToCHIMTier()
 
@@ -75,12 +77,11 @@ Scriptname IronSoulTiers extends Quest
 ; PromoteFromSoulFeat()
 ; ShowNormalSoulFeatMessageForTier()
 ; ShowTierUnlockMessageIfNeeded()
-; MaybePlayDeathsPurgedAfterReset()
 ; MaybePlayLuckImprovedAfterTierUnlock()
 ; ResolveSoulFeatUnlockMenu()
 ; ResolveSoulFeatUnlockJournalEntry()
-; ResolveDefiantResetJournalEntry()
-; ResolveDefiantResetEndingMenu()
+; ResolveDefiantRestoreJournalEntry()
+; ResolveDefiantRestoreEndingMenu()
 
 ; --- Boss Latches ---
 ; --------------------
@@ -99,7 +100,7 @@ Scriptname IronSoulTiers extends Quest
 ; PlayTierSFXInstance()
 ; PlayCHIMTransitionMessageSequenceSWF()
 ; PlayDefiantTransitionMessageSequenceSWF()
-; PlayDefiantResetMessageSequenceSWF()
+; PlayDefiantRestoreMessageSequenceSWF()
 
 ; --- Tier Policy Helpers ---
 ; ---------------------------
@@ -116,7 +117,7 @@ Scriptname IronSoulTiers extends Quest
 ; --- Feat Journal Helpers ---
 ; ----------------------------
 ; ResolveSoulFeatUnlockJournalBase()
-; ResolveDefiantResetJournalBase()
+; ResolveDefiantRestoreJournalBase()
 
 
 IronSoulController Property Controller Auto
@@ -162,6 +163,7 @@ String Property molagBalKilled             = "IS_1627" AutoReadOnly
 
 ; Defiant / CHIM
 String Property defiantFeatUnlocked        = "IS_1989" AutoReadOnly
+String Property defiantQueuedFeatTier      = "IS_2317" AutoReadOnly
 String Property defiantTrackedTier         = "IS_9131" AutoReadOnly
 String Property defiantEnteredByConsole    = "IS_9136" AutoReadOnly
 String Property chimEnteredByConsole       = "IS_9137" AutoReadOnly
@@ -293,6 +295,7 @@ Function RemoveTrackedData(Actor player, String guid, Bool deleteMainData = True
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, harkonKilled, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, molagBalKilled, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantFeatUnlocked, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantQueuedFeatTier, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantTrackedTier, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantEnteredByConsole, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, chimEnteredByConsole, deleteMainData, unsetCosave)
@@ -593,9 +596,7 @@ Function HandleProgressionRelevantChange(Actor player, String guid)
 
     Int liveTier = GetCurrentTier(player, guid)
     if liveTier == TIER_DEFIANT
-        if Controller.Config.IsSoulFeatsEnabled() && Controller.Config.IsDeathResetEnabled()
-            TryResetFromDefiant(player, guid)
-        endif
+        QueueDefiantFeatTierIfEligible(player, guid)
         return
     endif
 
@@ -674,6 +675,7 @@ Function ClearDefiantState(Actor player, String guid)
         return
     endif
     Controller.Persistence.SetGuidInt(player, guid, defiantTrackedTier, TIER_IRON, True)
+    Controller.Persistence.SetGuidInt(player, guid, defiantQueuedFeatTier, TIER_IRON, True)
     Controller.Persistence.SetGuidInt(player, guid, defiantEnteredByConsole, 0, True)
 EndFunction
 
@@ -690,28 +692,60 @@ Bool Function IsDefiantSoulFatigueTerminal(Actor player, String guid)
     return player.GetAVMax("Health") <= 0.0
 EndFunction
 
-Function TryResetFromDefiant(Actor player, String guid)
+Int Function GetDefiantQueuedFeatTier(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        return TIER_IRON
+    endif
+    return NormalizeDefiantTrackedTier(Controller.Persistence.GetGuidInt(player, guid, defiantQueuedFeatTier, TIER_IRON))
+EndFunction
+
+Function QueueDefiantFeatTierIfEligible(Actor player, String guid)
     if !HasCoreRuntime() || !player || guid == ""
         return
     endif
     if GetCurrentTier(player, guid) != TIER_DEFIANT
         return
     endif
-    if !Controller.Config.IsSoulFeatsEnabled() || !Controller.Config.IsDeathResetEnabled()
+    if !Controller.Config.IsSoulFeatsEnabled()
         return
     endif
 
     Int trackedTier = GetDefiantTrackedTier(player, guid)
-    Int targetTier = GetHighestEligibleNormalTierForPlayer(player, guid, GetDragonSoulsTotal(player, guid))
-    Int deathsBeforeReset = Controller.Death.GetCurrentDeathCount(player, guid)
-    if targetTier <= trackedTier || targetTier < TIER_SILVER
+    Int queuedTier = GetDefiantQueuedFeatTier(player, guid)
+    Int desiredTier = GetHighestEligibleNormalTierForPlayer(player, guid, GetDragonSoulsTotal(player, guid))
+    if desiredTier <= trackedTier || desiredTier <= queuedTier
         return
     endif
 
-    String endingMenu = ResolveDefiantResetEndingMenu(player, guid, targetTier, True)
+    Controller.Persistence.SetGuidInt(player, guid, defiantQueuedFeatTier, desiredTier, True)
+    LogTiers(IronSoulConfig.LOG_INFO(), "QueueDefiantFeatTierIfEligible: Queued tier=" + desiredTier + " trackedTier=" + trackedTier)
+    IronSoulNative.DataFlushIfDirty()
+EndFunction
+
+Bool Function TryRestoreFromDefiant(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        return False
+    endif
+    if GetCurrentTier(player, guid) != TIER_DEFIANT
+        return False
+    endif
+    if Controller.Death.GetCurrentDeathCount(player, guid) >= IRON_SOUL_MAX_LIVES
+        return False
+    endif
+
+    Int trackedTier = GetDefiantTrackedTier(player, guid)
+    Int queuedTier = GetDefiantQueuedFeatTier(player, guid)
+    Int targetTier = trackedTier
+    Bool restoredWithFeat = False
+    if Controller.Config.IsSoulFeatsEnabled() && queuedTier > trackedTier
+        targetTier = queuedTier
+        restoredWithFeat = True
+    endif
+
+    targetTier = NormalizeDefiantTrackedTier(targetTier)
+    String endingMenu = ResolveDefiantRestoreEndingMenu(player, guid, targetTier, restoredWithFeat, True)
 
     Controller.Persistence.SetGuidInt(player, guid, soulTierIndex, targetTier, True)
-    Controller.Death.SetCurrentDeathCount(player, guid, 0)
     SetManualTierOverrideActive(player, guid, False)
     ClearDefiantState(player, guid)
     SyncTierLuckState(player, guid)
@@ -720,12 +754,13 @@ Function TryResetFromDefiant(Actor player, String guid)
     SyncTierGlobalMirrors(player, guid)
 
     if Controller.Config.IsCharacterJournalEnabled()
-        Controller.Journal.LogEventForGuid(player, guid, ResolveDefiantResetJournalEntry(player, guid, targetTier))
+        Controller.Journal.LogEventForGuid(player, guid, ResolveDefiantRestoreJournalEntry(player, guid, targetTier, restoredWithFeat))
     endif
 
     IronSoulNative.DataFlushIfDirty()
 
-    PlayDefiantResetMessageSequenceSWF(player, endingMenu, deathsBeforeReset, True)
+    PlayDefiantRestoreMessageSequenceSWF(player, endingMenu, restoredWithFeat, True)
+    return True
 EndFunction
 
 Function PromoteToCHIMTier(Actor player, String guid)
@@ -984,7 +1019,6 @@ Function HandleFeats(Actor player)
     Int soulsObtained = GetDragonSoulsTotal(player, guid)
     Int curTier = GetCurrentTier(player, guid)
     Bool manualTierOverride = IsManualTierOverrideActive(player, guid)
-    Bool deathsPurgedThisPass = False
 
     if curTier == TIER_CHIM || curTier == TIER_DEFIANT
         return
@@ -998,8 +1032,7 @@ Function HandleFeats(Actor player)
         Int desiredTier = GetHighestEligibleSoulFeatTier(player, guid, deaths, soulsObtained)
 
         if !manualTierOverride && desiredTier > curTier
-            Bool resetDeaths = Controller.Config.IsDeathResetEnabled()
-            deathsPurgedThisPass = PromoteFromSoulFeat(player, guid, desiredTier, deaths, resetDeaths)
+            PromoteFromSoulFeat(player, guid, desiredTier)
             curTier = desiredTier
         endif
 
@@ -1007,7 +1040,7 @@ Function HandleFeats(Actor player)
             return
         endif
 
-        ShowNormalSoulFeatMessageForTier(player, guid, curTier, deathsPurgedThisPass, deaths)
+        ShowNormalSoulFeatMessageForTier(player, guid, curTier)
     endif
 EndFunction
 
@@ -1020,20 +1053,12 @@ Bool Function HandleDefiantFeatUnlock(Actor player, String guid, Int deaths, Int
 
     Controller.Persistence.SetGuidInt(player, guid, defiantFeatUnlocked, 1, True)
     if Controller.Config.IsDefiantSoulEnabled()
-        Bool deathsPurgedThisPass = False
-        if Controller.Config.IsDeathResetEnabled()
-            Controller.Death.SetCurrentDeathCount(player, guid, 0)
-            deathsPurgedThisPass = deaths > 0
-        endif
         IronSoulNative.DataFlushIfDirty()
         LogTiers(IronSoulConfig.LOG_INFO(), "HandleFeats: Defiant Soul feat unlocked (eligibility met); showing unlock message")
         if Controller.Config.IsCharacterJournalEnabled()
             Controller.Journal.LogEventForGuid(player, guid, IronSoulJournal.AppendTotalDeaths("Soul Feat achieved: Defiant Soul unlocked.", Controller.Death.GetTotalDeaths(player, guid)))
         endif
         Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(IronSoulUI.ResolveDefiantFeatUnlockMenu(Controller.Config.IsSoulFatigueEnabled()), 30.0, 8.0)
-        if deathsPurgedThisPass
-            MaybePlayDeathsPurgedAfterReset(player, deaths)
-        endif
         return True
     endif
 
@@ -1042,20 +1067,14 @@ Bool Function HandleDefiantFeatUnlock(Actor player, String guid, Int deaths, Int
     return False
 EndFunction
 
-Bool Function PromoteFromSoulFeat(Actor player, String guid, Int desiredTier, Int deaths, Bool resetDeaths)
-    Bool deathsPurgedThisPass = False
-
+Function PromoteFromSoulFeat(Actor player, String guid, Int desiredTier)
     Controller.Persistence.SetGuidInt(player, guid, soulTierIndex, desiredTier, True)
-    if resetDeaths
-        Controller.Death.SetCurrentDeathCount(player, guid, 0)
-        deathsPurgedThisPass = deaths > 0
-    endif
     SyncTierLuckState(player, guid)
 
     SyncTierDynamicAssets(desiredTier)
 
     if Controller.Config.IsCharacterJournalEnabled()
-        String journalEntry = ResolveSoulFeatUnlockJournalEntry(player, guid, desiredTier, resetDeaths)
+        String journalEntry = ResolveSoulFeatUnlockJournalEntry(player, guid, desiredTier)
         if journalEntry != ""
             Controller.Journal.LogEventForGuid(player, guid, journalEntry)
         endif
@@ -1064,46 +1083,29 @@ Bool Function PromoteFromSoulFeat(Actor player, String guid, Int desiredTier, In
     IronSoulNative.DataFlushIfDirty()
     SyncTierPresentationState(player, guid)
     SyncTierGlobalMirrors(player, guid)
-
-    return deathsPurgedThisPass
 EndFunction
 
-Function ShowNormalSoulFeatMessageForTier(Actor player, String guid, Int curTier, Bool deathsPurgedThisPass, Int deaths)
+Function ShowNormalSoulFeatMessageForTier(Actor player, String guid, Int curTier)
     if curTier == TIER_DEVOUR
-        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownDevour, deathsPurgedThisPass, deaths, "HandleFeats: Showing Devour Soul feat unlock message (one-shot); locking out lower-tier messages")
+        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownDevour, "HandleFeats: Showing Devour Soul feat unlock message (one-shot); locking out lower-tier messages")
     elseif curTier == TIER_PLATINUM
-        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownPlatinum, deathsPurgedThisPass, deaths, "HandleFeats: Showing Platinum Soul feat unlock message (one-shot); locking out lower-tier messages")
+        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownPlatinum, "HandleFeats: Showing Platinum Soul feat unlock message (one-shot); locking out lower-tier messages")
     elseif curTier == TIER_EBON
-        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownEbon, deathsPurgedThisPass, deaths, "HandleFeats: Showing Ebon Soul feat unlock message (one-shot); locking out Silver/Gold messages")
+        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownEbon, "HandleFeats: Showing Ebon Soul feat unlock message (one-shot); locking out Silver/Gold messages")
     elseif curTier == TIER_GOLD
-        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownGold, deathsPurgedThisPass, deaths, "HandleFeats: Showing Gold Soul feat unlock message (one-shot)")
+        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownGold, "HandleFeats: Showing Gold Soul feat unlock message (one-shot)")
     elseif curTier == TIER_SILVER
-        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownSilver, deathsPurgedThisPass, deaths, "HandleFeats: Showing Silver Soul feat unlock message (one-shot)")
+        ShowTierUnlockMessageIfNeeded(player, guid, curTier, tierMsgShownSilver, "HandleFeats: Showing Silver Soul feat unlock message (one-shot)")
     endif
 EndFunction
 
-Function ShowTierUnlockMessageIfNeeded(Actor player, String guid, Int curTier, String shownKey, Bool deathsPurgedThisPass, Int deaths, String logMessage)
+Function ShowTierUnlockMessageIfNeeded(Actor player, String guid, Int curTier, String shownKey, String logMessage)
     if Controller.Persistence.GetGuidInt(player, guid, shownKey, 0) == 1
         return
     endif
     LogTiers(IronSoulConfig.LOG_INFO(), logMessage)
     Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0)
-    if deathsPurgedThisPass
-        MaybePlayDeathsPurgedAfterReset(player, deaths)
-    endif
     MaybePlayLuckImprovedAfterTierUnlock(player)
-EndFunction
-
-Function MaybePlayDeathsPurgedAfterReset(Actor player, Int deathsBeforeReset = 0)
-    if !player || deathsBeforeReset <= 0
-        return
-    endif
-
-    UI.CloseCustomMenu()
-    UI.OpenCustomMenu("deathspurged", 0)
-    PlayTierSFX(SFXHeartstoneAbsorb, player)
-    Utility.WaitMenuMode(6.0)
-    UI.CloseCustomMenu()
 EndFunction
 
 Function MaybePlayLuckImprovedAfterTierUnlock(Actor player)
@@ -1203,20 +1205,20 @@ String Function ResolveSoulFeatUnlockMenu(Actor player, String guid, Int soulTie
     return menu
 EndFunction
 
-String Function ResolveSoulFeatUnlockJournalEntry(Actor player, String guid, Int soulTier, Bool resetDeaths)
+String Function ResolveSoulFeatUnlockJournalEntry(Actor player, String guid, Int soulTier)
     Int molagFlagJ = Controller.Persistence.GetGuidInt(player, guid, molagBalKilled, 0)
     Int miraakFlagJ = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
     Int alduinFlagJ = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
     Int harkonFlagJ = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-    String baseText = ResolveSoulFeatUnlockJournalBase(soulTier, molagFlagJ == 1, miraakFlagJ == 1, alduinFlagJ == 1, harkonFlagJ == 1, resetDeaths)
+    String baseText = ResolveSoulFeatUnlockJournalBase(soulTier, molagFlagJ == 1, miraakFlagJ == 1, alduinFlagJ == 1, harkonFlagJ == 1)
     if baseText == ""
         return ""
     endif
     return IronSoulJournal.AppendTotalDeaths(baseText, Controller.Death.GetTotalDeaths(player, guid))
 EndFunction
 
-String Function ResolveDefiantResetJournalEntry(Actor player, String guid, Int targetTier)
-    if !player || guid == "" || targetTier < TIER_SILVER || !IsNormalSoulTier(targetTier)
+String Function ResolveDefiantRestoreJournalEntry(Actor player, String guid, Int targetTier, Bool restoredWithFeat)
+    if !player || guid == "" || !IsNormalSoulTier(targetTier)
         return ""
     endif
 
@@ -1224,12 +1226,18 @@ String Function ResolveDefiantResetJournalEntry(Actor player, String guid, Int t
     Int miraakFlagJ = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
     Int alduinFlagJ = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
     Int harkonFlagJ = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-    String baseText = ResolveDefiantResetJournalBase(targetTier, molagFlagJ == 1, miraakFlagJ == 1, alduinFlagJ == 1, harkonFlagJ == 1)
+    String baseText = ResolveDefiantRestoreJournalBase(targetTier, restoredWithFeat, molagFlagJ == 1, miraakFlagJ == 1, alduinFlagJ == 1, harkonFlagJ == 1)
+    if baseText == ""
+        return ""
+    endif
     return IronSoulJournal.AppendTotalDeaths(baseText, Controller.Death.GetTotalDeaths(player, guid))
 EndFunction
 
-String Function ResolveDefiantResetEndingMenu(Actor player, String guid, Int targetTier, Bool consumeState = False)
-    return ResolveSoulFeatUnlockMenu(player, guid, targetTier, consumeState)
+String Function ResolveDefiantRestoreEndingMenu(Actor player, String guid, Int targetTier, Bool restoredWithFeat, Bool consumeState = False)
+    if restoredWithFeat
+        return ResolveSoulFeatUnlockMenu(player, guid, targetTier, consumeState)
+    endif
+    return IronSoulUI.TierMenuPrefix(targetTier) + "defiantrestore"
 EndFunction
 
 
@@ -1371,8 +1379,10 @@ Bool Function CanPlayTierSFX(Sound sfx)
         return Controller.Config.IsDefiantTransitionSFXEnabled()
     elseif sfx == SFXCHIMTransition
         return Controller.Config.IsCHIMTransitionSFXEnabled()
-    elseif sfx == SFXDefiantReset
-        return Controller.Config.IsDefiantResetSFXEnabled()
+    elseif sfx == SFXDefiantRestore
+        return Controller.Config.IsDefiantRestoreSFXEnabled()
+    elseif sfx == SFXDefiantRestoreFeat
+        return Controller.Config.IsDefiantRestoreFeatSFXEnabled()
     elseif sfx == SFXHeartstoneAbsorb
         return Controller.Config.IsHeartstoneAbsorbSFXEnabled()
     elseif sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDevour || sfx == SFXFeatDefiant
@@ -1465,7 +1475,7 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
     String m0 = "0defianttransitionflash"
     String m1 = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
     String m2 = IronSoulUI.ResolveDefiantTransitionMenu(soulTierTD)
-    String m3 = IronSoulUI.ResolveDefiantIntroMenu(Controller.Config.IsSoulBonusEnabled(), Controller.Config.IsSoulFatigueEnabled(), Controller.Config.IsDeathResetEnabled())
+    String m3 = IronSoulUI.ResolveDefiantIntroMenu(Controller.Config.IsSoulBonusEnabled(), Controller.Config.IsSoulFatigueEnabled())
 
     if m1 == "" || m2 == "" || m3 == ""
         LogTiers(IronSoulConfig.LOG_ERR(), "PlayDefiantTransitionMessageSequenceSWF: One or more menus resolved empty")
@@ -1516,14 +1526,14 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
     endif
 EndFunction
 
-Function PlayDefiantResetMessageSequenceSWF(Actor player, String endingMenu, Int deathsBeforeReset = 0, Bool restoreMusicAfterIntro = True)
+Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, Bool restoredWithFeat = False, Bool restoreMusicAfterIntro = True)
     String m0 = "0defianttransitionflash"
     String m1 = "0defiantreset"
     String m2 = "0defiantresetcracks"
     String m3 = endingMenu
 
     if m3 == ""
-        LogTiers(IronSoulConfig.LOG_ERR(), "PlayDefiantResetMessageSequenceSWF: Reset menu resolved empty")
+        LogTiers(IronSoulConfig.LOG_ERR(), "PlayDefiantRestoreMessageSequenceSWF: Restore menu resolved empty")
         return
     endif
 
@@ -1531,7 +1541,11 @@ Function PlayDefiantResetMessageSequenceSWF(Actor player, String endingMenu, Int
 
     UI.CloseCustomMenu()
     FadeMusicForTransitionSequence()
-    PlayTierSFX(SFXDefiantReset, player)
+    if restoredWithFeat
+        PlayTierSFX(SFXDefiantRestoreFeat, player)
+    else
+        PlayTierSFX(SFXDefiantRestore, player)
+    endif
 
     UI.OpenCustomMenu(m1, 0)
     Utility.WaitMenuMode(4.0)
@@ -1549,8 +1563,9 @@ Function PlayDefiantResetMessageSequenceSWF(Actor player, String endingMenu, Int
     Utility.WaitMenuMode(0.5)
 
     Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro)
-    MaybePlayDeathsPurgedAfterReset(player, deathsBeforeReset)
-    MaybePlayLuckImprovedAfterTierUnlock(player)
+    if restoredWithFeat
+        MaybePlayLuckImprovedAfterTierUnlock(player)
+    endif
 EndFunction
 
 
@@ -1835,7 +1850,7 @@ EndFunction
 ; --- Feat Journal Helpers ---
 ; ============================
 
-String Function ResolveSoulFeatUnlockJournalBase(Int soulTier, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled, Bool resetDeaths) Global
+String Function ResolveSoulFeatUnlockJournalBase(Int soulTier, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled) Global
     String baseText = ""
 
     if soulTier == 6
@@ -1862,39 +1877,40 @@ String Function ResolveSoulFeatUnlockJournalBase(Int soulTier, Bool molagKilled,
         baseText = "Soul Feat achieved: Silver Soul awakened."
     endif
 
-    if baseText == ""
-        return ""
-    endif
-    if resetDeaths
-        baseText = baseText + " Deaths purged."
-    endif
     return baseText
 EndFunction
 
-String Function ResolveDefiantResetJournalBase(Int targetTier, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled) Global
-    if targetTier < 2 || !IsNormalSoulTier(targetTier)
+String Function ResolveDefiantRestoreJournalBase(Int targetTier, Bool restoredWithFeat, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled) Global
+    if !IsNormalSoulTier(targetTier)
         return ""
     endif
 
-    if targetTier == 6
-        return "Defiant Soul ended. Deaths purged. Devour Soul claimed."
-    elseif targetTier == 5
-        if molagKilled
-            return "Defiant Soul ended. Deaths purged. Molag Bal Defeated: Platinum Soul claimed."
-        elseif miraakKilled
-            return "Defiant Soul ended. Deaths purged. Miraak Defeated: Platinum Soul claimed."
-        endif
-        return "Defiant Soul ended. Deaths purged. Platinum Soul claimed."
-    elseif targetTier == 4
-        if alduinKilled
-            return "Defiant Soul ended. Deaths purged. Alduin Defeated: Ebon Soul claimed."
-        elseif harkonKilled
-            return "Defiant Soul ended. Deaths purged. Harkon Defeated: Ebon Soul claimed."
-        endif
-        return "Defiant Soul ended. Deaths purged. Ebon Soul claimed."
-    elseif targetTier == 3
-        return "Defiant Soul ended. Deaths purged. Gilded Soul claimed."
+    String verb = "reclaimed"
+    if restoredWithFeat
+        verb = "claimed"
     endif
 
-    return "Defiant Soul ended. Deaths purged. Silver Soul claimed."
+    if targetTier == 6
+        return "Defiant Soul restored. Devour Soul " + verb + "."
+    elseif targetTier == 5
+        if molagKilled
+            return "Defiant Soul restored. Molag Bal Defeated: Platinum Soul " + verb + "."
+        elseif miraakKilled
+            return "Defiant Soul restored. Miraak Defeated: Platinum Soul " + verb + "."
+        endif
+        return "Defiant Soul restored. Platinum Soul " + verb + "."
+    elseif targetTier == 4
+        if alduinKilled
+            return "Defiant Soul restored. Alduin Defeated: Ebon Soul " + verb + "."
+        elseif harkonKilled
+            return "Defiant Soul restored. Harkon Defeated: Ebon Soul " + verb + "."
+        endif
+        return "Defiant Soul restored. Ebon Soul " + verb + "."
+    elseif targetTier == 3
+        return "Defiant Soul restored. Gilded Soul " + verb + "."
+    elseif targetTier == 2
+        return "Defiant Soul restored. Silver Soul " + verb + "."
+    endif
+
+    return "Defiant Soul restored. Iron Soul reclaimed."
 EndFunction

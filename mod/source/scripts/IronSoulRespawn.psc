@@ -14,6 +14,7 @@ Scriptname IronSoulRespawn extends Quest
 ; -----------------------
 ; ResetTransientState()
 ; RefreshRuntime()
+; SyncDisplayDifficulty()
 ; IsRuntimeAvailable()
 ; IsResolvedRuntimeAvailable()
 ; ShouldForceDeathBeforeLuck()
@@ -122,6 +123,7 @@ Function RefreshRuntime()
     endif
 
     if !Controller.Config.IsRespawnEnabled()
+        SyncDisplayDifficulty()
         if Controller.Globals
             Controller.Globals.SyncIntegrationStatus(Game.GetPlayer())
         endif
@@ -138,9 +140,23 @@ Function RefreshRuntime()
         _respawnAvailable = False
         LogRespawn(IronSoulConfig.LOG_INFO(), "RefreshRespawnRuntime: Respawn quest not found; treating Respawn integration as disabled")
     endif
+    SyncDisplayDifficulty()
     if Controller.Globals
         Controller.Globals.SyncIntegrationStatus(Game.GetPlayer())
     endif
+EndFunction
+
+Function SyncDisplayDifficulty()
+    if !HasCoreRuntime()
+        return
+    endif
+
+    Bool draugnarokEnabled = False
+    _DS_DN_Draugnarok draugnarok = Controller.ResolveDraugnarokQuest()
+    if draugnarok
+        draugnarokEnabled = draugnarok.IsDraugnarokSystemEnabled()
+    endif
+    Controller.Config.SyncEffectiveDisplayDifficulty(IsResolvedRuntimeAvailable(), draugnarokEnabled)
 EndFunction
 
 Bool Function IsRuntimeAvailable()

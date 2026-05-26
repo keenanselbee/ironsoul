@@ -124,6 +124,7 @@ IronSoulCleanup Property Cleanup Auto
 IronSoulRespawn Property Respawn Auto
 IronSoulDragonSoulRevive Property DragonSoulRevive Auto
 IronSoulTiers Property Tiers Auto
+IronSoulHeartstones Property Heartstones Auto
 IronSoulEffects Property Effects Auto
 IronSoulGlobals Property Globals Auto
 
@@ -239,6 +240,12 @@ Bool Function LoadConfig()
         Debug.MessageBox("Iron Soul has been disabled because the IronSoulTiers quest component is not wired.")
         return False
     endif
+    if !Heartstones
+        SetModDisabled(True)
+        LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Heartstones property is not wired")
+        Debug.MessageBox("Iron Soul has been disabled because the IronSoulHeartstones quest component is not wired.")
+        return False
+    endif
     if !Effects
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Effects property is not wired")
@@ -254,6 +261,12 @@ Bool Function LoadConfig()
 
     Config.LoadFromIni()
     Respawn.RefreshRuntime()
+    _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
+    Bool draugnarokEnabled = False
+    if draugnarok
+        draugnarokEnabled = draugnarok.IsDraugnarokSystemEnabled()
+    endif
+    Config.SyncEffectiveDisplayDifficulty(Respawn.IsRuntimeAvailable(), draugnarokEnabled)
     if Globals
         Globals.SyncDifficultyPreset()
         Globals.SyncModState()
@@ -287,6 +300,9 @@ Function LogSystemSnapshot()
         Tiers.LogSnapshot()
     else
         LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Tiers (IronSoulTiers)")
+    endif
+    if !Heartstones
+        LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Heartstones (IronSoulHeartstones)")
     endif
     if Effects
         Effects.LogSnapshot()
@@ -617,6 +633,11 @@ Function ResetTransientState()
     ; Tier component runtime is transient.
     if Tiers
         Tiers.ResetTransientState()
+    endif
+
+    ; Heartstone use locks are transient.
+    if Heartstones
+        Heartstones.ResetTransientState()
     endif
 
     ; Destructive console command confirmation is transient and expires quickly.

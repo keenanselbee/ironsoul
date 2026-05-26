@@ -102,14 +102,17 @@ Scriptname IronSoulConsoleCommands Hidden
 ; TierLabel()
 ; DifficultyLabel()
 ; PresetPlusText()
+; DisplayDifficultyRankText()
+; DifficultyLabelForDisplayRank()
 ; NormalizeIronSoulPresetOrdinal()
 ; GetIronSoulPresetFamily()
 ; GetPresetOrdinalPlusRank()
+; GetRuntimeDisplayDifficultyRank()
+; SyncNativeEffectiveDisplayDifficulty()
 ; NormalizeBoolInt()
 ; GetPresetThreatFloor()
 ; GetPresetLuckLevel()
 ; GetEffectivePermadeath()
-; GetEffectiveDeathReset()
 ; GetEffectiveDefiantSoul()
 ; GetEffectiveDraugrThreatLevel()
 ; GetEffectiveLuckLevel()
@@ -653,6 +656,35 @@ String Function PresetPlusText(Int presetOrdinal) Global
     return text
 EndFunction
 
+String Function DisplayDifficultyRankText(Int displayRank) Global
+    displayRank = IronSoulConfig.ClampDisplayDifficultyRank(displayRank)
+    if displayRank < 0
+        return "-"
+    elseif displayRank == 0
+        return ""
+    elseif displayRank == 1
+        return "+"
+    endif
+    return "++"
+EndFunction
+
+String Function DifficultyLabelForDisplayRank(Int presetOrdinal, Int displayRank) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal == 0
+        return "Custom"
+    endif
+
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    String label = "Dreamer"
+    if presetFamily == 2
+        label = "Harbinger"
+    elseif presetFamily == 3
+        label = "Apocalypse"
+    endif
+
+    return label + DisplayDifficultyRankText(displayRank)
+EndFunction
+
 Int Function NormalizeIronSoulPresetOrdinal(Int presetOrdinal) Global
     if presetOrdinal == 0
         return 0
@@ -688,6 +720,38 @@ Int Function GetPresetOrdinalPlusRank(Int presetOrdinal) Global
         return presetOrdinal - 9
     endif
     return 0
+EndFunction
+
+Int Function GetRuntimeDisplayDifficultyRank(Int presetOrdinal, IronSoulController controller = None) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal == 0
+        return 0
+    endif
+    if !controller
+        return GetPresetOrdinalPlusRank(presetOrdinal)
+    endif
+
+    Bool respawnAvailable = (controller.Respawn && controller.Respawn.IsRuntimeAvailable())
+    Bool draugnarokEnabled = False
+    _DS_DN_Draugnarok draugnarok = controller.ResolveDraugnarokQuest()
+    if draugnarok
+        draugnarokEnabled = draugnarok.IsDraugnarokSystemEnabled()
+    endif
+    return IronSoulConfig.GetEffectiveDisplayDifficultyRank(presetOrdinal, respawnAvailable, draugnarokEnabled)
+EndFunction
+
+Function SyncNativeEffectiveDisplayDifficulty(IronSoulController controller = None) Global
+    if !IronSoulNative.IsAvailable()
+        return
+    endif
+    if !controller
+        controller = ResolveControllerQuest()
+    endif
+
+    Int presetOrdinal = NormalizeIronSoulPresetOrdinal(IronSoulNative.GetIronSoulPresetOrdinal())
+    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
+    Int displayRank = GetRuntimeDisplayDifficultyRank(presetOrdinal, controller)
+    IronSoulNative.SetEffectiveDisplayDifficulty(presetFamily, displayRank)
 EndFunction
 
 Int Function NormalizeBoolInt(Int value, Int fallback) Global
@@ -731,16 +795,6 @@ Int Function GetEffectivePermadeath(Int presetOrdinal) Global
     return NormalizeBoolInt(IronSoulNative.GetConfigInt("Permadeath", 1), 1)
 EndFunction
 
-Int Function GetEffectiveDeathReset(Int presetOrdinal) Global
-    Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
-    if presetFamily == 1 || presetFamily == 2
-        return 1
-    elseif presetFamily == 3
-        return 0
-    endif
-    return NormalizeBoolInt(IronSoulNative.GetConfigInt("DeathReset", 1), 1)
-EndFunction
-
 Int Function GetEffectiveDefiantSoul(Int presetOrdinal) Global
     Int presetFamily = GetIronSoulPresetFamily(presetOrdinal)
     if presetFamily == 1 || presetFamily == 2
@@ -758,7 +812,7 @@ Int Function GetEffectiveDraugrThreatLevel(Int presetOrdinal) Global
     endif
 
     Int threatLevel = GetPresetThreatFloor(presetOrdinal)
-    if IronSoulNative.GetConfigInt("DraugnarokSystem", 1) != 0 && GetPresetOrdinalPlusRank(presetOrdinal) >= 1
+    if IronSoulNative.GetConfigInt("DraugnarokSystem", 1) != 0 && GetPresetOrdinalPlusRank(presetOrdinal) >= 2
         threatLevel += 1
     endif
     return ClampThreatLevel(threatLevel)
@@ -771,7 +825,7 @@ Int Function GetEffectiveLuckLevel(Int presetOrdinal) Global
     endif
 
     Int luckLevel = GetPresetLuckLevel(presetOrdinal)
-    if GetPresetOrdinalPlusRank(presetOrdinal) >= 2
+    if GetPresetOrdinalPlusRank(presetOrdinal) >= 1
         luckLevel -= 1
     endif
     return ClampLuckLevel(luckLevel)
@@ -870,13 +924,14 @@ String Function GetIronSoulState() Global
 
     Int tierValue = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
     Int difficultyValue = NormalizeIronSoulPresetOrdinal(IronSoulNative.GetIronSoulPresetOrdinal())
+    Int displayDifficultyRank = GetRuntimeDisplayDifficultyRank(difficultyValue, controller)
     Int deathValue = ClampDeaths(controller.Death.GetCurrentDeathCount(playerRef, guid))
     Int totalDeathValue = ClampDeaths(controller.Death.GetTotalDeaths(playerRef, guid))
     Int soulsTotal = ClampDeaths(controller.Tiers.GetDragonSoulsTotal(playerRef, guid))
     String soulBonusState = NormalizeStateLabel(controller.Effects.GetAppliedSoulBonusSpellCompactLabel(playerRef))
     String soulFatigueState = NormalizeStateLabel(controller.Effects.GetAppliedSoulFatigueSpellCompactLabel(playerRef))
     return "GUID=" + guid \
-        + " | Difficulty=" + DifficultyLabel(difficultyValue) \
+        + " | Difficulty=" + DifficultyLabelForDisplayRank(difficultyValue, displayDifficultyRank) \
         + " | Tier=" + TierLabel(tierValue) + "(" + tierValue + ")" \
         + " | Deaths=" + deathValue \
         + " | TotalDeaths=" + totalDeathValue \
@@ -1400,6 +1455,7 @@ String Function RefreshDraugnarokRuntime() Global
 EndFunction
 
 String Function GetIni() Global
+    SyncNativeEffectiveDisplayDifficulty()
     return IronSoulNative.GetConfigSummary()
 EndFunction
 

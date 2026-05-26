@@ -28,3 +28,11 @@ Event OnPlayerLoadGame()
         LogPlayerAlias(IronSoulConfig.LOG_ERR(), "PlayerAlias OnPlayerLoadGame: Controller property is None (alias not wired?)")
     endif
 EndEvent
+
+State HeartstoneItemSelection
+    Event OnItemRemoved(Form akBaseItem, Int aiItemCount, ObjectReference akItemReference, ObjectReference akDestContainer)
+        if akItemReference && Controller && Controller.Heartstones
+            Controller.Heartstones.HandleHeartstoneSelectedItem(akItemReference)
+        endif
+    EndEvent
+EndState

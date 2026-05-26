@@ -43,6 +43,7 @@ Scriptname IronSoulNative Hidden
 ; ---------------------
 ; GetConfigInt()
 ; GetIronSoulPresetOrdinal()
+; SetEffectiveDisplayDifficulty()
 ; GetConfigKeyCanonical()
 ; GetConfigKeyDisplayName()
 ; GetConfigKeyFlags()
@@ -125,6 +126,7 @@ Function LogJournalEntry(String msg) Global Native
 ; IronSoulPreset accepts base-plus text, but reads return the flattened ordinal.
 Int Function GetConfigInt(String key, Int fallback = 0) Global Native
 Int Function GetIronSoulPresetOrdinal() Global Native
+Bool Function SetEffectiveDisplayDifficulty(Int presetFamily, Int displayRank) Global Native
 String Function GetConfigKeyCanonical(String key) Global Native
 String Function GetConfigKeyDisplayName(String key) Global Native
 Int Function GetConfigKeyFlags(String key) Global Native

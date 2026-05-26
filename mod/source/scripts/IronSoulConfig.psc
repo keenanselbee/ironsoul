@@ -10,7 +10,9 @@ Scriptname IronSoulConfig extends Quest
 ; [Sound] 
 ; CHIMTransitionSFX = 1
 ; DeathSFX = 1
-; DefiantResetSFX = 1
+; DefiantRestoreSFX = 1
+; DefiantRestoreFeatSFX = 1
+; DefiantTransitionSFX = 1
 ; DragonSoulReviveCastSFX = 1
 ; DragonSoulReviveSFX = 1
 ; FeatUnlockSFX = 1
@@ -21,7 +23,7 @@ Scriptname IronSoulConfig extends Quest
 ; PermadeathSFX = 1
 ; RespawnSFX = 1
 ; RespawnHeavyBreathingSFX = 1
-; SlowMoSFX = 1
+; DeathSlowMoSFX = 1
 
 ; =========================
 ; --- Table of Contents ---
@@ -63,7 +65,8 @@ Scriptname IronSoulConfig extends Quest
 ; IsRespawnSFXEnabled()
 ; IsDefiantTransitionSFXEnabled()
 ; IsCHIMTransitionSFXEnabled()
-; IsDefiantResetSFXEnabled()
+; IsDefiantRestoreSFXEnabled()
+; IsDefiantRestoreFeatSFXEnabled()
 ; IsHeartstoneAbsorbSFXEnabled()
 ; IsDragonSoulReviveCastSFXEnabled()
 ; IsDragonSoulReviveSFXEnabled()
@@ -71,7 +74,6 @@ Scriptname IronSoulConfig extends Quest
 ; IsLuckRollSFXEnabled()
 ; IsLuckOutcomeSFXEnabled()
 ; IsRespawnHeavyBreathingSFXEnabled()
-; IsDeathResetEnabled()
 ; IsDefiantSoulEnabled()
 ; IsSoulFeatsEnabled()
 ; IsSoulBonusEnabled()
@@ -82,6 +84,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsUninstallMode()
 ; IsPermadeathEnabled()
 ; GetIronSoulPreset()
+; SyncEffectiveDisplayDifficulty()
 
 ; --- Logging ---
 ; ---------------
@@ -103,6 +106,8 @@ Scriptname IronSoulConfig extends Quest
 ; NormalizeIronSoulPresetOrdinal()
 ; GetIronSoulPresetFamily()
 ; GetPresetOrdinalPlusRank()
+; ClampDisplayDifficultyRank()
+; GetEffectiveDisplayDifficultyRank()
 ; ClampLuckLevel()
 ; GetPresetLuckLevel()
 ; GetEffectiveLuckLevel()
@@ -138,7 +143,8 @@ Bool _permadeathSFXEnabled = True
 Bool _respawnSFXEnabled = True
 Bool _defiantTransitionSFXEnabled = True
 Bool _chimTransitionSFXEnabled = True
-Bool _defiantResetSFXEnabled = True
+Bool _defiantRestoreSFXEnabled = True
+Bool _defiantRestoreFeatSFXEnabled = True
 Bool _heartstoneAbsorbSFXEnabled = True
 Bool _dragonSoulReviveCastSFXEnabled = True
 Bool _dragonSoulReviveSFXEnabled = True
@@ -147,7 +153,6 @@ Bool _luckRollSFXEnabled = True
 Bool _luckOutcomeSFXEnabled = True
 Bool _respawnHeavyBreathingSFXEnabled = True
 
-Bool _deathResetEnabled = True
 Bool _defiantSoulEnabled = True
 Bool _soulFeatsEnabled = True
 Bool _soulBonusEnabled = True
@@ -197,7 +202,6 @@ Function ResetDefaults()
     _luckRollMessageMode = 1
 
     ; Feats
-    _deathResetEnabled = True
     _defiantSoulEnabled = True
     _soulFeatsEnabled = True
     _soulFatigueEnabled = True
@@ -212,7 +216,8 @@ Function ResetDefaults()
     _respawnSFXEnabled = True
     _defiantTransitionSFXEnabled = True
     _chimTransitionSFXEnabled = True
-    _defiantResetSFXEnabled = True
+    _defiantRestoreSFXEnabled = True
+    _defiantRestoreFeatSFXEnabled = True
     _heartstoneAbsorbSFXEnabled = True
     _dragonSoulReviveCastSFXEnabled = True
     _dragonSoulReviveSFXEnabled = True
@@ -222,23 +227,19 @@ Function ResetDefaults()
     _respawnHeavyBreathingSFXEnabled = True
 EndFunction
 
-Function ApplyPresetCoreSettings(Bool iniPermadeath, Bool iniDeathReset, Bool iniDefiantSoul)
+Function ApplyPresetCoreSettings(Bool iniPermadeath, Bool iniDefiantSoul)
     Int presetFamily = GetIronSoulPresetFamily(_ironSoulPresetOrdinal)
     if presetFamily == 1
         _permadeathEnabled = False
-        _deathResetEnabled = True
         _defiantSoulEnabled = True
     elseif presetFamily == 2
         _permadeathEnabled = True
-        _deathResetEnabled = True
         _defiantSoulEnabled = True
     elseif presetFamily == 3
         _permadeathEnabled = True
-        _deathResetEnabled = False
         _defiantSoulEnabled = False
     else
         _permadeathEnabled = iniPermadeath
-        _deathResetEnabled = iniDeathReset
         _defiantSoulEnabled = iniDefiantSoul
     endif
 EndFunction
@@ -274,9 +275,8 @@ Function LoadFromIni()
     _loadNotificationMode = ReadIntRange("LoadNotificationMode", _loadNotificationMode, 0, 3)
     _luckRollMessageMode = ReadIntRange("LuckRollMessageMode", _luckRollMessageMode, 0, 2)
 
-    Bool iniDeathReset = ReadFeatureEnabled("DeathReset", True)
     Bool iniDefiantSoul = ReadFeatureEnabled("DefiantSoul", True)
-    ApplyPresetCoreSettings(iniPermadeath, iniDeathReset, iniDefiantSoul)
+    ApplyPresetCoreSettings(iniPermadeath, iniDefiantSoul)
     _soulFeatsEnabled = ReadFeatureEnabled("SoulFeats", True)
     _soulFatigueEnabled = ReadFeatureEnabled("SoulFatigue", True)
 
@@ -290,7 +290,8 @@ Function LoadFromIni()
     _respawnSFXEnabled = ReadFeatureEnabled("RespawnSFX", True)
     _defiantTransitionSFXEnabled = ReadFeatureEnabled("DefiantTransitionSFX", True)
     _chimTransitionSFXEnabled = ReadFeatureEnabled("CHIMTransitionSFX", True)
-    _defiantResetSFXEnabled = ReadFeatureEnabled("DefiantResetSFX", True)
+    _defiantRestoreSFXEnabled = ReadFeatureEnabled("DefiantRestoreSFX", True)
+    _defiantRestoreFeatSFXEnabled = ReadFeatureEnabled("DefiantRestoreFeatSFX", True)
     _heartstoneAbsorbSFXEnabled = ReadFeatureEnabled("HeartstoneAbsorbSFX", True)
     _dragonSoulReviveCastSFXEnabled = ReadFeatureEnabled("DragonSoulReviveCastSFX", True)
     _dragonSoulReviveSFXEnabled = ReadFeatureEnabled("DragonSoulReviveSFX", True)
@@ -417,8 +418,12 @@ Bool Function IsCHIMTransitionSFXEnabled()
     return _chimTransitionSFXEnabled
 EndFunction
 
-Bool Function IsDefiantResetSFXEnabled()
-    return _defiantResetSFXEnabled
+Bool Function IsDefiantRestoreSFXEnabled()
+    return _defiantRestoreSFXEnabled
+EndFunction
+
+Bool Function IsDefiantRestoreFeatSFXEnabled()
+    return _defiantRestoreFeatSFXEnabled
 EndFunction
 
 Bool Function IsHeartstoneAbsorbSFXEnabled()
@@ -447,10 +452,6 @@ EndFunction
 
 Bool Function IsRespawnHeavyBreathingSFXEnabled()
     return _respawnHeavyBreathingSFXEnabled
-EndFunction
-
-Bool Function IsDeathResetEnabled()
-    return _deathResetEnabled
 EndFunction
 
 Bool Function IsDefiantSoulEnabled()
@@ -491,6 +492,16 @@ EndFunction
 
 Int Function GetIronSoulPreset()
     return _ironSoulPresetOrdinal
+EndFunction
+
+Function SyncEffectiveDisplayDifficulty(Bool respawnAvailable, Bool draugnarokEnabled)
+    if !IronSoulNative.IsAvailable()
+        return
+    endif
+
+    Int presetFamily = GetIronSoulPresetFamily(_ironSoulPresetOrdinal)
+    Int displayRank = GetEffectiveDisplayDifficultyRank(_ironSoulPresetOrdinal, respawnAvailable, draugnarokEnabled)
+    IronSoulNative.SetEffectiveDisplayDifficulty(presetFamily, displayRank)
 EndFunction
 
 
@@ -598,7 +609,6 @@ Function LogSnapshot()
         + " SoulBonus=" + _soulBonusEnabled \
         + " SoulFeats=" + _soulFeatsEnabled \
         + " DefiantSoul=" + _defiantSoulEnabled \
-        + " DeathReset=" + _deathResetEnabled \
         + " DragonSoulRevive=" + _dragonSoulReviveEnabled \
         + " DragonSoulReviveTransform=" + _dragonSoulReviveTransformEnabled \
         + " DragonSoulIncreaseNotify=" + _dragonSoulIncreaseNotificationEnabled \
@@ -612,7 +622,8 @@ Function LogSnapshot()
         + " RespawnSFX=" + _respawnSFXEnabled \
         + " DefiantTransitionSFX=" + _defiantTransitionSFXEnabled \
         + " CHIMTransitionSFX=" + _chimTransitionSFXEnabled \
-        + " DefiantResetSFX=" + _defiantResetSFXEnabled \
+        + " DefiantRestoreSFX=" + _defiantRestoreSFXEnabled \
+        + " DefiantRestoreFeatSFX=" + _defiantRestoreFeatSFXEnabled \
         + " HeartstoneAbsorbSFX=" + _heartstoneAbsorbSFXEnabled \
         + " DragonSoulReviveCastSFX=" + _dragonSoulReviveCastSFXEnabled \
         + " DragonSoulReviveSFX=" + _dragonSoulReviveSFXEnabled \
@@ -698,6 +709,31 @@ Int Function GetPresetOrdinalPlusRank(Int presetOrdinal) Global
     return 0
 EndFunction
 
+Int Function ClampDisplayDifficultyRank(Int displayRank) Global
+    if displayRank < -1
+        return -1
+    elseif displayRank > 2
+        return 2
+    endif
+    return displayRank
+EndFunction
+
+Int Function GetEffectiveDisplayDifficultyRank(Int presetOrdinal, Bool respawnAvailable, Bool draugnarokEnabled) Global
+    presetOrdinal = NormalizeIronSoulPresetOrdinal(presetOrdinal)
+    if presetOrdinal == 0
+        return 0
+    endif
+
+    Int displayRank = GetPresetOrdinalPlusRank(presetOrdinal)
+    if !respawnAvailable
+        displayRank += 1
+    endif
+    if !draugnarokEnabled
+        displayRank -= 1
+    endif
+    return ClampDisplayDifficultyRank(displayRank)
+EndFunction
+
 Int Function ClampLuckLevel(Int luckLevel) Global
     if luckLevel < 1
         return 1
@@ -726,7 +762,7 @@ Int Function GetEffectiveLuckLevel(Int presetOrdinal) Global
     endif
 
     Int luckLevel = GetPresetLuckLevel(presetOrdinal)
-    if GetPresetOrdinalPlusRank(presetOrdinal) >= 2
+    if GetPresetOrdinalPlusRank(presetOrdinal) >= 1
         luckLevel -= 1
     endif
     return ClampLuckLevel(luckLevel)
