@@ -109,6 +109,8 @@ SKSE Plugin Build Automation
 - Codex may run `tools/build-skse-plugin.ps1` when the user explicitly requests SKSE plugin build verification or DLL refresh, or when Codex has changed `dev/projects/ironsoul/src` source and needs final build verification/output sync.
 - Iron Soul SKSE plugin source lives in `dev/projects/ironsoul/src`.
 - The script builds the repo-local project in `dev/projects/ironsoul` with `dev/tools/xmake/xmake.exe` and uses local xmake state under `dev/.xmake`.
+- Run `tools/build-skse-plugin.ps1` with escalated permissions by default so xmake uses the normal Windows user context for the local `dev/.xmake` repository cache. This avoids Git `dubious ownership` or `safe.directory` failures caused by sandbox/user-context ownership mismatches.
+- If xmake still fails with a Git `dubious ownership` or `safe.directory` check inside `dev/.xmake`, report the failure. Do not change global Git `safe.directory` settings or delete the xmake cache unless the user explicitly asks.
 - For completed SKSE plugin source changes, run `tools/build-skse-plugin.ps1 -RefreshRepoDll` by default after a successful build so `mod/SKSE/plugins/ironsoul.dll` matches the source change. Use verify-only only for WIP checks or when the user explicitly asks not to refresh the repo DLL.
 - Verify-only builds must not update `mod/SKSE/plugins/ironsoul.dll`.
 - Refresh builds increment the SKSE plugin version in `dev/projects/ironsoul/xmake.lua` and the matching runtime log version in `dev/projects/ironsoul/src/plugin.h` before compiling. Stage those version bumps with the refreshed DLL.
