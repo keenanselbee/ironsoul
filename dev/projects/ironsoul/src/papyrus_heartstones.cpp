@@ -1,5 +1,6 @@
 #include "pch.h"
-#include "papyrus_tonal.h"
+#include "papyrus_heartstones.h"
+#include "papyrus_itemselect.h"
 #include "papyrus_common.h"
 
 #include <algorithm>
@@ -13,7 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace IronSoul::Papyrus::Tonal
+namespace IronSoul::Papyrus::Heartstones
 {
 namespace
 {
@@ -590,18 +591,16 @@ namespace
         auto& session = sessionIt->second;
         session.rowTokens.clear();
 
-        auto* ui = RE::UI::GetSingleton();
-        auto menu = ui ? ui->GetMenu<RE::InventoryMenu>() : nullptr;
-        auto* itemList = menu ? menu->GetRuntimeData().itemList : nullptr;
+        auto* itemList = ItemSelect::GetOpenInventoryItemList();
         if (!itemList) {
             SetLastResult(TonalResult::kNoInventoryMenu, "Inventory menu is not open");
             return "";
         }
 
         std::string serializedRows;
-        for (std::uint32_t rowIndex = 0; rowIndex < itemList->items.size(); ++rowIndex) {
-            auto* item = itemList->items[rowIndex];
-            auto* entry = item ? item->data.objDesc : nullptr;
+        const auto rowCount = ItemSelect::GetInventoryRowCount(itemList);
+        for (std::uint32_t rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+            auto* entry = ItemSelect::GetInventoryRowEntry(itemList, rowIndex);
             auto option = BuildTonalEnhanceOptionFromInventoryEntry(entry, session.power, session.cap);
             if (!option) {
                 continue;

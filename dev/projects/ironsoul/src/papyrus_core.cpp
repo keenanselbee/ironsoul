@@ -92,45 +92,12 @@ namespace
         return IronSoul::DataStore::IsInitialized();
     }
 
-    static bool OpenMenu(RE::StaticFunctionTag*, std::string a_menuName)
-    {
-        if (a_menuName.empty()) {
-            return false;
-        }
-
-        auto* uiQueue = RE::UIMessageQueue::GetSingleton();
-        if (!uiQueue) {
-            logger::warn("OpenMenu: UI message queue unavailable for '{}'", a_menuName);
-            return false;
-        }
-
-        uiQueue->AddMessage(RE::BSFixedString(a_menuName), RE::UI_MESSAGE_TYPE::kShow, nullptr);
-        return true;
-    }
-
-    static bool CloseMenu(RE::StaticFunctionTag*, std::string a_menuName)
-    {
-        if (a_menuName.empty()) {
-            return false;
-        }
-
-        auto* uiQueue = RE::UIMessageQueue::GetSingleton();
-        if (!uiQueue) {
-            logger::warn("CloseMenu: UI message queue unavailable for '{}'", a_menuName);
-            return false;
-        }
-
-        uiQueue->AddMessage(RE::BSFixedString(a_menuName), RE::UI_MESSAGE_TYPE::kHide, nullptr);
-        return true;
-    }
 }
 
     void RegisterAvailability(RE::BSScript::IVirtualMachine* a_vm)
     {
         a_vm->RegisterFunction("IsAvailable", kScriptName, IsAvailable);
         a_vm->RegisterFunction("DataStoreReady", kScriptName, DataStoreReady);
-        a_vm->RegisterFunction("OpenMenu", kScriptName, OpenMenu);
-        a_vm->RegisterFunction("CloseMenu", kScriptName, CloseMenu);
     }
 
     void RegisterIdentity(RE::BSScript::IVirtualMachine* a_vm)

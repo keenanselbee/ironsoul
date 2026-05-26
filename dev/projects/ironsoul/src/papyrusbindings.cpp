@@ -7,10 +7,11 @@
 #include "papyrus_data.h"
 #include "papyrus_dynamicassets.h"
 #include "papyrus_healthmonitor.h"
+#include "papyrus_heartstones.h"
+#include "papyrus_itemselect.h"
 #include "papyrus_journal.h"
 #include "papyrus_musicfade.h"
 #include "papyrus_runtime.h"
-#include "papyrus_tonal.h"
 
 namespace IronSoul::Papyrus
 {
@@ -25,9 +26,10 @@ namespace IronSoul::Papyrus
         Runtime::RefreshRuntimeConfigCaches();
 
         const bool ok = papyrus->Register([](RE::BSScript::IVirtualMachine* a_vm) {
-            // Preserve the old registration order: LogJournalEntry sits between
-            // the core availability probe and identity helpers.
+            // Keep LogJournalEntry between the core availability probe and
+            // identity helpers; item select owns the generic menu bridge.
             Core::RegisterAvailability(a_vm);
+            ItemSelect::Register(a_vm);
             Journal::Register(a_vm);
             Core::RegisterIdentity(a_vm);
             Config::Register(a_vm);
@@ -36,7 +38,7 @@ namespace IronSoul::Papyrus
             HealthMonitor::Register(a_vm);
             Cursor::Register(a_vm);
             Data::Register(a_vm);
-            Tonal::Register(a_vm);
+            Heartstones::Register(a_vm);
             return true;
         });
 
