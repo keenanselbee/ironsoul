@@ -40,7 +40,8 @@ Scriptname IronSoulConsoleCommands Hidden
 ;   Example: is sdat SoulTier 4
 ; - GetIni     (alias: gini) -> GetIni()
 ;   Example: is gini
-; - SetIni     (alias: sini) -> SetIni(String key, String value, String persistFlag = "t")
+; - SetIni     (alias: sini) -> SetIni(String key, String value, String persistFlag = "")
+;   Example: is sini SoulBonus 0
 ;   Example: is sini SoulBonus 0 t
 ;   Preset-owned core keys, DraugrThreatLevel, and LuckLevel require IronSoulPreset=0. IronSoulPreset accepts values like 3++.
 ; - ReloadIni  (alias: rini) -> ReloadIni()
@@ -210,7 +211,7 @@ EndFunction
 
 Int Function ParsePersistFlag(String persistFlag) Global
     if persistFlag == ""
-        return 1
+        return 0
     endif
 
     if persistFlag == "t" || persistFlag == "T" || persistFlag == "true" || persistFlag == "True" || persistFlag == "TRUE"
@@ -893,7 +894,7 @@ String Function GetHelp(String helpTopic = "") Global
         + "d: Draugnarok state summary.\n" \
         + "rc: calculate current Draugnarok raid chance.\n" \
         + "gini: list INI options and effective preset-owned core values.\n" \
-        + "sini <key> <value> [t|f]: set INI; IronSoulPreset accepts 3++, Override-only keys require IronSoulPreset=0.\n" \
+        + "sini <key> <value> [t]: set INI for this session; add t to persist to ironsoul.ini.\n" \
         + "rini: reload INI."
 EndFunction
 
@@ -1459,7 +1460,7 @@ String Function GetIni() Global
     return IronSoulNative.GetConfigSummary()
 EndFunction
 
-String Function SetIni(String k, String value, String persistFlag = "t") Global
+String Function SetIni(String k, String value, String persistFlag = "") Global
     if k == ""
         return "Error: config key cannot be empty."
     endif
