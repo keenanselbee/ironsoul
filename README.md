@@ -7,7 +7,8 @@ Iron Soul: Dead God's Dream
 ===========================
 
 Iron Soul is a permadeath roguelite system for Skyrim with configurable death rules, Dragon Soul Revive,
-and persistent progression, expanding into a multi-character saga built around Heartstones and escalating undead pressure.
+and persistent progression, expanding into a multi-character saga built around Shardhearts, escalating undead pressure,
+and the dreams of a dead god.
 
 Version
 -------
@@ -35,20 +36,20 @@ Soft Requirements
 Current TODO
 ------------
 
-Heartstones
+Shardhearts
 
 ```text
-| Heartstones Found | Unlocked Tier           | Quest Milestone                 | Starting Found Heartstones |
-| 0                 | Dormant Heartstone      | Dormant Heartstones can spawn   | 0                          |
-| 5                 | Kindled Heartstone      | First major dream               | 1                          |
-| 10                | Resonant Heartstone     | Strong dream escalation         | 2                          |
-| 25                | Sublime Heartstone      | Heart influence becomes obvious | 3                          |
-| 40                | Transcendent Heartstone | Late-game metaphysical pressure | 4                          |
+| Shardhearts Found | Unlocked Tier           | Quest Milestone                 | Starting Found Shardhearts |
+| 0                 | Dormant Shardheart      | Dormant Shardhearts can spawn   | 0                          |
+| 5                 | Kindled Shardheart      | First major dream               | 1                          |
+| 10                | Resonant Shardheart     | Strong dream escalation         | 2                          |
+| 25                | Sublime Shardheart      | Heart influence becomes obvious | 3                          |
+| 40                | Transcendent Shardheart | Late-game metaphysical pressure | 4                          |
 | 50                | Heart complete          | Manifest the Heart              | 5                          |
 | 100               | Whole Heart             | Completionist restoration state | 10                         |
 ```
 
-Proposed Heartstones:
+Proposed Shardhearts:
 
 ```text
 | Family   | Weapon Effect                      | Armor/Apparel Effect               | Implementation               |
@@ -84,20 +85,20 @@ Proposed Heartstones:
 | Doom     | Fear on hit                        | Shout recovery bonus               | Standard fear + AV           |
 ```
 
-- Create Heartstone item records and assets as Sigil Stone-adjacent MiscObjects using the spherical soul gem mesh as the visual base.
-- Build Heartstones as tiered account-wide unlocks with varied effects; new characters can choose a small set of unlocked Heartstones, likely three.
-- Make Heartstones visually scale with power so their red glow intensifies as the character levels or as the chosen Heartstone tier improves.
-- Define Heart Spawns as the target number of active Heartstones present in the world at one time, calculated from difficulty preset plus override setting; for example, A++ can keep 9 Heartstones active.
-- Add a curated Heartstone spawn-location pool, weighted toward dungeons and hard-to-reach places rather than the general game world.
-- Re-roll active Heartstone locations on each player load so the world hunt changes between characters and reloads.
-- Add a Heartstone proximity heartbeat that only pulses when the nearest active Heartstone is in the player's current cell, with sound intensity/frequency scaling by distance.
-- Prototype Heartstone inventory use with a MiscObject `OnEquipped` detector; verify SkyUI behavior, the cannot-equip message, stacked copies, leveled-list/container acquisition, and save/load reliability.
-- Keep Heartstone item scripts minimal: use the item only as an activation detector, then hand real logic to an Iron Soul quest/controller path.
-- Add Heartstone activation flow that opens a choice menu, consumes one Heartstone only after confirmed use, and supports cancel without removing the item.
-- When recorded deaths are above 0, Heartstone activation offers Enhance Item or Purge Death; with 0 deaths, only Enhance Item is shown.
-- Add a restore-death Heartstone action that purges one recorded death, plays the Heartstone absorb presentation, and drains the orb's red colour as its essence is absorbed.
-- Explore Heartstone item empowerment through Iron Soul native filtered selection sessions displayed with an injected SkyUI InventoryMenu item selector, starting with weapon and armor temper quality.
-- Add persistence for unlocked Heartstone tiers, selected new-game Heartstones, absorbed Heartstone progress, active world spawn locations, and relocation timing.
+- Create Shardheart item records and assets as Sigil Stone-adjacent MiscObjects using the spherical soul gem mesh as the visual base.
+- Build Shardhearts as tiered account-wide unlocks with varied effects; new characters can choose a small set of unlocked Shardhearts, likely three.
+- Make Shardhearts visually scale with power so their red glow intensifies as the character levels or as the chosen Shardheart tier improves.
+- Define Shardheart Spawns as the target number of active Shardhearts present in the world at one time, calculated from difficulty preset plus override setting; for example, A++ can keep 9 Shardhearts active.
+- Add a curated Shardheart spawn-location pool, weighted toward dungeons and hard-to-reach places rather than the general game world.
+- Re-roll active Shardheart locations on each player load so the world hunt changes between characters and reloads.
+- Add a Shardheart proximity heartbeat that only pulses when the nearest active Shardheart is in the player's current cell, with sound intensity/frequency scaling by distance.
+- Prototype Shardheart inventory use with a MiscObject `OnEquipped` detector; verify SkyUI behavior, the cannot-equip message, stacked copies, leveled-list/container acquisition, and save/load reliability.
+- Keep Shardheart item scripts minimal: use the item only as an activation detector, then hand real logic to an Iron Soul quest/controller path.
+- Add Shardheart activation flow that opens a choice menu, consumes one Shardheart only after confirmed use, and supports cancel without removing the item.
+- When recorded deaths are above 0, Shardheart activation offers Enhance Item or Purge Death; with 0 deaths, only Enhance Item is shown.
+- Add a restore-death Shardheart action that purges one recorded death, plays the Shardheart absorb presentation, and drains the orb's red colour as its essence is absorbed.
+- Explore Shardheart item empowerment through Iron Soul native filtered selection sessions displayed with an injected SkyUI InventoryMenu item selector, starting with weapon and armor temper quality.
+- Add persistence for unlocked Shardheart tiers, selected new-game Shardhearts, absorbed Shardheart progress, active world spawn locations, and relocation timing.
 
 General
 
@@ -109,13 +110,13 @@ Roadmap
 -------
 
 V2: Echoes of Lorkhan
-- Add a dream system. After the first Heartstone is absorbed, the player has a chance to receive dreams while sleeping.
-- More Heartstones absorbed increase dream chance, expand the dream pool, and cause more metaphysical Heartstones to appear in Skyrim. "The Heart wants to be whole again..."
-- Dreams focus mostly on historical echoes tied to Lorkhan, the Heart, Kagrenac, the Dwemer, the Tribunal, Red Mountain, and the player's growing connection to the Heartstones.
+- Add a dream system. After the first Shardheart is absorbed, the player has a chance to receive dreams while sleeping.
+- More Shardhearts absorbed increase dream chance, expand the dream pool, and cause more metaphysical Shardhearts to appear in Skyrim. "The Heart wants to be whole again..."
+- Dreams focus mostly on historical echoes tied to Lorkhan, the Heart, Kagrenac, the Dwemer, the Tribunal, Red Mountain, and the player's growing connection to the Shardhearts.
 - Dreams include quick scenes and distorted echoes involving Kagrenac's use of the Tools, the disappearance of the Dwemer, Dagoth Ur's fall, and the Tribunal's later use of the Heart.
 - Early dreams are fragmented and ambiguous, making it unclear whether the voice guiding the player is Lorkhan, the Heart itself, or something else speaking through it.
-- Flesh out the history around Lorkhan, the Heart, and the player's connection to the Heartstones.
-- Expand the Heart mystery into a stronger story layer that recontextualizes the V1 Heartstone hunt.
+- Flesh out the history around Lorkhan, the Heart, and the player's connection to the Shardhearts.
+- Expand the Heart mystery into a stronger story layer that recontextualizes the V1 Shardheart hunt.
 
 V3: The Dragon Cult Rises
 - Rework Draugnarok raid pressure so the endgame source is Labyrinthian and the active pressure network flows from dragon priest barrows.
@@ -135,10 +136,10 @@ V3: The Dragon Cult Rises
 
 V4: Return of the Dead God
 - Add a full quest powered by the dream system, building on the historical Heart dreams introduced in V2.
-- As more Heartstones are absorbed, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
+- As more Shardhearts are absorbed, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
 - Dreams reveal that only the Heart's power can make Alduin truly vulnerable.
-- Require 50 total account-wide Heartstones absorbed to complete the saga-long Heart collection and unlock the Heart's manifestation path.
-- Once all Heartstones have been absorbed, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
+- Require 50 total account-wide Shardhearts absorbed to complete the saga-long Heart collection and unlock the Heart's manifestation path.
+- Once all Shardhearts have been absorbed, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
 - If the player uses the Tools on the Heart before the correct ritual is known, the game quits outright.
 - A final dream falsely instructs the player to strike the Heart with Sunder once, then Keening once. Following this instruction triggers Dagoth Ur's reveal and awakens Dagoth Soul.
 - Reveal that the apparent voice of Lorkhan is actually Dagoth Ur's dream-shadow manipulating the player.
@@ -152,7 +153,7 @@ V4: Return of the Dead God
 
 V5: Discord Integration
 - Add Discord channel integration for the journal system so journal entries and major milestones can be logged to configured Discord channels.
-- Add daily challenges that can reward Heartstones for accomplishments, such as completing an objective and receiving 3 Heartstones.
+- Add daily challenges that can reward Shardhearts for accomplishments, such as completing an objective and receiving 3 Shardhearts.
 - Build opt-in network communication into the mod stack, including configuration, failure handling, and safeguards around external Discord posting.
 
 V6: City Recovery
@@ -170,5 +171,5 @@ Credits
 - [Draugnarok SE](https://www.nexusmods.com/skyrimspecialedition/mods/12849), by unuroboros: credit for original Draugnarok systems/content adapted into Iron Soul.
 - [Draugrs - My patches SE by Xtudo](https://www.nexusmods.com/skyrimspecialedition/mods/123225), by Xtudo: credit for draugr eye asset basis used by dynamic draugr eye visuals.
 - [High Quality Dice Skins](https://www.nexusmods.com/baldursgate3/mods/1220), by Sir William Snugglepuff: credit for dice visual source material used by Luck roll presentation.
-- [Spherical Soulgems SSE](https://www.nexusmods.com/skyrimspecialedition/mods/66634), by Fishbiter: credit for sigil stone mesh source material used as the Heartstone visual base.
+- [Spherical Soulgems SSE](https://www.nexusmods.com/skyrimspecialedition/mods/66634), by Fishbiter: credit for sigil stone mesh source material used as the Shardheart visual base.
 - [Spherical Soulgems SSE - Particle Lights for ENB](https://www.nexusmods.com/skyrimspecialedition/mods/66668), by DeterministicFreeWill: credit for ENB particle light/glow source.
