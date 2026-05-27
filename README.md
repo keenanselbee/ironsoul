@@ -28,7 +28,7 @@ Hard Requirements
 
 Soft Requirements
 - Respawn - Soulslike Edition: enables optional respawn integration. Without it, Iron Soul still works and falls back to Death behavior.
-- ConsoleUtil Extended: only needed for custom console commands.
+- ConsoleUtil Extended: needed for custom console commands.
 - Skyrim Character Sheet: optional total-death display compatibility through `EnableCharacterSheetCompatibility`.
 - Inventory Interface Information Injector (I4): optional inventory icon/classification support for shipped `inventoryinjector` JSON files and item icons.
 
