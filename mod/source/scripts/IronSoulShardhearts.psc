@@ -92,6 +92,7 @@ Scriptname IronSoulShardhearts extends Quest
 IronSoulController Property Controller Auto
 MiscObject Property ShardheartSpent Auto
 String Property shardheartsTotal = "IS_2740" AutoReadOnly ; Account-wide successful Shardheart use counter.
+String Property shardsUnlockedTotal = "IS_2741" AutoReadOnly ; Account-wide distinct Shardheart unlock counter.
 String Property shardheartUsedPrefix = "SH.U." AutoReadOnly ; Account-wide boolean used catalog prefix.
 
 ; Expected MESG EditorIDs:
@@ -162,7 +163,7 @@ Int Function GetShardheartsTotal(Actor player = None)
         return 0
     endif
 
-    return Controller.Persistence.GetInt(player, shardheartsTotal, 0)
+    return Controller.Persistence.GetAccountInt(shardheartsTotal, 0)
 EndFunction
 
 Bool Function SetShardheartsTotal(Actor player, Int totalValue, Bool flushNow = False)
@@ -175,7 +176,7 @@ Bool Function SetShardheartsTotal(Actor player, Int totalValue, Bool flushNow = 
         clampedTotal = 0
     endif
 
-    Controller.Persistence.SetInt(player, shardheartsTotal, clampedTotal, True)
+    Controller.Persistence.SetAccountInt(shardheartsTotal, clampedTotal, True)
     if Controller.Globals
         Controller.Globals.SyncShardhearts(player)
     endif
@@ -196,6 +197,42 @@ Int Function IncrementShardheartsTotal(Actor player, Int shardheartType = 0, Int
     return nextTotal
 EndFunction
 
+Int Function GetShardsUnlocked(Actor player = None)
+    if !Controller || !Controller.Persistence
+        return 0
+    endif
+
+    return Controller.Persistence.GetAccountInt(shardsUnlockedTotal, 0)
+EndFunction
+
+Bool Function SetShardsUnlocked(Actor player, Int unlockedValue, Bool flushNow = False)
+    if !Controller || !Controller.Persistence
+        return False
+    endif
+
+    Int clampedUnlocked = unlockedValue
+    if clampedUnlocked < 0
+        clampedUnlocked = 0
+    endif
+
+    Controller.Persistence.SetAccountInt(shardsUnlockedTotal, clampedUnlocked, True)
+    if flushNow
+        IronSoulNative.DataFlushIfDirty()
+    endif
+    return True
+EndFunction
+
+Int Function IncrementShardsUnlocked(Actor player, Int shardheartType = 0, Int shardheartTier = 0)
+    Int currentUnlocked = GetShardsUnlocked(player)
+    Int nextUnlocked = currentUnlocked + 1
+    if !SetShardsUnlocked(player, nextUnlocked, False)
+        return currentUnlocked
+    endif
+
+    LogShardhearts(IronSoulConfig.LOG_INFO(), "IncrementShardsUnlocked: Account-wide ShardsUnlocked=" + nextUnlocked + " type=" + shardheartType + " tier=" + shardheartTier)
+    return nextUnlocked
+EndFunction
+
 String Function GetShardheartUsedKey(Int shardheartType, Int shardheartTier)
     if shardheartType <= 0 || shardheartTier < 0
         return ""
@@ -214,7 +251,7 @@ Bool Function HasUsedShardheart(Int shardheartType, Int shardheartTier, Actor pl
         return False
     endif
 
-    return Controller.Persistence.GetInt(player, usedKey, 0) == 1
+    return Controller.Persistence.GetAccountInt(usedKey, 0) == 1
 EndFunction
 
 Bool Function MarkShardheartUsed(Int shardheartType, Int shardheartTier, Actor player = None)
@@ -228,10 +265,10 @@ Bool Function MarkShardheartUsed(Int shardheartType, Int shardheartTier, Actor p
     endif
 
     if HasUsedShardheart(shardheartType, shardheartTier, player)
-        return True
+        return False
     endif
 
-    Controller.Persistence.SetInt(player, usedKey, 1, True)
+    Controller.Persistence.SetAccountInt(usedKey, 1, True)
     return True
 EndFunction
 
@@ -242,17 +279,37 @@ Bool Function RegisterShardheartUsed(Actor player, Int shardheartType = 0, Int s
 
     Int nextTotal = IncrementShardheartsTotal(player, shardheartType, shardheartTier)
     String usedKey = GetShardheartUsedKey(shardheartType, shardheartTier)
-    Bool catalogMarked = False
+    Bool newUnlock = False
+    Int nextUnlocked = GetShardsUnlocked(player)
     if usedKey != ""
-        catalogMarked = MarkShardheartUsed(shardheartType, shardheartTier, player)
+        newUnlock = MarkShardheartUsed(shardheartType, shardheartTier, player)
+        if newUnlock
+            nextUnlocked = IncrementShardsUnlocked(player, shardheartType, shardheartTier)
+        endif
     endif
 
     if Controller.Globals
         Controller.Globals.SyncShardhearts(player)
     endif
     IronSoulNative.DataFlushIfDirty()
-    LogShardhearts(IronSoulConfig.LOG_INFO(), "RegisterShardheartUsed: ShardheartsTotal=" + nextTotal + " usedKey=" + usedKey + " catalogMarked=" + catalogMarked)
+    LogShardhearts(IronSoulConfig.LOG_INFO(), "RegisterShardheartUsed: ShardsAbsorbed=" + nextTotal + " ShardsUnlocked=" + nextUnlocked + " usedKey=" + usedKey + " newUnlock=" + newUnlock)
     return True
+EndFunction
+
+Int Function ResetAccountShardData(Actor player = None)
+    if !Controller || !Controller.Persistence
+        return -1
+    endif
+
+    SetShardheartsTotal(player, 0, False)
+    SetShardsUnlocked(player, 0, False)
+    Int deletedCatalogKeys = Controller.Persistence.DeleteAccountKeysWithPrefix(shardheartUsedPrefix)
+    if Controller.Globals
+        Controller.Globals.SyncShardhearts(player)
+    endif
+    IronSoulNative.DataFlushIfDirty()
+    LogShardhearts(IronSoulConfig.LOG_INFO(), "ResetAccountShardData: reset ShardsAbsorbed=0 ShardsUnlocked=0 deletedCatalogKeys=" + deletedCatalogKeys)
+    return deletedCatalogKeys
 EndFunction
 
 Function LogShardhearts(Int level, String msg, Bool suppressNotify = False)
@@ -351,7 +408,7 @@ Function NotifyShardheartSuccess(String msg)
         return
     endif
 
-    Debug.Notification(msg)
+    Debug.Notification(msg + ". Shards Absorbed: " + GetShardheartsTotal(Game.GetPlayer()))
 EndFunction
 
 Bool Function TryUseShardheart(Actor player, Form shardheartBaseItem, Int shardheartType = 0, Int shardheartTier = 0)

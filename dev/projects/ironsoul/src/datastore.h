@@ -45,6 +45,7 @@ namespace IronSoul
         // Returns true if the key was absent and is now set.
         static bool SetIntIfAbsent(const std::string& key, std::int32_t value);
         static void DeleteKey(const std::string& key);
+        static std::int32_t DeleteKeysWithPrefix(const std::string& prefix);
 
         // Force a disk write if dirty.
         static void FlushIfDirty();

@@ -255,6 +255,31 @@ namespace IronSoul
         }
     }
 
+    std::int32_t DataStore::DeleteKeysWithPrefix(const std::string& prefix)
+    {
+        if (prefix.empty() || prefix.size() > MAX_KEY_BYTES) {
+            return 0;
+        }
+
+        std::lock_guard<std::mutex> lock(_mutex);
+
+        std::int32_t deletedCount = 0;
+        for (auto it = _data.begin(); it != _data.end();) {
+            const std::string& key = it->first;
+            if (key.size() >= prefix.size() && key.compare(0, prefix.size(), prefix) == 0) {
+                it = _data.erase(it);
+                ++deletedCount;
+            } else {
+                ++it;
+            }
+        }
+
+        if (deletedCount > 0) {
+            _dirty = true;
+        }
+        return deletedCount;
+    }
+
     void DataStore::FlushIfDirty()
     {
         // Explicit flush requests should be deterministic: if another flush is in flight,

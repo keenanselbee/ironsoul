@@ -18,6 +18,9 @@ Scriptname IronSoulPersistence extends Quest
 ; IsCosaveRecoveryBackupEnabled()
 ; GetInt()
 ; SetInt()
+; GetAccountInt()
+; SetAccountInt()
+; DeleteAccountKeysWithPrefix()
 
 ; --- GUID-Scoped Storage Helpers ---
 ; -----------------------------------
@@ -129,6 +132,34 @@ Function SetInt(Actor player, String dataKey, Int value, Bool useIfChanged = Tru
             endif
         endif
     endif
+EndFunction
+
+Int Function GetAccountInt(String dataKey, Int fallback)
+    if dataKey == ""
+        return fallback
+    endif
+
+    return IronSoulNative.DataGetInt(dataKey, fallback)
+EndFunction
+
+Function SetAccountInt(String dataKey, Int value, Bool useIfChanged = True)
+    if dataKey == ""
+        return
+    endif
+
+    if useIfChanged
+        IronSoulNative.DataSetIntIfChanged(dataKey, value)
+    else
+        IronSoulNative.DataSetInt(dataKey, value)
+    endif
+EndFunction
+
+Int Function DeleteAccountKeysWithPrefix(String prefix)
+    if prefix == ""
+        return 0
+    endif
+
+    return IronSoulNative.DataDeleteKeysWithPrefix(prefix)
 EndFunction
 
 

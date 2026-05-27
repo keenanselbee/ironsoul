@@ -108,6 +108,7 @@ Scriptname IronSoulNative Hidden
 ; DataSetStringIfChanged()
 ; DataSetStringChecked()
 ; DataDeleteKey()
+; DataDeleteKeysWithPrefix()
 
 ; --- DataStore Flush Control ---
 ; --------------------------------
@@ -251,8 +252,8 @@ String Function DataGetString(String key, String fallback = "") Global Native
 Bool Function DataHasKey(String key) Global Native
 
 ; Friendly current-character dump for console/debug output.
-; section="" dumps all; known sections include identity, core, luck, ui, soul,
-; dsr, bosses, defiant, and journal.
+; section="" dumps all; known sections include identity, account, core, luck,
+; ui, soul, dsr, bosses, defiant, and journal.
 String Function DataGetCharacterData(String guid, String section = "") Global Native
 
 
@@ -281,6 +282,9 @@ Bool Function DataSetStringChecked(String key, String value) Global Native
 
 ; Deletes a MainData key if it exists.
 Function DataDeleteKey(String key) Global Native
+
+; Deletes MainData keys whose names start with prefix. Returns deleted count.
+Int Function DataDeleteKeysWithPrefix(String prefix) Global Native
 
 
 ; --- DATASTORE - FLUSH CONTROL ---

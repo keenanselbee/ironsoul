@@ -99,7 +99,8 @@ namespace IronSoul
         { "journal", "IS_1927", "JournalCHIMLogged", CharacterDataValueFormat::Bool }
     };
 
-    static constexpr const char* kShardheartsTotalKey = "IS_2740";
+    static constexpr const char* kShardsAbsorbedKey = "IS_2740";
+    static constexpr const char* kShardsUnlockedKey = "IS_2741";
     static constexpr const char* kShardheartUsedPrefix = "SH.U.";
 
     // --- Formatting Helpers ---
@@ -473,9 +474,14 @@ namespace IronSoul
         }
 
         if (wantsSection("account")) {
-            const auto shardheartsIt = snapshot.find(kShardheartsTotalKey);
-            if (shardheartsIt != snapshot.end()) {
-                appendValue("account", "ShardheartsTotal", shardheartsIt->second, CharacterDataValueFormat::Plain);
+            const auto shardsAbsorbedIt = snapshot.find(kShardsAbsorbedKey);
+            if (shardsAbsorbedIt != snapshot.end()) {
+                appendValue("account", "ShardsAbsorbed", shardsAbsorbedIt->second, CharacterDataValueFormat::Plain);
+            }
+
+            const auto shardsUnlockedIt = snapshot.find(kShardsUnlockedKey);
+            if (shardsUnlockedIt != snapshot.end()) {
+                appendValue("account", "ShardsUnlocked", shardsUnlockedIt->second, CharacterDataValueFormat::Plain);
             }
 
             std::vector<std::string> usedShardheartEntries;
@@ -485,7 +491,7 @@ namespace IronSoul
                 }
 
                 const std::string suffix = key.substr(std::string(kShardheartUsedPrefix).size());
-                usedShardheartEntries.push_back("ShardheartUsed(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
+                usedShardheartEntries.push_back("ShardUnlocked(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
             }
             std::sort(usedShardheartEntries.begin(), usedShardheartEntries.end());
 
