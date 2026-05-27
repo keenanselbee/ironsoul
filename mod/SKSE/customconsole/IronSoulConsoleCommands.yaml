@@ -47,10 +47,10 @@ subs:
     alias: rt
     func: ResetTier
     help: Clears manual tier override and restores the current organic tier. Requires EnableDebug=1.
-  - name: ResetShards
-    alias: rshards
-    func: ResetShards
-    help: Resets account-wide Shards absorbed, unlocked, and unlock catalog for all characters. Requires EnableDebug=1 and a second identical command within 10 seconds.
+  - name: ResetHeartshards
+    alias: rhs
+    func: ResetHeartshards
+    help: Resets account-wide Heartshards absorbed, unlocked, and unlock catalog for all characters. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: SetLuck
     alias: sl
     func: SetLuck
@@ -84,11 +84,11 @@ subs:
   - name: ResetCharacterData
     alias: rcd
     func: ResetCharacterData
-    help: Resets Iron Soul tracked data for the current character only. Account-wide Shards are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
+    help: Resets Iron Soul tracked data for the current character only. Account-wide Heartshards are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: PurgeData
     alias: pd
     func: PurgeData
-    help: Purges Iron Soul tracked data for all characters except the current character. Account-wide Shards are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
+    help: Purges Iron Soul tracked data for all characters except the current character. Account-wide Heartshards are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: GetData
     alias: gdat
     func: GetData

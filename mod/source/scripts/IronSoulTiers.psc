@@ -132,7 +132,7 @@ Sound Property SFXCHIMTransition Auto
 Sound Property SFXDefiantRestore Auto
 Sound Property SFXDefiantRestoreFeat Auto
 Sound Property SFXDefiantTransition Auto
-Sound Property SFXShardheartAbsorb Auto
+Sound Property SFXHeartshardAbsorb Auto
 Sound Property SFXFeatDefiant Auto
 Sound Property SFXFeatSilver Auto
 Sound Property SFXFeatGold Auto
@@ -1390,8 +1390,8 @@ Bool Function CanPlayTierSFX(Sound sfx)
         return Controller.Config.IsDefiantRestoreSFXEnabled()
     elseif sfx == SFXDefiantRestoreFeat
         return Controller.Config.IsDefiantRestoreFeatSFXEnabled()
-    elseif sfx == SFXShardheartAbsorb
-        return Controller.Config.IsShardheartAbsorbSFXEnabled()
+    elseif sfx == SFXHeartshardAbsorb
+        return Controller.Config.IsHeartshardAbsorbSFXEnabled()
     elseif sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDevour || sfx == SFXFeatDefiant
         return Controller.Config.IsFeatUnlockSFXEnabled()
     endif

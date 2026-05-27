@@ -8,7 +8,7 @@
       },
       "assign": {
         "iconSource": "skyui/icons_ironsoul.swf",
-        "iconLabel": "misc_shardheart",
+        "iconLabel": "misc_heartshard",
         "iconColor": "#5A5A5A"
       }
     },
@@ -19,7 +19,7 @@
       },
       "assign": {
         "iconSource": "skyui/icons_ironsoul.swf",
-        "iconLabel": "misc_shardheart",
+        "iconLabel": "misc_heartshard",
         "iconColor": "#800000"
       }
     },
@@ -30,7 +30,7 @@
       },
       "assign": {
         "iconSource": "skyui/icons_ironsoul.swf",
-        "iconLabel": "misc_shardheart",
+        "iconLabel": "misc_heartshard",
         "iconColor": "#990000"
       }
     },
@@ -41,7 +41,7 @@
       },
       "assign": {
         "iconSource": "skyui/icons_ironsoul.swf",
-        "iconLabel": "misc_shardheart",
+        "iconLabel": "misc_heartshard",
         "iconColor": "#B30000"
       }
     },
@@ -52,7 +52,7 @@
       },
       "assign": {
         "iconSource": "skyui/icons_ironsoul.swf",
-        "iconLabel": "misc_shardheart",
+        "iconLabel": "misc_heartshard",
         "iconColor": "#CC0000"
       }
     },
@@ -63,7 +63,7 @@
       },
       "assign": {
         "iconSource": "skyui/icons_ironsoul.swf",
-        "iconLabel": "misc_shardheart",
+        "iconLabel": "misc_heartshard",
         "iconColor": "#E60000"
       }
     }

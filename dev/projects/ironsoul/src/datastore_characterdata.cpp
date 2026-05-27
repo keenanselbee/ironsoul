@@ -99,9 +99,9 @@ namespace IronSoul
         { "journal", "IS_1927", "JournalCHIMLogged", CharacterDataValueFormat::Bool }
     };
 
-    static constexpr const char* kShardsAbsorbedKey = "IS_2740";
-    static constexpr const char* kShardsUnlockedKey = "IS_2741";
-    static constexpr const char* kShardheartUsedPrefix = "SH.U.";
+    static constexpr const char* kHeartshardsAbsorbedKey = "IS_2740";
+    static constexpr const char* kHeartshardsUnlockedKey = "IS_2741";
+    static constexpr const char* kHeartshardUsedPrefix = "HS.U.";
 
     // --- Formatting Helpers ---
     // ==========================
@@ -474,29 +474,29 @@ namespace IronSoul
         }
 
         if (wantsSection("account")) {
-            const auto shardsAbsorbedIt = snapshot.find(kShardsAbsorbedKey);
-            if (shardsAbsorbedIt != snapshot.end()) {
-                appendValue("account", "ShardsAbsorbed", shardsAbsorbedIt->second, CharacterDataValueFormat::Plain);
+            const auto heartshardsAbsorbedIt = snapshot.find(kHeartshardsAbsorbedKey);
+            if (heartshardsAbsorbedIt != snapshot.end()) {
+                appendValue("account", "HeartshardsAbsorbed", heartshardsAbsorbedIt->second, CharacterDataValueFormat::Plain);
             }
 
-            const auto shardsUnlockedIt = snapshot.find(kShardsUnlockedKey);
-            if (shardsUnlockedIt != snapshot.end()) {
-                appendValue("account", "ShardsUnlocked", shardsUnlockedIt->second, CharacterDataValueFormat::Plain);
+            const auto heartshardsUnlockedIt = snapshot.find(kHeartshardsUnlockedKey);
+            if (heartshardsUnlockedIt != snapshot.end()) {
+                appendValue("account", "HeartshardsUnlocked", heartshardsUnlockedIt->second, CharacterDataValueFormat::Plain);
             }
 
-            std::vector<std::string> usedShardheartEntries;
+            std::vector<std::string> usedHeartshardEntries;
             for (const auto& [key, value] : snapshot) {
-                if (!StartsWith(key, kShardheartUsedPrefix)) {
+                if (!StartsWith(key, kHeartshardUsedPrefix)) {
                     continue;
                 }
 
-                const std::string suffix = key.substr(std::string(kShardheartUsedPrefix).size());
-                usedShardheartEntries.push_back("ShardUnlocked(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
+                const std::string suffix = key.substr(std::string(kHeartshardUsedPrefix).size());
+                usedHeartshardEntries.push_back("HeartshardUnlocked(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
             }
-            std::sort(usedShardheartEntries.begin(), usedShardheartEntries.end());
+            std::sort(usedHeartshardEntries.begin(), usedHeartshardEntries.end());
 
             auto& accountEntries = entries["account"];
-            accountEntries.insert(accountEntries.end(), usedShardheartEntries.begin(), usedShardheartEntries.end());
+            accountEntries.insert(accountEntries.end(), usedHeartshardEntries.begin(), usedHeartshardEntries.end());
         }
 
         for (const auto& spec : kCharacterDataKeySpecs) {

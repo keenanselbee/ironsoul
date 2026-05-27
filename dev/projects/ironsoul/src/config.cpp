@@ -93,10 +93,10 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "roadencounters", "RoadEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 	{ "wildernessencounters", "WildernessEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 
-	{ "shardheartmessage", "ShardheartMessage", "Shardhearts", 1, true, 0, true, 1, 0 },
-	{ "shardheartnotification", "ShardheartNotification", "Shardhearts", 1, true, 0, true, 1, 0 },
-	{ "shardheartinventorymode", "ShardheartInventoryMode", "Shardhearts", 1, true, 0, true, 3, 0 },
-	{ "shardhearttonalmaxtemper", "ShardheartTonalMaxTemper", "Shardhearts", 10, true, 1, true, 100, 0 },
+	{ "heartshardmessage", "HeartshardMessage", "Heartshards", 1, true, 0, true, 1, 0 },
+	{ "heartshardnotification", "HeartshardNotification", "Heartshards", 1, true, 0, true, 1, 0 },
+	{ "heartshardinventorymode", "HeartshardInventoryMode", "Heartshards", 1, true, 0, true, 3, 0 },
+	{ "heartshardtonalmaxtemper", "HeartshardTonalMaxTemper", "Heartshards", 10, true, 1, true, 100, 0 },
 
 	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "mirrordatabackup", "MirrorDataBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
@@ -118,7 +118,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "chimtransitionsfx", "CHIMTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "defiantrestoresfx", "DefiantRestoreSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "defiantrestorefeatsfx", "DefiantRestoreFeatSFX", "Sound", 1, true, 0, true, 1, 0 },
-	{ "shardheartabsorbsfx", "ShardheartAbsorbSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "heartshardabsorbsfx", "HeartshardAbsorbSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivecastsfx", "DragonSoulReviveCastSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivesfx", "DragonSoulReviveSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "featunlocksfx", "FeatUnlockSFX", "Sound", 1, true, 0, true, 1, 0 },
@@ -918,7 +918,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 		AppendConfigSummarySection(result, "DragonSoulRevive");
 		AppendConfigSummarySection(result, "Respawn");
 		AppendConfigSummarySection(result, "Draugnarok");
-		AppendConfigSummarySection(result, "Shardhearts");
+		AppendConfigSummarySection(result, "Heartshards");
 		AppendConfigSummarySection(result, "SKSEPlugin");
 		AppendConfigSummarySection(result, "Sound");
 		AppendConfigSummarySection(result, "Experimental");

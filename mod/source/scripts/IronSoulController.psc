@@ -124,7 +124,7 @@ IronSoulCleanup Property Cleanup Auto
 IronSoulRespawn Property Respawn Auto
 IronSoulDragonSoulRevive Property DragonSoulRevive Auto
 IronSoulTiers Property Tiers Auto
-IronSoulShardhearts Property Shardhearts Auto
+IronSoulHeartshards Property Heartshards Auto
 IronSoulEffects Property Effects Auto
 IronSoulGlobals Property Globals Auto
 
@@ -240,10 +240,10 @@ Bool Function LoadConfig()
         Debug.MessageBox("Iron Soul has been disabled because the IronSoulTiers quest component is not wired.")
         return False
     endif
-    if !Shardhearts
+    if !Heartshards
         SetModDisabled(True)
-        LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Shardhearts property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulShardhearts quest component is not wired.")
+        LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Heartshards property is not wired")
+        Debug.MessageBox("Iron Soul has been disabled because the IronSoulHeartshards quest component is not wired.")
         return False
     endif
     if !Effects
@@ -301,8 +301,8 @@ Function LogSystemSnapshot()
     else
         LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Tiers (IronSoulTiers)")
     endif
-    if !Shardhearts
-        LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Shardhearts (IronSoulShardhearts)")
+    if !Heartshards
+        LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Heartshards (IronSoulHeartshards)")
     endif
     if Effects
         Effects.LogSnapshot()
@@ -635,9 +635,9 @@ Function ResetTransientState()
         Tiers.ResetTransientState()
     endif
 
-    ; Shardheart use locks are transient.
-    if Shardhearts
-        Shardhearts.ResetTransientState()
+    ; Heartshard use locks are transient.
+    if Heartshards
+        Heartshards.ResetTransientState()
     endif
 
     ; Destructive console command confirmation is transient and expires quickly.
