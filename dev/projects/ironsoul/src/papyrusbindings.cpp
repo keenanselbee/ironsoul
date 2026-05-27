@@ -7,7 +7,7 @@
 #include "papyrus_data.h"
 #include "papyrus_dynamicassets.h"
 #include "papyrus_healthmonitor.h"
-#include "papyrus_heartstones.h"
+#include "papyrus_shardhearts.h"
 #include "papyrus_itemselect.h"
 #include "papyrus_journal.h"
 #include "papyrus_musicfade.h"
@@ -38,7 +38,7 @@ namespace IronSoul::Papyrus
             HealthMonitor::Register(a_vm);
             Cursor::Register(a_vm);
             Data::Register(a_vm);
-            Heartstones::Register(a_vm);
+            Shardhearts::Register(a_vm);
             return true;
         });
 

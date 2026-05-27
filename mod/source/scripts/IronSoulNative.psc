@@ -80,17 +80,17 @@ Scriptname IronSoulNative Hidden
 ; StartHealthMonitor()
 ; StopHealthMonitor()
 
-; --- Heartstone Enhancement ---
+; --- Shardheart Enhancement ---
 ; ------------------------------
-; HeartstoneBuildEnhanceSession()
-; HeartstoneGetEnhanceSessionOptionCount()
-; HeartstoneGetEnhanceSessionOptionLabel()
-; HeartstoneRefreshEnhanceSessionInventoryRows()
-; HeartstoneApplyEnhanceSessionOption()
-; HeartstoneApplyEnhanceSessionInventoryRow()
-; HeartstoneReleaseEnhanceSession()
-; HeartstoneGetEnhanceResult()
-; HeartstoneGetEnhanceResultText()
+; ShardheartBuildEnhanceSession()
+; ShardheartGetEnhanceSessionOptionCount()
+; ShardheartGetEnhanceSessionOptionLabel()
+; ShardheartRefreshEnhanceSessionInventoryRows()
+; ShardheartApplyEnhanceSessionOption()
+; ShardheartApplyEnhanceSessionInventoryRow()
+; ShardheartReleaseEnhanceSession()
+; ShardheartGetEnhanceResult()
+; ShardheartGetEnhanceResultText()
 
 ; --- DataStore Read Access ---
 ; -----------------------------
@@ -209,34 +209,34 @@ Function StartHealthMonitor() Global Native
 Function StopHealthMonitor() Global Native
 
 
-; --- HEARTSTONE ENHANCEMENT ---
+; --- SHARDHEART ENHANCEMENT ---
 ; ==============================
 
 ; Builds an Iron Soul-owned filtered enhancement session.
 ; effectId 1 is Tonal tempering. Returns 0 when no valid session can be built.
-Int Function HeartstoneBuildEnhanceSession(Int effectId, Int power, Int cap) Global Native
+Int Function ShardheartBuildEnhanceSession(Int effectId, Int power, Int cap) Global Native
 
 ; Returns the number of displayable options in a session.
-Int Function HeartstoneGetEnhanceSessionOptionCount(Int sessionToken) Global Native
+Int Function ShardheartGetEnhanceSessionOptionCount(Int sessionToken) Global Native
 
 ; Returns one display label for an option index.
-String Function HeartstoneGetEnhanceSessionOptionLabel(Int sessionToken, Int optionIndex) Global Native
+String Function ShardheartGetEnhanceSessionOptionLabel(Int sessionToken, Int optionIndex) Global Native
 
 ; Rebuilds the InventoryMenu row whitelist for a session and returns rowIndex_:_label entries.
-String Function HeartstoneRefreshEnhanceSessionInventoryRows(Int sessionToken) Global Native
+String Function ShardheartRefreshEnhanceSessionInventoryRows(Int sessionToken) Global Native
 
-; Applies and consumes one session option. False means HeartstoneGetEnhanceResult* explains the failure.
-Bool Function HeartstoneApplyEnhanceSessionOption(Int sessionToken, Int optionIndex) Global Native
+; Applies and consumes one session option. False means ShardheartGetEnhanceResult* explains the failure.
+Bool Function ShardheartApplyEnhanceSessionOption(Int sessionToken, Int optionIndex) Global Native
 
 ; Applies and consumes one visible InventoryMenu row from the latest row refresh.
-Bool Function HeartstoneApplyEnhanceSessionInventoryRow(Int sessionToken, Int rowIndex) Global Native
+Bool Function ShardheartApplyEnhanceSessionInventoryRow(Int sessionToken, Int rowIndex) Global Native
 
 ; Releases a session after cancel/failure. Safe to call for already-consumed tokens.
-Function HeartstoneReleaseEnhanceSession(Int sessionToken) Global Native
+Function ShardheartReleaseEnhanceSession(Int sessionToken) Global Native
 
-; Result code/text for the most recent Heartstone enhancement native operation.
-Int Function HeartstoneGetEnhanceResult() Global Native
-String Function HeartstoneGetEnhanceResultText() Global Native
+; Result code/text for the most recent Shardheart enhancement native operation.
+Int Function ShardheartGetEnhanceResult() Global Native
+String Function ShardheartGetEnhanceResultText() Global Native
 
 ; --- DATASTORE - READ ACCESS ---
 ; ===============================

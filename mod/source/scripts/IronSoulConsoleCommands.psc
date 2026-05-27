@@ -99,6 +99,9 @@ Scriptname IronSoulConsoleCommands Hidden
 ; ResolveKnownDataBase()
 ; KnownDataValueType()
 ; IsAllowedRawDataBase()
+; IsShardheartUsedDataKey()
+; IsAccountWideDataKey()
+; SyncAccountWideDataMirror()
 ; ResolveDataTargetKey()
 ; TierLabel()
 ; DifficultyLabel()
@@ -463,6 +466,9 @@ String Function NormalizeDataRawKey(String keyText, String guid) Global
         endif
         return keyText
     endif
+    if StartsWithText(keyText, "sh.u.")
+        return "SH.U." + StringUtil.Substring(keyText, 5)
+    endif
 
     if StartsWithText(keyText, "is_") && StringUtil.GetLength(keyText) == 7
         Int i = 3
@@ -531,6 +537,10 @@ String Function ResolveKnownDataBase(String keyText, String guid) Global
         return "IS_9646"
     elseif keyText == "DragonSoulsLastSeenLive" || keyText == "dragonsoulslastseenlive" || keyText == "IS_7440"
         return "IS_7440"
+    elseif keyText == "ShardheartsTotal" || keyText == "shardheartstotal" || keyText == "IS_2740"
+        return "IS_2740"
+    elseif IsShardheartUsedDataKey(keyText)
+        return keyText
     elseif keyText == "DragonSoulReviveLimitLastRealSecond" || keyText == "dragonsoulrevivelimitlastrealsecond" || keyText == "IS_8201"
         return "IS_8201"
     elseif keyText == "DragonSoulReviveLimitPlayedSeconds" || keyText == "dragonsoulrevivelimitplayedseconds" || keyText == "IS_8202"
@@ -577,10 +587,13 @@ Int Function KnownDataValueType(String keyBase) Global
         || keyBase == "IS_8597" || keyBase == "IS_9921" || keyBase == "IS_4797" || keyBase == "IS_4513" \
         || keyBase == "IS_1155" || keyBase == "IS_1156" || keyBase == "IS_2204" || keyBase == "IS_2719" \
         || keyBase == "IS_4520" || keyBase == "IS_4779" || keyBase == "IS_9646" || keyBase == "IS_7440" \
+        || keyBase == "IS_2740" \
         || keyBase == "IS_8201" || keyBase == "IS_8202" || keyBase == "IS_8203" || keyBase == "IS_8204" \
         || keyBase == "IS_8205" || keyBase == "IS_4911" || keyBase == "IS_9897" || keyBase == "IS_9808" \
         || keyBase == "IS_1627" || keyBase == "IS_1989" || keyBase == "IS_9131" || keyBase == "IS_9136" \
         || keyBase == "IS_9137" || keyBase == "IS_5341" || keyBase == "IS_2270" || keyBase == "IS_1927"
+        return 1
+    elseif IsShardheartUsedDataKey(keyBase)
         return 1
     endif
 
@@ -597,6 +610,46 @@ Bool Function IsAllowedRawDataBase(String keyBase) Global
     return True
 EndFunction
 
+Bool Function IsShardheartUsedDataKey(String keyBase) Global
+    if !StartsWithText(keyBase, "SH.U.")
+        return False
+    endif
+
+    String suffix = StringUtil.Substring(keyBase, 5)
+    Int dot = StringUtil.Find(suffix, ".")
+    if dot <= 0
+        return False
+    endif
+
+    String typeText = StringUtil.Substring(suffix, 0, dot)
+    String tierText = StringUtil.Substring(suffix, dot + 1)
+    if !IsStrictIntText(typeText) || !IsStrictIntText(tierText)
+        return False
+    endif
+    if (typeText as Int) <= 0
+        return False
+    endif
+    if (tierText as Int) < 0
+        return False
+    endif
+    return True
+EndFunction
+
+Bool Function IsAccountWideDataKey(String keyBase) Global
+    return keyBase == "IS_2740" || IsShardheartUsedDataKey(keyBase)
+EndFunction
+
+Function SyncAccountWideDataMirror(Actor playerRef, String keyBase) Global
+    if keyBase != "IS_2740"
+        return
+    endif
+
+    IronSoulController controller = ResolveControllerQuest()
+    if controller && controller.Globals
+        controller.Globals.SyncShardhearts(playerRef)
+    endif
+EndFunction
+
 String Function ResolveDataTargetKey(String keyBase, String guid) Global
     if keyBase == "G.U.CURRENT"
         return "G.U." + guid
@@ -604,6 +657,8 @@ String Function ResolveDataTargetKey(String keyBase, String guid) Global
         return "G.U.INDEX"
     elseif keyBase == "CharacterGuid"
         return ""
+    elseif IsAccountWideDataKey(keyBase)
+        return keyBase
     endif
 
     return MakeScopedKey(keyBase, guid)
@@ -922,6 +977,9 @@ String Function GetIronSoulState() Global
     if !controller.Effects
         return "Error: IronSoulEffects is not wired."
     endif
+    if !controller.Shardhearts
+        return "Error: IronSoulShardhearts is not wired."
+    endif
 
     Int tierValue = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
     Int difficultyValue = NormalizeIronSoulPresetOrdinal(IronSoulNative.GetIronSoulPresetOrdinal())
@@ -929,6 +987,7 @@ String Function GetIronSoulState() Global
     Int deathValue = ClampDeaths(controller.Death.GetCurrentDeathCount(playerRef, guid))
     Int totalDeathValue = ClampDeaths(controller.Death.GetTotalDeaths(playerRef, guid))
     Int soulsTotal = ClampDeaths(controller.Tiers.GetDragonSoulsTotal(playerRef, guid))
+    Int shardheartsTotal = ClampDeaths(controller.Shardhearts.GetShardheartsTotal(playerRef))
     String soulBonusState = NormalizeStateLabel(controller.Effects.GetAppliedSoulBonusSpellCompactLabel(playerRef))
     String soulFatigueState = NormalizeStateLabel(controller.Effects.GetAppliedSoulFatigueSpellCompactLabel(playerRef))
     return "GUID=" + guid \
@@ -937,6 +996,7 @@ String Function GetIronSoulState() Global
         + " | Deaths=" + deathValue \
         + " | TotalDeaths=" + totalDeathValue \
         + " | TotalDragonSouls=" + soulsTotal \
+        + " | TotalShardhearts=" + shardheartsTotal \
         + " | SoulBonus=" + soulBonusState \
         + " | SoulFatigue=" + soulFatigueState
 EndFunction
@@ -1283,7 +1343,9 @@ String Function SetData(String k, String value) Global
 
         Int intValue = value as Int
         Bool intWriteOk = False
-        if StartsWithText(keyBase, "IS_")
+        if IsAccountWideDataKey(keyBase)
+            intWriteOk = IronSoulNative.DataSetIntChecked(targetKey, intValue)
+        elseif StartsWithText(keyBase, "IS_")
             intWriteOk = WriteScopedIntChecked(playerRef, keyBase, intValue)
         else
             intWriteOk = IronSoulNative.DataSetIntChecked(targetKey, intValue)
@@ -1291,6 +1353,7 @@ String Function SetData(String k, String value) Global
         if !intWriteOk
             return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
         endif
+        SyncAccountWideDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
         return "Set " + targetKey + "=" + intValue + "."
     elseif valueType == 2
@@ -1304,7 +1367,9 @@ String Function SetData(String k, String value) Global
     if IsStrictIntText(value)
         Int inferredIntValue = value as Int
         Bool inferredIntWriteOk = False
-        if StartsWithText(keyBase, "IS_")
+        if IsAccountWideDataKey(keyBase)
+            inferredIntWriteOk = IronSoulNative.DataSetIntChecked(targetKey, inferredIntValue)
+        elseif StartsWithText(keyBase, "IS_")
             inferredIntWriteOk = WriteScopedIntChecked(playerRef, keyBase, inferredIntValue)
         else
             inferredIntWriteOk = IronSoulNative.DataSetIntChecked(targetKey, inferredIntValue)
@@ -1312,6 +1377,7 @@ String Function SetData(String k, String value) Global
         if !inferredIntWriteOk
             return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
         endif
+        SyncAccountWideDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
         return "Set " + targetKey + "=" + inferredIntValue + "."
     endif

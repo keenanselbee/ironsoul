@@ -8,7 +8,8 @@ Scriptname IronSoulGlobals extends Quest
 ; change them. These globals are not authoritative game state.
 ;
 ; Most mirrors expose direct values such as current deaths, soul tier, luck, and
-; effective max lives. Status mirrors use small integer states:
+; effective max lives. Shardheart total is account-wide. Status mirrors use small
+; integer states:
 ; IronSoul_RespawnStatus: 0 unavailable, 1 runtime available.
 ; IronSoul_DraugnarokStatus: 0 inactive, 1 dormant, 2 active or forced.
 ; IronSoul_ModDisabled: 0 enabled, 1 disabled by Iron Soul safety checks or uninstall.
@@ -16,16 +17,18 @@ Scriptname IronSoulGlobals extends Quest
 ;
 ; Developer lookup snippets. Game.GetFormFromFile expects plugin-local FormIDs,
 ; so use these IDs without the current load-order byte:
-; Game.GetFormFromFile(0x0000026E, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DeathCount
-; Game.GetFormFromFile(0x0000026F, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_TotalDeathCount
-; Game.GetFormFromFile(0x00000270, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulTier
-; Game.GetFormFromFile(0x00000271, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_EffectiveMaxLives
-; Game.GetFormFromFile(0x00000272, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_Luck
-; Game.GetFormFromFile(0x00000273, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_LuckMax
-; Game.GetFormFromFile(0x00000274, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DifficultyPreset
-; Game.GetFormFromFile(0x00000275, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_RespawnStatus
+; Game.GetFormFromFile(0x0000026E, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_ModDisabled
+; Game.GetFormFromFile(0x0000026F, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DifficultyPreset
+; Game.GetFormFromFile(0x00000270, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_EffectiveMaxLives
+; Game.GetFormFromFile(0x00000271, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DeathCount
+; Game.GetFormFromFile(0x00000272, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DeathCountTotal
+; Game.GetFormFromFile(0x00000273, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulTier
+; Game.GetFormFromFile(0x00000274, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_ShardheartsTotal
+; Game.GetFormFromFile(0x00000275, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DragonSoulTotal
 ; Game.GetFormFromFile(0x00000276, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DraugnarokStatus
-; Game.GetFormFromFile(0x00000B12, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_ModDisabled
+; Game.GetFormFromFile(0x00000B12, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_RespawnStatus
+; Game.GetFormFromFile(0x00000C49, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_LuckMax
+; Game.GetFormFromFile(0x00000C4A, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_Luck
 
 ; =========================
 ; --- Table of Contents ---
@@ -40,8 +43,10 @@ Scriptname IronSoulGlobals extends Quest
 ; SyncAll()
 ; SyncDeath()
 ; SyncTier()
+; SyncDragonSouls()
 ; SyncLuck()
 ; SyncLuckValues()
+; SyncShardhearts()
 ; SyncDifficultyPreset()
 ; SyncIntegrationStatus()
 ; SyncModState()
@@ -59,12 +64,14 @@ Scriptname IronSoulGlobals extends Quest
 IronSoulController Property Controller Auto
 
 GlobalVariable Property IronSoul_DeathCount Auto
-GlobalVariable Property IronSoul_TotalDeathCount Auto
+GlobalVariable Property IronSoul_DeathCountTotal Auto
 GlobalVariable Property IronSoul_SoulTier Auto
 GlobalVariable Property IronSoul_EffectiveMaxLives Auto
 GlobalVariable Property IronSoul_Luck Auto
 GlobalVariable Property IronSoul_LuckMax Auto
 GlobalVariable Property IronSoul_DifficultyPreset Auto
+GlobalVariable Property IronSoul_DragonSoulTotal Auto
+GlobalVariable Property IronSoul_ShardheartsTotal Auto
 GlobalVariable Property IronSoul_RespawnStatus Auto
 GlobalVariable Property IronSoul_DraugnarokStatus Auto
 GlobalVariable Property IronSoul_ModDisabled Auto
@@ -93,7 +100,9 @@ EndFunction
 Function SyncAll(Actor player, String guid)
     SyncDeath(player, guid)
     SyncTier(player, guid)
+    SyncDragonSouls(player, guid)
     SyncLuck(player, guid)
+    SyncShardhearts(player)
     SyncDifficultyPreset()
     SyncIntegrationStatus(player)
     SyncModState()
@@ -102,13 +111,13 @@ EndFunction
 Function SyncDeath(Actor player, String guid)
     if !HasCoreRuntime() || !player || guid == ""
         SetGlobalInt(IronSoul_DeathCount, 0)
-        SetGlobalInt(IronSoul_TotalDeathCount, 0)
+        SetGlobalInt(IronSoul_DeathCountTotal, 0)
         return
     endif
 
     if Controller.Death
         SetGlobalInt(IronSoul_DeathCount, Controller.Death.GetCurrentDeathCount(player, guid))
-        SetGlobalInt(IronSoul_TotalDeathCount, Controller.Death.GetTotalDeaths(player, guid))
+        SetGlobalInt(IronSoul_DeathCountTotal, Controller.Death.GetTotalDeaths(player, guid))
     endif
 EndFunction
 
@@ -122,6 +131,17 @@ Function SyncTier(Actor player, String guid)
     if Controller.Tiers
         SetGlobalInt(IronSoul_SoulTier, Controller.Tiers.GetCurrentTier(player, guid))
         SetGlobalInt(IronSoul_EffectiveMaxLives, Controller.Tiers.GetGlobalEffectiveMaxLives(player, guid))
+    endif
+EndFunction
+
+Function SyncDragonSouls(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        SetGlobalInt(IronSoul_DragonSoulTotal, 0)
+        return
+    endif
+
+    if Controller.Tiers
+        SetGlobalInt(IronSoul_DragonSoulTotal, Controller.Tiers.GetDragonSoulsTotal(player, guid))
     endif
 EndFunction
 
@@ -139,6 +159,15 @@ EndFunction
 Function SyncLuckValues(Int luckValue, Int maxLuckValue)
     SetGlobalInt(IronSoul_Luck, luckValue)
     SetGlobalInt(IronSoul_LuckMax, maxLuckValue)
+EndFunction
+
+Function SyncShardhearts(Actor player)
+    if !Controller || !Controller.Shardhearts
+        SetGlobalInt(IronSoul_ShardheartsTotal, 0)
+        return
+    endif
+
+    SetGlobalInt(IronSoul_ShardheartsTotal, Controller.Shardhearts.GetShardheartsTotal(player))
 EndFunction
 
 Function SyncDifficultyPreset()
@@ -169,11 +198,13 @@ EndFunction
 
 Function ResetGlobals()
     SetGlobalInt(IronSoul_DeathCount, 0)
-    SetGlobalInt(IronSoul_TotalDeathCount, 0)
+    SetGlobalInt(IronSoul_DeathCountTotal, 0)
     SetGlobalInt(IronSoul_SoulTier, 0)
     SetGlobalInt(IronSoul_EffectiveMaxLives, 0)
+    SetGlobalInt(IronSoul_DragonSoulTotal, 0)
     SetGlobalInt(IronSoul_Luck, 0)
     SetGlobalInt(IronSoul_LuckMax, 0)
+    SetGlobalInt(IronSoul_ShardheartsTotal, 0)
     SetGlobalInt(IronSoul_DifficultyPreset, 0)
     SetGlobalInt(IronSoul_RespawnStatus, 0)
     SetGlobalInt(IronSoul_DraugnarokStatus, 0)

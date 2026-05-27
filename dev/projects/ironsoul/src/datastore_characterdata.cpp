@@ -37,6 +37,7 @@ namespace IronSoul
 
     static constexpr const char* kCharacterDataSections[] = {
         "identity",
+        "account",
         "core",
         "luck",
         "ui",
@@ -98,6 +99,9 @@ namespace IronSoul
         { "journal", "IS_1927", "JournalCHIMLogged", CharacterDataValueFormat::Bool }
     };
 
+    static constexpr const char* kShardheartsTotalKey = "IS_2740";
+    static constexpr const char* kShardheartUsedPrefix = "SH.U.";
+
     // --- Formatting Helpers ---
     // ==========================
 
@@ -139,6 +143,9 @@ namespace IronSoul
         if (section == "identity") {
             return "Identity";
         }
+        if (section == "account") {
+            return "Account";
+        }
         if (section == "core") {
             return "Core";
         }
@@ -178,6 +185,11 @@ namespace IronSoul
     {
         return value.size() >= suffix.size() &&
             value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+    }
+
+    static bool StartsWith(const std::string& value, const std::string& prefix)
+    {
+        return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
     }
 
     static std::string EscapeCharacterDataString(const std::string& value)
@@ -414,7 +426,7 @@ namespace IronSoul
 
         const std::string sectionLower = ToLowerAscii(TrimAscii(section));
         if (!IsCharacterDataSection(sectionLower)) {
-            return "Error: unknown CharacterData section '" + section + "'. Expected identity, core, luck, ui, soul, dsr, bosses, defiant, or journal.";
+            return "Error: unknown CharacterData section '" + section + "'. Expected identity, account, core, luck, ui, soul, dsr, bosses, defiant, or journal.";
         }
 
         std::unordered_map<std::string, Value> snapshot;
@@ -458,6 +470,27 @@ namespace IronSoul
             if (indexIt != snapshot.end()) {
                 appendValue("identity", "GuidIndex", indexIt->second, CharacterDataValueFormat::Plain);
             }
+        }
+
+        if (wantsSection("account")) {
+            const auto shardheartsIt = snapshot.find(kShardheartsTotalKey);
+            if (shardheartsIt != snapshot.end()) {
+                appendValue("account", "ShardheartsTotal", shardheartsIt->second, CharacterDataValueFormat::Plain);
+            }
+
+            std::vector<std::string> usedShardheartEntries;
+            for (const auto& [key, value] : snapshot) {
+                if (!StartsWith(key, kShardheartUsedPrefix)) {
+                    continue;
+                }
+
+                const std::string suffix = key.substr(std::string(kShardheartUsedPrefix).size());
+                usedShardheartEntries.push_back("ShardheartUsed(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
+            }
+            std::sort(usedShardheartEntries.begin(), usedShardheartEntries.end());
+
+            auto& accountEntries = entries["account"];
+            accountEntries.insert(accountEntries.end(), usedShardheartEntries.begin(), usedShardheartEntries.end());
         }
 
         for (const auto& spec : kCharacterDataKeySpecs) {

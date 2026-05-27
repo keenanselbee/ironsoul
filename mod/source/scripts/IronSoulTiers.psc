@@ -132,7 +132,7 @@ Sound Property SFXCHIMTransition Auto
 Sound Property SFXDefiantRestore Auto
 Sound Property SFXDefiantRestoreFeat Auto
 Sound Property SFXDefiantTransition Auto
-Sound Property SFXHeartstoneAbsorb Auto
+Sound Property SFXShardheartAbsorb Auto
 Sound Property SFXFeatDefiant Auto
 Sound Property SFXFeatSilver Auto
 Sound Property SFXFeatGold Auto
@@ -364,6 +364,9 @@ Function Heartbeat(Actor player, String guid)
 
                 j += 1
             endwhile
+            if Controller.Globals
+                Controller.Globals.SyncDragonSouls(player, guid)
+            endif
         endif
 
         RebaselineDragonSoulsLastSeen(player, guid, curSouls)
@@ -457,6 +460,7 @@ EndFunction
 Function SyncTierGlobalMirrors(Actor player, String guid)
     if Controller.Globals
         Controller.Globals.SyncTier(player, guid)
+        Controller.Globals.SyncDragonSouls(player, guid)
         Controller.Globals.SyncLuck(player, guid)
     endif
 EndFunction
@@ -485,6 +489,9 @@ String Function SetDragonSoulsTotalFromConsole(Actor player, String guid, Int to
     Controller.Persistence.SetGuidInt(player, guid, dragonSoulsTotal, clampedTotal, True)
     Controller.Persistence.SetGuidInt(player, guid, dragonSoulsLastSeen, liveSouls, True)
     HandleProgressionRelevantChange(player, guid)
+    if Controller.Globals
+        Controller.Globals.SyncDragonSouls(player, guid)
+    endif
     IronSoulNative.DataFlushIfDirty()
 
     return "SoulsTotal set to " + clampedTotal + "."
@@ -1383,8 +1390,8 @@ Bool Function CanPlayTierSFX(Sound sfx)
         return Controller.Config.IsDefiantRestoreSFXEnabled()
     elseif sfx == SFXDefiantRestoreFeat
         return Controller.Config.IsDefiantRestoreFeatSFXEnabled()
-    elseif sfx == SFXHeartstoneAbsorb
-        return Controller.Config.IsHeartstoneAbsorbSFXEnabled()
+    elseif sfx == SFXShardheartAbsorb
+        return Controller.Config.IsShardheartAbsorbSFXEnabled()
     elseif sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDevour || sfx == SFXFeatDefiant
         return Controller.Config.IsFeatUnlockSFXEnabled()
     endif

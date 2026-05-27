@@ -16,7 +16,7 @@ Scriptname IronSoulConfig extends Quest
 ; DragonSoulReviveCastSFX = 1
 ; DragonSoulReviveSFX = 1
 ; FeatUnlockSFX = 1
-; HeartstoneAbsorbSFX = 1
+; ShardheartAbsorbSFX = 1
 ; IronIntroSFX = 1
 ; LuckOutcomeSFX = 1
 ; LuckRollSFX = 1
@@ -57,10 +57,10 @@ Scriptname IronSoulConfig extends Quest
 ; IsCharacterSheetCompatibilityEnabled()
 ; IsCosaveRecoveryBackupEnabled()
 ; IsIronSoulIntroEnabled()
-; IsHeartstoneMessageEnabled()
-; IsHeartstoneNotificationEnabled()
-; GetHeartstoneInventoryMode()
-; GetHeartstoneTonalMaxTemper()
+; IsShardheartMessageEnabled()
+; IsShardheartNotificationEnabled()
+; GetShardheartInventoryMode()
+; GetShardheartTonalMaxTemper()
 ; IsSFXEnabled()
 ; IsMusicFadeEnabled()
 ; IsIronIntroSFXEnabled()
@@ -71,7 +71,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsCHIMTransitionSFXEnabled()
 ; IsDefiantRestoreSFXEnabled()
 ; IsDefiantRestoreFeatSFXEnabled()
-; IsHeartstoneAbsorbSFXEnabled()
+; IsShardheartAbsorbSFXEnabled()
 ; IsDragonSoulReviveCastSFXEnabled()
 ; IsDragonSoulReviveSFXEnabled()
 ; IsFeatUnlockSFXEnabled()
@@ -139,10 +139,10 @@ Int _luckRollMessageMode = 1
 Bool _enableCharacterSheetCompatibility = False
 Bool _cosaveRecoveryBackupEnabled = True
 Bool _ironSoulIntroEnabled = True
-Bool _heartstoneMessageEnabled = True
-Bool _heartstoneNotificationEnabled = True
-Int _heartstoneInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
-Int _heartstoneTonalMaxTemper = 10
+Bool _shardheartMessageEnabled = True
+Bool _shardheartNotificationEnabled = True
+Int _shardheartInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
+Int _shardheartTonalMaxTemper = 10
 Bool _sfxEnabled = True
 Bool _musicFadeEnabled = True
 Bool _ironIntroSFXEnabled = True
@@ -153,7 +153,7 @@ Bool _defiantTransitionSFXEnabled = True
 Bool _chimTransitionSFXEnabled = True
 Bool _defiantRestoreSFXEnabled = True
 Bool _defiantRestoreFeatSFXEnabled = True
-Bool _heartstoneAbsorbSFXEnabled = True
+Bool _shardheartAbsorbSFXEnabled = True
 Bool _dragonSoulReviveCastSFXEnabled = True
 Bool _dragonSoulReviveSFXEnabled = True
 Bool _featUnlockSFXEnabled = True
@@ -188,10 +188,10 @@ Function ResetDefaults()
     _dragonSoulReviveMessageEnabled = True
     _dragonSoulIncreaseNotificationEnabled = True
     _ironSoulIntroEnabled = True
-    _heartstoneMessageEnabled = True
-    _heartstoneNotificationEnabled = True
-    _heartstoneInventoryMode = 1
-    _heartstoneTonalMaxTemper = 10
+    _shardheartMessageEnabled = True
+    _shardheartNotificationEnabled = True
+    _shardheartInventoryMode = 1
+    _shardheartTonalMaxTemper = 10
 
     ; Gameplay / integration
     _respawnEnabled = True
@@ -230,7 +230,7 @@ Function ResetDefaults()
     _chimTransitionSFXEnabled = True
     _defiantRestoreSFXEnabled = True
     _defiantRestoreFeatSFXEnabled = True
-    _heartstoneAbsorbSFXEnabled = True
+    _shardheartAbsorbSFXEnabled = True
     _dragonSoulReviveCastSFXEnabled = True
     _dragonSoulReviveSFXEnabled = True
     _featUnlockSFXEnabled = True
@@ -274,10 +274,10 @@ Function LoadFromIni()
     _respawnEnabled = ReadFeatureEnabled("Respawn", True)
     _respawnMessageEnabled = ReadFeatureEnabled("RespawnMessage", True)
     _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
-    _heartstoneMessageEnabled = ReadFeatureEnabled("HeartstoneMessage", True)
-    _heartstoneNotificationEnabled = ReadFeatureEnabled("HeartstoneNotification", True)
-    _heartstoneInventoryMode = ReadIntRange("HeartstoneInventoryMode", _heartstoneInventoryMode, 0, 3)
-    _heartstoneTonalMaxTemper = ReadIntRange("HeartstoneTonalMaxTemper", _heartstoneTonalMaxTemper, 1, 100)
+    _shardheartMessageEnabled = ReadFeatureEnabled("ShardheartMessage", True)
+    _shardheartNotificationEnabled = ReadFeatureEnabled("ShardheartNotification", True)
+    _shardheartInventoryMode = ReadIntRange("ShardheartInventoryMode", _shardheartInventoryMode, 0, 3)
+    _shardheartTonalMaxTemper = ReadIntRange("ShardheartTonalMaxTemper", _shardheartTonalMaxTemper, 1, 100)
 
     _soulBonusEnabled = ReadFeatureEnabled("SoulBonus", True)
     _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournal", True)
@@ -308,7 +308,7 @@ Function LoadFromIni()
     _chimTransitionSFXEnabled = ReadFeatureEnabled("CHIMTransitionSFX", True)
     _defiantRestoreSFXEnabled = ReadFeatureEnabled("DefiantRestoreSFX", True)
     _defiantRestoreFeatSFXEnabled = ReadFeatureEnabled("DefiantRestoreFeatSFX", True)
-    _heartstoneAbsorbSFXEnabled = ReadFeatureEnabled("HeartstoneAbsorbSFX", True)
+    _shardheartAbsorbSFXEnabled = ReadFeatureEnabled("ShardheartAbsorbSFX", True)
     _dragonSoulReviveCastSFXEnabled = ReadFeatureEnabled("DragonSoulReviveCastSFX", True)
     _dragonSoulReviveSFXEnabled = ReadFeatureEnabled("DragonSoulReviveSFX", True)
     _featUnlockSFXEnabled = ReadFeatureEnabled("FeatUnlockSFX", True)
@@ -402,20 +402,20 @@ Bool Function IsIronSoulIntroEnabled()
     return _ironSoulIntroEnabled
 EndFunction
 
-Bool Function IsHeartstoneMessageEnabled()
-    return _heartstoneMessageEnabled
+Bool Function IsShardheartMessageEnabled()
+    return _shardheartMessageEnabled
 EndFunction
 
-Bool Function IsHeartstoneNotificationEnabled()
-    return _heartstoneNotificationEnabled
+Bool Function IsShardheartNotificationEnabled()
+    return _shardheartNotificationEnabled
 EndFunction
 
-Int Function GetHeartstoneInventoryMode()
-    return _heartstoneInventoryMode
+Int Function GetShardheartInventoryMode()
+    return _shardheartInventoryMode
 EndFunction
 
-Int Function GetHeartstoneTonalMaxTemper()
-    return _heartstoneTonalMaxTemper
+Int Function GetShardheartTonalMaxTemper()
+    return _shardheartTonalMaxTemper
 EndFunction
 
 Bool Function IsSFXEnabled()
@@ -458,8 +458,8 @@ Bool Function IsDefiantRestoreFeatSFXEnabled()
     return _defiantRestoreFeatSFXEnabled
 EndFunction
 
-Bool Function IsHeartstoneAbsorbSFXEnabled()
-    return _heartstoneAbsorbSFXEnabled
+Bool Function IsShardheartAbsorbSFXEnabled()
+    return _shardheartAbsorbSFXEnabled
 EndFunction
 
 Bool Function IsDragonSoulReviveCastSFXEnabled()
@@ -636,10 +636,10 @@ Function LogSnapshot()
         + " Preset=" + _ironSoulPresetOrdinal \
         + " Permadeath=" + _permadeathEnabled \
         + " UninstallMode=" + _uninstallMode \
-        + " HeartstoneMessage=" + _heartstoneMessageEnabled \
-        + " HeartstoneNotification=" + _heartstoneNotificationEnabled \
-        + " HeartstoneInventoryMode=" + _heartstoneInventoryMode \
-        + " HeartstoneTonalMaxTemper=" + _heartstoneTonalMaxTemper)
+        + " ShardheartMessage=" + _shardheartMessageEnabled \
+        + " ShardheartNotification=" + _shardheartNotificationEnabled \
+        + " ShardheartInventoryMode=" + _shardheartInventoryMode \
+        + " ShardheartTonalMaxTemper=" + _shardheartTonalMaxTemper)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Systems: LuckLevel=" + _luckLevel \
         + " SoulBonus=" + _soulBonusEnabled \
@@ -660,7 +660,7 @@ Function LogSnapshot()
         + " CHIMTransitionSFX=" + _chimTransitionSFXEnabled \
         + " DefiantRestoreSFX=" + _defiantRestoreSFXEnabled \
         + " DefiantRestoreFeatSFX=" + _defiantRestoreFeatSFXEnabled \
-        + " HeartstoneAbsorbSFX=" + _heartstoneAbsorbSFXEnabled \
+        + " ShardheartAbsorbSFX=" + _shardheartAbsorbSFXEnabled \
         + " DragonSoulReviveCastSFX=" + _dragonSoulReviveCastSFXEnabled \
         + " DragonSoulReviveSFX=" + _dragonSoulReviveSFXEnabled \
         + " FeatUnlockSFX=" + _featUnlockSFXEnabled \
