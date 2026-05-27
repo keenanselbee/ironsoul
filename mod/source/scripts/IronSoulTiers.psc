@@ -1130,7 +1130,7 @@ Function MaybePlayLuckImprovedAfterTierUnlock(Actor player)
     endif
 
     UI.CloseCustomMenu()
-    UI.OpenCustomMenu("luckimproved", 0)
+    UI.OpenCustomMenu("luck_improved", 0)
     Controller.SFX.Play(Controller.SFX.SFXLuckSuccess, player)
     Utility.WaitMenuMode(3.0)
     UI.CloseCustomMenu()
@@ -1244,7 +1244,7 @@ String Function ResolveDefiantRestoreEndingMenu(Actor player, String guid, Int t
     if restoredWithFeat
         return ResolveSoulFeatUnlockMenu(player, guid, targetTier, consumeState)
     endif
-    return IronSoulUI.TierMenuPrefix(targetTier) + "defiantrestore"
+    return IronSoulUI.TierMenuPrefix(targetTier) + "_defiant_restore"
 EndFunction
 
 
@@ -1419,7 +1419,7 @@ Int Function PlayTierSFXInstance(Sound sfx, Actor source)
 EndFunction
 
 Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True, String firstOpeningMenuOverride = "")
-    String m0 = "0defianttransitionflash"
+    String m0 = "0_defiant_transition_flash"
     String permadeathMenu = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
     String m1First = firstOpeningMenuOverride
     if m1First == ""
@@ -1427,7 +1427,7 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
     endif
     String m1Second = m1First
     String m2 = IronSoulUI.ResolveCHIMTransitionMenu(soulTierTD)
-    String m3 = "9chimintro"
+    String m3 = "9_chim_intro"
 
     if m1First == "" || m1Second == "" || m2 == "" || m3 == ""
         LogTiers(IronSoulConfig.LOG_ERR(), "PlayCHIMTransitionMessageSequenceSWF: One or more menus resolved empty")
@@ -1479,7 +1479,7 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
 EndFunction
 
 Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True)
-    String m0 = "0defianttransitionflash"
+    String m0 = "0_defiant_transition_flash"
     String m1 = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
     String m2 = IronSoulUI.ResolveDefiantTransitionMenu(soulTierTD)
     String m3 = IronSoulUI.ResolveDefiantIntroMenu(Controller.Config.IsSoulBonusEnabled(), Controller.Config.IsSoulFatigueEnabled())
@@ -1534,9 +1534,9 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
 EndFunction
 
 Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, Bool restoredWithFeat = False, Bool restoreMusicAfterIntro = True)
-    String m0 = "0defianttransitionflash"
-    String m1 = "0defiantreset"
-    String m2 = "0defiantresetcracks"
+    String m0 = "0_defiant_transition_flash"
+    String m1 = "0_defiant_reset"
+    String m2 = "0_defiant_reset_cracks"
     String m3 = endingMenu
 
     if m3 == ""

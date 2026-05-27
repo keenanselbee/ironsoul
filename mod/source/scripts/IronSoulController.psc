@@ -560,10 +560,10 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         if !cfg.IsPermadeathEnabled() && soulTier != tiersQ.TIER_CHIM
             tiersQ.PromoteToCHIMTier(player, guid)
             ; Load-time CHIM promotion should remain in-session; only death-driven CHIM transitions quit.
-            tiersQ.PlayCHIMTransitionMessageSequenceSWF(soulTier, True, "0defiantpermadeathsoulfatigue")
+            tiersQ.PlayCHIMTransitionMessageSequenceSWF(soulTier, True, "0_defiant_permadeath_soulfatigue")
             soulTier = tiersQ.TIER_CHIM
         else
-            uiComponent.OpenTimedMessageSWF_KeyDismiss_SFX("0defiantpermadeathsoulfatigue", 55.0, 27.0, sfxQ.SFXPermadeath, player, False)
+            uiComponent.OpenTimedMessageSWF_KeyDismiss_SFX("0_defiant_permadeath_soulfatigue", 55.0, 27.0, sfxQ.SFXPermadeath, player, False)
             FinalizeAndQuitMainMenu()
             return
         endif

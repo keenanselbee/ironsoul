@@ -23,21 +23,21 @@ namespace
     {
         switch (a_tierId) {
         case 0:
-            return L"0-defiant";
+            return L"0_defiant";
         case 1:
-            return L"1-iron";
+            return L"1_iron";
         case 2:
-            return L"2-silver";
+            return L"2_silver";
         case 3:
-            return L"3-gold";
+            return L"3_gold";
         case 4:
-            return L"4-ebon";
+            return L"4_ebon";
         case 5:
-            return L"5-platinum";
+            return L"5_platinum";
         case 6:
-            return L"6-devour";
+            return L"6_devour";
         case 9:
-            return L"9-chim";
+            return L"9_chim";
         default:
             return std::nullopt;
         }
@@ -59,7 +59,7 @@ namespace
             return std::nullopt;
         }
 
-        std::wstring file = L"splash-";
+        std::wstring file = L"splash_";
         auto preset = NormalizeDynamicSplashPreset(a_presetId);
         if (a_tierId == 9 && preset > 1) {
             preset = 0;
@@ -75,21 +75,21 @@ namespace
     {
         switch (a_tierId) {
         case 0:
-            return L"lvlWidget-0-defiant.swf";
+            return L"lvlWidget_0_defiant.swf";
         case 1:
-            return L"lvlWidget-1-iron.swf";
+            return L"lvlWidget_1_iron.swf";
         case 2:
-            return L"lvlWidget-2-silver.swf";
+            return L"lvlWidget_2_silver.swf";
         case 3:
-            return L"lvlWidget-3-gold.swf";
+            return L"lvlWidget_3_gold.swf";
         case 4:
-            return L"lvlWidget-4-ebon.swf";
+            return L"lvlWidget_4_ebon.swf";
         case 5:
-            return L"lvlWidget-5-platinum.swf";
+            return L"lvlWidget_5_platinum.swf";
         case 6:
-            return L"lvlWidget-6-devour.swf";
+            return L"lvlWidget_6_devour.swf";
         case 9:
-            return L"lvlWidget-9-chim.swf";
+            return L"lvlWidget_9_chim.swf";
         default:
             return std::nullopt;
         }
@@ -491,7 +491,7 @@ namespace
         try {
             namespace fs = std::filesystem;
 
-            std::wstring file = L"splash-01-iron.png";
+            std::wstring file = L"splash_01_iron.png";
             const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicSplash", 1));
             if (mode == 1) {
                 const auto resolved = ResolveDynamicSplashFile(a_tierId, a_presetId);
@@ -550,7 +550,7 @@ namespace
             namespace fs = std::filesystem;
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
 
-            const wchar_t* file = L"lvlWidget-1-iron.swf";
+            const wchar_t* file = L"lvlWidget_1_iron.swf";
             const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicLevelWidget", 1));
             if (mode == 1) {
                 if (!DynamicLevelWidgetAssetsPresent()) {

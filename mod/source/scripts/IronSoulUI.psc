@@ -417,7 +417,7 @@ Bool Function ShowIronIntro(Actor player, String guid)
         return False
     endif
 
-    OpenTimedMessageSWF_KeyDismissIronIntro(SwfNoBonus("1ironintro", Controller.Config.IsSoulBonusEnabled()), 30.0, 14.5, Controller.SFX.SFXIronIntro, player)
+    OpenTimedMessageSWF_KeyDismissIronIntro(SwfNoBonus("1_iron_intro", Controller.Config.IsSoulBonusEnabled()), 30.0, 14.5, Controller.SFX.SFXIronIntro, player)
     Controller.Persistence.MarkIronIntroShown(player, guid)
     Utility.Wait(1.0)
     return True
@@ -508,72 +508,72 @@ EndEvent
 
 String Function TierMenuPrefix(Int soulTier) Global
     if soulTier == 0
-        return "0defiant"
+        return "0_defiant"
     elseif soulTier == 1
-        return "1iron"
+        return "1_iron"
     elseif soulTier == 2
-        return "2silver"
+        return "2_silver"
     elseif soulTier == 3
-        return "3gold"
+        return "3_gold"
     elseif soulTier == 4
-        return "4ebon"
+        return "4_ebon"
     elseif soulTier == 5
-        return "5platinum"
+        return "5_platinum"
     elseif soulTier == 6
-        return "6devour"
+        return "6_devour"
     elseif soulTier == 9
-        return "9chim"
+        return "9_chim"
     endif
-    return "1iron"
+    return "1_iron"
 EndFunction
 
 String Function SwfNoBonus(String menuName, Bool soulBonusEnabled) Global
     if menuName == ""
         return ""
     endif
-    if StringUtil.Find(menuName, "dragonsoulrevive") != -1
+    if StringUtil.Find(menuName, "dragon_soul_revive") != -1
         return menuName
     endif
     if !soulBonusEnabled
-        return menuName + "nobonus"
+        return menuName + "_nobonus"
     endif
     return menuName
 EndFunction
 
 String Function ResolveDeathMessageMenu(Int soulTier, Int deathsNow) Global
     if soulTier == 6
-        return "6devourdeath" + deathsNow
+        return "6_devour_death_" + deathsNow
     endif
     if soulTier == 9
-        return "9chimdeath" + Utility.RandomInt(1, 9)
+        return "9_chim_death_" + Utility.RandomInt(1, 9)
     endif
     if soulTier == 0
-        return "0defiantdeath" + deathsNow
+        return "0_defiant_death_" + deathsNow
     endif
-    return TierMenuPrefix(soulTier) + "death" + deathsNow
+    return TierMenuPrefix(soulTier) + "_death_" + deathsNow
 EndFunction
 
 String Function ResolvePermadeathMenu(Int soulTier) Global
     if soulTier == 6
-        return "6devourpermadeath"
+        return "6_devour_permadeath"
     endif
     if soulTier == 9
-        return "9chimdeath"
+        return "9_chim_death_" + Utility.RandomInt(1, 9)
     endif
     if soulTier == 0
-        return "0defiantpermadeath"
+        return "0_defiant_permadeath"
     endif
-    return TierMenuPrefix(soulTier) + "permadeath"
+    return TierMenuPrefix(soulTier) + "_permadeath"
 EndFunction
 
 String Function ResolveRespawnMenu(Int soulTier) Global
     if soulTier == 9
-        return "9chimrespawn"
+        return "9_chim_respawn"
     endif
     if soulTier == 0
-        return "0defiantrespawn"
+        return "0_defiant_respawn"
     endif
-    return TierMenuPrefix(soulTier) + "respawn"
+    return TierMenuPrefix(soulTier) + "_respawn"
 EndFunction
 
 String Function ResolveSoulFeatUnlockMenuFromFacts(Int soulTier, Bool soulBonusEnabled, Bool dragonSoulReviveEnabled, Int platinumVariant, Int ebonVariant) Global
@@ -581,82 +581,82 @@ String Function ResolveSoulFeatUnlockMenuFromFacts(Int soulTier, Bool soulBonusE
 
     if unlockTier == 6
         if !soulBonusEnabled && !dragonSoulReviveEnabled
-            return "6devourfeatunlocknobonusnodsr"
+            return "6_devour_feat_unlock_nobonus_nodsr"
         elseif !soulBonusEnabled
-            return "6devourfeatunlocknobonus"
+            return "6_devour_feat_unlock_nobonus"
         elseif !dragonSoulReviveEnabled
-            return "6devourfeatunlocknodsr"
+            return "6_devour_feat_unlock_nodsr"
         endif
-        return "6devourfeatunlock"
+        return "6_devour_feat_unlock"
     elseif unlockTier == 5
-        String menuP = "5platinumfeatunlockmiraak"
+        String menuP = "5_platinum_feat_unlock_miraak"
         if platinumVariant == 1
-            menuP = "5platinumfeatunlockmolagbal"
+            menuP = "5_platinum_feat_unlock_molagbal"
         endif
         return SwfNoBonus(menuP, soulBonusEnabled)
     elseif unlockTier == 4
-        String menuE = "4ebonfeatunlockharkon"
+        String menuE = "4_ebon_feat_unlock_harkon"
         if ebonVariant == 1
-            menuE = "4ebonfeatunlockalduin"
+            menuE = "4_ebon_feat_unlock_alduin"
         endif
         return SwfNoBonus(menuE, soulBonusEnabled)
     elseif unlockTier == 3
-        return SwfNoBonus("3goldfeatunlock", soulBonusEnabled)
+        return SwfNoBonus("3_gold_feat_unlock", soulBonusEnabled)
     endif
-    return SwfNoBonus("2silverfeatunlock", soulBonusEnabled)
+    return SwfNoBonus("2_silver_feat_unlock", soulBonusEnabled)
 EndFunction
 
 String Function ResolveDefiantFeatUnlockMenu(Bool soulFatigueEnabled) Global
-    String base = "0defiantfeatunlock"
+    String base = "0_defiant_feat_unlock"
     if !soulFatigueEnabled
-        base = base + "nofatigue"
+        base = base + "_nofatigue"
     endif
     return base
 EndFunction
 
 String Function ResolveDefiantIntroMenu(Bool soulBonusEnabled, Bool soulFatigueEnabled) Global
-    String base = "0defiantintro"
+    String base = "0_defiant_intro"
     if !soulBonusEnabled
-        base = base + "nobonus"
+        base = base + "_nobonus"
     endif
     if !soulFatigueEnabled
-        base = base + "nofatigue"
+        base = base + "_nofatigue"
     endif
     return base
 EndFunction
 
 String Function ResolveDefiantTransitionMenu(Int curTier) Global
     if curTier == 6
-        return "0defiantdeath10platinum"
+        return "0_defiant_death_10_platinum"
     elseif curTier == 5
-        return "0defiantdeath10platinum"
+        return "0_defiant_death_10_platinum"
     elseif curTier == 4
-        return "0defiantdeath10ebon"
+        return "0_defiant_death_10_ebon"
     elseif curTier == 3
-        return "0defiantdeath10gold"
+        return "0_defiant_death_10_gold"
     elseif curTier == 2
-        return "0defiantdeath10silver"
+        return "0_defiant_death_10_silver"
     endif
-    return "0defiantdeath10iron"
+    return "0_defiant_death_10_iron"
 EndFunction
 
 String Function ResolveCHIMTransitionMenu(Int curTier) Global
     if curTier == 0
-        return "9chimdeathdefiant"
+        return "9_chim_death_defiant"
     elseif curTier == 1
-        return "9chimdeathiron"
+        return "9_chim_death_iron"
     elseif curTier == 2
-        return "9chimdeathsilver"
+        return "9_chim_death_silver"
     elseif curTier == 3
-        return "9chimdeathgold"
+        return "9_chim_death_gold"
     elseif curTier == 4
-        return "9chimdeathebon"
+        return "9_chim_death_ebon"
     elseif curTier == 6
-        return "9chimdeathplatinum"
+        return "9_chim_death_platinum"
     elseif curTier == 5
-        return "9chimdeathplatinum"
+        return "9_chim_death_platinum"
     endif
-    return "9chimdeath"
+    return "9_chim_death_" + Utility.RandomInt(1, 9)
 EndFunction
 
 String Function ResolveLuckThresholdNotification(Int tier) Global

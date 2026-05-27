@@ -300,12 +300,12 @@ Function HandleDeathAndQuit(Actor player)
         endif
         if !config.IsPermadeathEnabled() && !chimActive
             tiers.PromoteToCHIMTier(player, guid)
-            tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False, "0defiantpermadeathsoulfatigue")
+            tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False, "0_defiant_permadeath_soulfatigue")
             Controller.FinalizeAndQuit()
             return
         endif
 
-        presentation.OpenTimedMessageSWF_KeyDismiss_SFX("0defiantpermadeathsoulfatigue", 55.0, 27.0, sfx.SFXPermadeath, player, False)
+        presentation.OpenTimedMessageSWF_KeyDismiss_SFX("0_defiant_permadeath_soulfatigue", 55.0, 27.0, sfx.SFXPermadeath, player, False)
         Controller.FinalizeAndQuitMainMenu()
         return
     endif

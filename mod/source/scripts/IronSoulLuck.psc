@@ -328,11 +328,11 @@ Bool Function PerformRoll(Actor player, String guid)
     endif
 
     if messageMode == 1
-        String rollMenu = "luckroll" + roll20
-        String resultMenu = "luckdefeat" + roll20
+        String rollMenu = "luck_roll_" + roll20
+        String resultMenu = "luck_defeat_" + roll20
         Sound resultSFX = Controller.SFX.SFXLuckFailure
         if roll20 >= 11
-            resultMenu = "lucksurvival" + roll20
+            resultMenu = "luck_survival_" + roll20
             resultSFX = Controller.SFX.SFXLuckSuccess
         endif
 
@@ -354,10 +354,10 @@ Bool Function PerformRoll(Actor player, String guid)
         IronSoulNative.SuppressCursor(False)
 
     elseif messageMode == 2
-        String resultMenuOnly = "luckdefeat" + roll20
+        String resultMenuOnly = "luck_defeat_" + roll20
         Sound resultSFXOnly = Controller.SFX.SFXLuckFailure
         if roll20 >= 11
-            resultMenuOnly = "lucksurvival" + roll20
+            resultMenuOnly = "luck_survival_" + roll20
             resultSFXOnly = Controller.SFX.SFXLuckSuccess
         endif
 

@@ -340,7 +340,7 @@ String Function ResolveMenu(Actor player, String guid)
     endif
 
     if guid == ""
-        return "1irondragonsoulrevive"
+        return "1_iron_dragon_soul_revive"
     endif
 
     if !HasCoreRuntime() || !Controller.Config.IsDragonSoulReviveMessageEnabled()
@@ -560,9 +560,9 @@ Bool Function IsBlockedByRollingLimit(Int reviveLimit, Bool guidKnown, Int recen
 EndFunction
 
 String Function ResolveDSRMenuFromFacts(Int soulTier, Int reviveLimit, Int recentUses) Global
-    String baseMenu = IronSoulUI.TierMenuPrefix(soulTier) + "dragonsoulrevive"
+    String baseMenu = IronSoulUI.TierMenuPrefix(soulTier) + "_dragon_soul_revive"
     if reviveLimit > 1 && recentUses >= reviveLimit
-        return IronSoulUI.TierMenuPrefix(soulTier) + "dragonsoulrevivelimit"
+        return IronSoulUI.TierMenuPrefix(soulTier) + "_dragon_soul_revive_limit"
     endif
     return baseMenu
 EndFunction
