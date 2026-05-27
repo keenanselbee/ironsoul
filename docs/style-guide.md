@@ -89,10 +89,13 @@ Naming By Layer
 | EditorIDs | `IronSoul_*` | `IronSoul_DraugnarokMainQuest` |
 | INI sections | PascalCase | `[Draugnarok]`, `[HeartShards]` |
 | INI keys | PascalCase | `DraugnarokSystem`, `HeartShardSystem` |
+| Skyrim runtime assets | lower_snake_case | `splash_01_iron.png`, `shardheart_item_enhanced.swf` |
 | SKSE plugin files | lowercase | `ironsoul.ini`, `ironsoul.dll` |
 | Public titles | Title Case | `Iron Soul: Dead God's Dream` |
 
-Use lower-kebab for repo-owned docs, tools, and assets when the file is not consumed directly by Skyrim, Papyrus, SKSE, the CK, xEdit, or another tool with stricter expectations.
+Use lower-kebab for repo-owned docs, tools, and source/design assets when the file is not consumed directly by Skyrim, Papyrus, SKSE, the CK, xEdit, or another tool with stricter expectations.
+
+Use lower_snake_case for repo-owned Skyrim runtime asset filenames that are loaded directly by game/runtime systems, such as interface SWFs/PNGs, JSON/icon assets, textures, and meshes when safe. Preserve established external stems when they are part of a shipped runtime contract, such as `lvlWidget_1_iron.swf`.
 
 Do not use dashes in Papyrus script names, Papyrus identifiers, quest fragment names, EditorIDs, aliases, properties, globals, or CK-facing identifiers.
 
