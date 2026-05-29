@@ -28,6 +28,7 @@ Scriptname IronSoulUI extends Quest
 ; PlayPresentationSFX()
 ; ShouldShowIronIntro()
 ; ShowIronIntro()
+; ResolveConfiguredMusicVolume()
 ; FadeMusicForTransitionSequence()
 ; RestoreMusic()
 ; OnKeyDown()
@@ -423,16 +424,33 @@ Bool Function ShowIronIntro(Actor player, String guid)
     return True
 EndFunction
 
+Float Function ResolveConfiguredMusicVolume()
+    Int i = 0
+    while i < 8
+        Int uid = Utility.GetINIInt("uID" + i + ":AudioMenu")
+        if uid == 466532
+            Float matchedVolume = Utility.GetINIFloat("fVal" + i + ":AudioMenu")
+            if matchedVolume >= 0.0 && matchedVolume <= 1.0
+                return matchedVolume
+            endif
+            return 1.0
+        endif
+        i += 1
+    endwhile
+
+    Float fallbackVolume = Utility.GetINIFloat("fVal3:AudioMenu")
+    if fallbackVolume >= 0.0 && fallbackVolume <= 1.0
+        return fallbackVolume
+    endif
+    return 1.0
+EndFunction
+
 Function FadeMusicForTransitionSequence()
     if !HasMusicRuntime()
         return
     endif
 
-    Float menuMusicVol = Utility.GetINIFloat("fVal3:AudioMenu")
-    if menuMusicVol < 0.0 || menuMusicVol > 1.0
-        menuMusicVol = 1.0
-    endif
-
+    Float menuMusicVol = ResolveConfiguredMusicVolume()
     IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol)
 EndFunction
 
@@ -444,7 +462,7 @@ Function RestoreMusic(Float seconds = 2.0)
     if seconds <= 0.0
         seconds = 0.1
     endif
-    IronSoulNative.MusicFadeIn(AudioCategoryMUS, seconds)
+    IronSoulNative.MusicFadeIn(AudioCategoryMUS, seconds, ResolveConfiguredMusicVolume())
 EndFunction
 
 Event OnKeyDown(Int keyCode)

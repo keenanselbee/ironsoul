@@ -50,12 +50,20 @@ namespace
 
     static bool SetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_value, bool a_persistToIni)
     {
-        return IronSoul::Config::SetInt(a_key, a_value, a_persistToIni);
+        const bool ok = IronSoul::Config::SetInt(a_key, a_value, a_persistToIni);
+        if (ok) {
+            IronSoul::Papyrus::Runtime::RefreshRuntimeConfigCaches();
+        }
+        return ok;
     }
 
     static bool SetConfigString(RE::StaticFunctionTag*, std::string a_key, std::string a_value, bool a_persistToIni)
     {
-        return IronSoul::Config::SetString(a_key, a_value, a_persistToIni);
+        const bool ok = IronSoul::Config::SetString(a_key, a_value, a_persistToIni);
+        if (ok) {
+            IronSoul::Papyrus::Runtime::RefreshRuntimeConfigCaches();
+        }
+        return ok;
     }
 
     static bool ReloadConfig(RE::StaticFunctionTag*)

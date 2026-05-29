@@ -38,7 +38,7 @@ namespace
     struct MusicVolumeOverrideState
     {
         std::mutex lock;
-        std::int32_t mode{ -1 };               // -1=disabled, 0=force mute restore, 1=force full restore
+        std::int32_t percent{ -1 };            // -1=disabled, 0..100=forced restore percent
         bool enabled{ false };
         float effectiveMenuVolume{ 1.0f };     // valid only when enabled
     };
@@ -199,25 +199,25 @@ namespace
 
     void RefreshMusicVolumeOverrideCache()
     {
-        std::int32_t mode = IronSoul::Config::GetInt("MusicVolumeOverride", -1);
-        if (mode != -1 && mode != 0 && mode != 1) {
-            logger::warn("MusicFade: invalid MusicVolumeOverride={} (expected -1/0/1). Falling back to -1.", mode);
-            mode = -1;
+        std::int32_t percent = IronSoul::Config::GetInt("MusicVolumeOverride", -1);
+        if (percent != -1 && (percent < 0 || percent > 100)) {
+            logger::warn("MusicFade: invalid MusicVolumeOverride={} (expected -1/0..100). Falling back to -1.", percent);
+            percent = -1;
         }
 
-        const bool enabled = (mode == 0 || mode == 1);
-        const float effective = (mode == 0) ? 0.0f : 1.0f;
+        const bool enabled = (percent >= 0);
+        const float effective = enabled ? (static_cast<float>(percent) / 100.0f) : 1.0f;
         {
             std::scoped_lock lock(g_musicVolumeOverride.lock);
-            g_musicVolumeOverride.mode = mode;
+            g_musicVolumeOverride.percent = percent;
             g_musicVolumeOverride.enabled = enabled;
             g_musicVolumeOverride.effectiveMenuVolume = effective;
         }
 
         if (InfoLoggingEnabled()) {
             logger::info(
-                "MusicFade: MusicVolumeOverride cached mode={} enabled={} effectiveMenuVolume={}",
-                mode,
+                "MusicFade: MusicVolumeOverride cached percent={} enabled={} effectiveMenuVolume={}",
+                percent,
                 enabled ? 1 : 0,
                 enabled ? effective : -1.0f);
         }
@@ -238,11 +238,11 @@ namespace
 
         const RE::FormID formID = a_musicCategory->GetFormID();
         float effectiveMenuVolume = a_menuVolume;
-        std::int32_t overrideMode = -1;
+        std::int32_t overridePercent = -1;
         bool usingOverride = false;
         {
             std::scoped_lock lock(g_musicVolumeOverride.lock);
-            overrideMode = g_musicVolumeOverride.mode;
+            overridePercent = g_musicVolumeOverride.percent;
             usingOverride = g_musicVolumeOverride.enabled;
             if (usingOverride) {
                 effectiveMenuVolume = g_musicVolumeOverride.effectiveMenuVolume;
@@ -251,13 +251,13 @@ namespace
 
         if (InfoLoggingEnabled()) {
             logger::info(
-                "MusicFadeOut: formID={} seconds={} menuVolumeIn={} effectiveMenuVolume={} source={} overrideMode={}",
+                "MusicFadeOut: formID={} seconds={} menuVolumeIn={} effectiveMenuVolume={} source={} overridePercent={}",
                 formID,
                 a_seconds,
                 a_menuVolume,
                 effectiveMenuVolume,
                 usingOverride ? "override" : "papyrus",
-                overrideMode);
+                overridePercent);
         }
         {
             std::scoped_lock lock(g_musicFade.lock);
@@ -286,7 +286,7 @@ namespace
         StartMusicFade(formID, 0.0f, a_seconds);
     }
 
-    static void MusicFadeIn(RE::StaticFunctionTag*, RE::BGSSoundCategory* a_musicCategory, float a_seconds)
+    static void MusicFadeIn(RE::StaticFunctionTag*, RE::BGSSoundCategory* a_musicCategory, float a_seconds, float a_fallbackMenuVolume)
     {
         if (IronSoul::Config::GetInt("MusicFade", 1) == 0) {
             return;
@@ -299,30 +299,55 @@ namespace
 
         const RE::FormID formID = a_musicCategory->GetFormID();
         float target = 1.0f;
+        bool usingCachedTarget = false;
         if (InfoLoggingEnabled()) {
-            logger::info("MusicFadeIn: formID={} seconds={}", formID, a_seconds);
+            logger::info("MusicFadeIn: formID={} seconds={} fallbackMenuVolume={}", formID, a_seconds, a_fallbackMenuVolume);
         }
 
         {
             std::scoped_lock lock(g_musicFade.lock);
-            if (!g_musicFade.cachedMenuVolumeValid) {
-                if (InfoLoggingEnabled()) {
-                    logger::info("MusicFadeIn: no cached menu volume; using 1.0");
-                }
-                target = 1.0f;
-            } else {
+            if (g_musicFade.cachedMenuVolumeValid) {
                 target = Clamp01(g_musicFade.cachedMenuVolume);
+                usingCachedTarget = true;
             }
             if (InfoLoggingEnabled()) {
                 logger::info(
-                    "MusicFadeIn: cache valid={} cachedMenu={} currentVolume={} target={}",
+                    "MusicFadeIn: cache valid={} cachedMenu={} currentVolume={}",
                     g_musicFade.cachedMenuVolumeValid ? 1 : 0,
                     g_musicFade.cachedMenuVolume,
-                    g_musicFade.currentVolume,
-                    target);
+                    g_musicFade.currentVolume);
             }
             g_musicFade.cachedMenuVolumeValid = false;
             g_musicFade.cachedMenuVolume = -1.0f;
+        }
+
+        std::int32_t overridePercent = -1;
+        bool usingOverride = false;
+        if (!usingCachedTarget) {
+            {
+                std::scoped_lock lock(g_musicVolumeOverride.lock);
+                overridePercent = g_musicVolumeOverride.percent;
+                usingOverride = g_musicVolumeOverride.enabled;
+                if (usingOverride) {
+                    target = g_musicVolumeOverride.effectiveMenuVolume;
+                }
+            }
+
+            if (!usingOverride) {
+                if (a_fallbackMenuVolume >= 0.0f && a_fallbackMenuVolume <= 1.0f) {
+                    target = a_fallbackMenuVolume;
+                } else {
+                    target = 1.0f;
+                }
+            }
+        }
+
+        if (InfoLoggingEnabled()) {
+            logger::info(
+                "MusicFadeIn: target={} source={} overridePercent={}",
+                target,
+                usingCachedTarget ? "cache" : (usingOverride ? "override" : "fallback"),
+                overridePercent);
         }
 
         StartMusicFade(formID, target, a_seconds);

@@ -198,7 +198,7 @@ Function SuppressCursor(Bool suppress) Global Native
 ;
 ; MusicFade=0 no-ops. FadeOut caches menuVolume as the FadeIn restore target.
 Function MusicFadeOut(SoundCategory musicCategory, Float seconds = 2.0, Float menuVolume = -1.0) Global Native
-Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0) Global Native
+Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0, Float fallbackMenuVolume = -1.0) Global Native
 
 
 ; --- HEALTH MONITORING ---

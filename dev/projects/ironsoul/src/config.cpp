@@ -107,7 +107,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "musicfade", "MusicFade", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "slowmoondeath", "SlowMoOnDeath", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 
-	{ "musicvolumeoverride", "MusicVolumeOverride", "Sound", -1, true, -1, true, 1, 0 },
+	{ "musicvolumeoverride", "MusicVolumeOverride", "Sound", -1, true, -1, true, 100, 0 },
 	{ "sfx", "SFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "deathslowmosfx", "DeathSlowMoSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "ironintrosfx", "IronIntroSFX", "Sound", 1, true, 0, true, 1, 0 },
