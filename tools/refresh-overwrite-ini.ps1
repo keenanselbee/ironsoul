@@ -9,12 +9,23 @@ $ErrorActionPreference = "Stop"
 $repo = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $tempRoot = Join-Path $repo ".codex-temp"
 $defaultDestinationIni = "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"
-$requiredDebugSettings = [ordered]@{
-    EnableDebug = "1"
-    EnableLogging = "1"
-    EnableLogNotifications = "1"
-    LogLevel = "3"
-}
+$requiredOverwriteSettings = @(
+    @{
+        Section = "General"
+        Settings = [ordered]@{
+            Anticheat = "0"
+        }
+    },
+    @{
+        Section = "Debug"
+        Settings = [ordered]@{
+            EnableDebug = "1"
+            EnableLogging = "1"
+            EnableLogNotifications = "1"
+            LogLevel = "3"
+        }
+    }
+)
 
 if ([string]::IsNullOrWhiteSpace($SourceIni)) {
     $SourceIni = Join-Path $repo "mod\SKSE\plugins\ironsoul.ini"
@@ -54,21 +65,22 @@ function Assert-AllowedDestination([string]$Path) {
     throw "Destination INI must be the LoreRim+ Overwrite INI or a .codex-temp test path: $fullPath"
 }
 
-function Add-MissingDebugSettings($Lines, [string[]]$MissingKeys, $Settings) {
-    $debugSectionIndex = -1
+function Add-MissingIniSettings($Lines, [string]$Section, [string[]]$MissingKeys, $Settings) {
+    $sectionIndex = -1
+    $escapedSection = [regex]::Escape($Section)
     for ($i = 0; $i -lt $Lines.Count; $i++) {
-        if ($Lines[$i] -match '^\s*\[Debug\]\s*$') {
-            $debugSectionIndex = $i
+        if ($Lines[$i] -match "^\s*\[$escapedSection\]\s*$") {
+            $sectionIndex = $i
             break
         }
     }
 
-    if ($debugSectionIndex -lt 0) {
+    if ($sectionIndex -lt 0) {
         if ($Lines.Count -gt 0 -and $Lines[$Lines.Count - 1].Trim().Length -ne 0) {
             [void]$Lines.Add("")
         }
 
-        [void]$Lines.Add("[Debug]")
+        [void]$Lines.Add("[$Section]")
         foreach ($key in $MissingKeys) {
             [void]$Lines.Add("$key = $($Settings[$key])")
         }
@@ -76,7 +88,7 @@ function Add-MissingDebugSettings($Lines, [string[]]$MissingKeys, $Settings) {
     }
 
     $insertIndex = $Lines.Count
-    for ($i = $debugSectionIndex + 1; $i -lt $Lines.Count; $i++) {
+    for ($i = $sectionIndex + 1; $i -lt $Lines.Count; $i++) {
         if ($Lines[$i] -match '^\s*\[[^\]]+\]\s*$') {
             $insertIndex = $i
             break
@@ -104,7 +116,7 @@ if ([string]::IsNullOrWhiteSpace($destinationDir)) {
 }
 
 $destinationPath = Get-FullPath $DestinationIni
-if (-not $PSCmdlet.ShouldProcess($destinationPath, "Refresh from $SourceIni and force debug logging")) {
+if (-not $PSCmdlet.ShouldProcess($destinationPath, "Refresh from $SourceIni and force Anticheat=0/debug logging")) {
     return
 }
 
@@ -116,35 +128,61 @@ foreach ($line in [System.IO.File]::ReadAllLines($destinationPath)) {
     [void]$lines.Add($line)
 }
 
-$foundSettings = @{}
-for ($i = 0; $i -lt $lines.Count; $i++) {
-    foreach ($key in $requiredDebugSettings.Keys) {
-        $escapedKey = [regex]::Escape($key)
-        $pattern = "^(?<prefix>\s*$escapedKey\s*=\s*)(?<value>[^;#]*?)(?<suffix>\s*(?:[;#].*)?)$"
+foreach ($sectionSpec in $requiredOverwriteSettings) {
+    $section = $sectionSpec.Section
+    $settings = $sectionSpec.Settings
+    $foundSettings = @{}
+    $sectionIndex = -1
+    $sectionEnd = $lines.Count
+    $escapedSection = [regex]::Escape($section)
 
-        if ($lines[$i] -match $pattern) {
-            $lines[$i] = $Matches["prefix"] + $requiredDebugSettings[$key] + $Matches["suffix"]
-            $foundSettings[$key] = $true
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match "^\s*\[$escapedSection\]\s*$") {
+            $sectionIndex = $i
             break
         }
     }
-}
 
-$missingSettings = [System.Collections.Generic.List[string]]::new()
-foreach ($key in $requiredDebugSettings.Keys) {
-    if (-not $foundSettings.ContainsKey($key)) {
-        [void]$missingSettings.Add($key)
+    if ($sectionIndex -ge 0) {
+        for ($i = $sectionIndex + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^\s*\[[^\]]+\]\s*$') {
+                $sectionEnd = $i
+                break
+            }
+        }
+
+        for ($i = $sectionIndex + 1; $i -lt $sectionEnd; $i++) {
+            foreach ($key in $settings.Keys) {
+                $escapedKey = [regex]::Escape($key)
+                $pattern = "^(?<prefix>\s*$escapedKey\s*=\s*)(?<value>[^;#]*?)(?<suffix>\s*(?:[;#].*)?)$"
+
+                if ($lines[$i] -match $pattern) {
+                    $lines[$i] = $Matches["prefix"] + $settings[$key] + $Matches["suffix"]
+                    $foundSettings[$key] = $true
+                    break
+                }
+            }
+        }
     }
-}
 
-if ($missingSettings.Count -gt 0) {
-    Add-MissingDebugSettings $lines ($missingSettings.ToArray()) $requiredDebugSettings
+    $missingSettings = [System.Collections.Generic.List[string]]::new()
+    foreach ($key in $settings.Keys) {
+        if (-not $foundSettings.ContainsKey($key)) {
+            [void]$missingSettings.Add($key)
+        }
+    }
+
+    if ($missingSettings.Count -gt 0) {
+        Add-MissingIniSettings $lines $section ($missingSettings.ToArray()) $settings
+    }
 }
 
 $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 [System.IO.File]::WriteAllLines($destinationPath, [string[]]$lines, $utf8NoBom)
 
 Write-Host "Refreshed overwrite INI: $destinationPath"
-foreach ($key in $requiredDebugSettings.Keys) {
-    Write-Host "  $key = $($requiredDebugSettings[$key])"
+foreach ($sectionSpec in $requiredOverwriteSettings) {
+    foreach ($key in $sectionSpec.Settings.Keys) {
+        Write-Host "  [$($sectionSpec.Section)] $key = $($sectionSpec.Settings[$key])"
+    }
 }

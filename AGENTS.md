@@ -123,9 +123,10 @@ MO2 Overwrite INI Refresh
 -------------------------
 
 - Codex may run `tools/refresh-overwrite-ini.ps1` when `mod/SKSE/plugins/ironsoul.ini` changes or when the user explicitly asks to refresh the LoreRim+ Overwrite INI.
-- The script overwrites `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` from the repo INI, then forces these debug settings:
+- The script overwrites `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` from the repo INI, then forces these testing/debug settings:
 
 ```ini
+Anticheat = 0
 EnableDebug = 1
 EnableLogging = 1
 EnableLogNotifications = 1
