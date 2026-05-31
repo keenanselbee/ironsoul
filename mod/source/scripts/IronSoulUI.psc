@@ -50,13 +50,9 @@ Scriptname IronSoulUI extends Quest
 ; ResolveCHIMTransitionMenu()
 ; ResolveLuckThresholdNotification()
 
-; --- Flavor Text ---
-; -------------------
+; --- Load Notification Text ---
+; ------------------------------
 ; BuildLoadStatsNotification()
-; PickCHIMLine()
-; PickTierLoadFlavor()
-; PickLuckLoadFlavor()
-; PickPostDeathLoadFlavor()
 
 
 ; --- Wired Dependencies & Runtime State ---
@@ -197,54 +193,19 @@ Function HandleLoadNotification(Actor player)
 
     _pendingLoadMessage = False
 
-    Bool postDeathFlavorPending = Controller.Death.ConsumePostDeathLoadFlavorPending(player, guid)
+    if !Controller.Config.IsLoadNotificationEnabled()
+        return
+    endif
 
     Int deaths     = Controller.Death.GetCurrentDeathCount(player, guid)
-    Int soulTier   = Controller.Tiers.GetCurrentTier(player, guid)
+    Int maxDeaths  = Controller.Tiers.GetGlobalEffectiveMaxLives(player, guid)
     Int daysPassed = Utility.GetCurrentGameTime() as Int
-    Bool defiant = (soulTier == Controller.Tiers.TIER_DEFIANT && deaths >= Controller.Tiers.IRON_SOUL_MAX_LIVES && deaths < Controller.Tiers.DEFIANT_SOUL_MAX_LIVES)
-    Bool chimTier = (soulTier == Controller.Tiers.TIER_CHIM)
-
-    Int loadNotificationMode = Controller.Config.GetLoadNotificationMode()
-    if loadNotificationMode == 0
-        return
-    endif
-    Bool showStats  = (loadNotificationMode == 1 || loadNotificationMode == 2)
-    Bool showFlavor = (loadNotificationMode == 1 || loadNotificationMode == 3)
-
-    Bool luckActive = False
+    Int animaVal = 245
     Int luckVal = 100
-    Int luckMax = 100
     if Controller.Luck
-        luckActive = Controller.Luck.IsRuntimeAvailable()
-        if luckActive
-            luckMax = Controller.Luck.GetCurrentMax(player, guid)
-            luckVal = Controller.Luck.GetValue(player, guid)
-        endif
+        luckVal = Controller.Luck.GetValue(player, guid)
     endif
-
-    if showStats
-        Debug.Notification(BuildLoadStatsNotification(deaths, luckVal, daysPassed, luckActive))
-    endif
-
-    if !showFlavor
-        return
-    endif
-
-    if postDeathFlavorPending
-        Debug.Notification(PickPostDeathLoadFlavor())
-        return
-    endif
-
-    if luckActive && luckVal < luckMax
-        Debug.Notification(PickLuckLoadFlavor(luckVal, luckMax))
-        return
-    endif
-
-    String tierFlavor = PickTierLoadFlavor(soulTier, deaths, chimTier, defiant)
-    if tierFlavor != ""
-        Debug.Notification(tierFlavor)
-    endif
+    Debug.Notification(BuildLoadStatsNotification(daysPassed, deaths, maxDeaths, animaVal, luckVal))
 EndFunction
 
 Function OpenTimedMessageSWF(String menuName, Float duration = 6.0, Bool restoreMusic = True)
@@ -694,167 +655,9 @@ String Function ResolveLuckThresholdNotification(Int tier) Global
 EndFunction
 
 
-; --- Flavor Text ---
-; ===================
+; --- Load Notification Text ---
+; ==============================
 
-String Function BuildLoadStatsNotification(Int deaths, Int luck, Int daysPassed, Bool luckActive) Global
-    if luckActive
-        return "Deaths: " + deaths + " | Luck: " + luck + " | Days Passed: " + daysPassed
-    endif
-    return "Deaths: " + deaths + " | Days Passed: " + daysPassed
-EndFunction
-
-String Function PickCHIMLine(Int idx) Global
-    if idx == 0
-        return "The Godhead dreams on."
-    elseif idx == 1
-        return "You remain within the Dream."
-    elseif idx == 2
-        return "The Dream does not end here."
-    elseif idx == 3
-        return "Knowing the Dream, you persist."
-    elseif idx == 4
-        return "You refuse to wake."
-    elseif idx == 5
-        return "The cycle continues by your will."
-    elseif idx == 6
-        return "You perceive the Dream and remain."
-    elseif idx == 7
-        return "Existence endures within the Dream."
-    elseif idx == 8
-        return "The Dreamer stirs."
-    endif
-    return "You do not zero-sum."
-EndFunction
-
-String Function PickTierLoadFlavor(Int soulTier, Int deaths, Bool chimTier, Bool defiantTier) Global
-    if chimTier
-        return PickCHIMLine(Utility.RandomInt(0, 9))
-    endif
-
-    if defiantTier
-        if deaths >= 17
-            return "Your soul is wearing thin."
-        endif
-        return "Your Defiant Soul endures."
-    endif
-
-    if deaths <= 0
-        if soulTier == 6
-            return "Your Devour Soul knows no equal."
-        elseif soulTier == 5
-            return "Your Platinum Soul knows no equal"
-        elseif soulTier == 4
-            return "Your Ebon Soul defies fate."
-        elseif soulTier == 3
-            return "Your Gilded Soul is peerless."
-        elseif soulTier == 2
-            return "Your Silver Soul is peerless."
-        endif
-        return "Your Iron Soul is peerless."
-    elseif deaths <= 3
-        if soulTier == 6
-            return "Your Devour Soul prevails."
-        elseif soulTier == 5
-            return "Your Platinum Soul prevails."
-        elseif soulTier == 4
-            return "Your Ebon Soul prevails."
-        elseif soulTier == 3
-            return "Your Gilded Soul prevails."
-        elseif soulTier == 2
-            return "Your Silver Soul prevails."
-        endif
-        return "Your Iron Soul prevails."
-    elseif deaths <= 6
-        if soulTier == 6
-            return "Your Devour Soul rises stronger."
-        elseif soulTier == 5
-            return "Your Platinum Soul rises stronger."
-        elseif soulTier == 4
-            return "Your Ebon Soul rises stronger."
-        elseif soulTier == 3
-            return "Your Gilded Soul rises stronger."
-        elseif soulTier == 2
-            return "Your Silver Soul rises stronger."
-        endif
-        return "Your Iron Soul rises stronger."
-    endif
-
-    if soulTier == 6
-        return "Your Devour Soul endures."
-    elseif soulTier == 5
-        return "Your Platinum Soul endures."
-    elseif soulTier == 4
-        return "Your Ebon Soul endures."
-    elseif soulTier == 3
-        return "Your Gilded Soul endures."
-    elseif soulTier == 2
-        return "Your Silver Soul endures."
-    endif
-    return "Your Iron Soul endures."
-EndFunction
-
-String Function PickLuckLoadFlavor(Int luck, Int maxLuck) Global
-    Int r = Utility.RandomInt(0, 4)
-    Int tier = IronSoulLuck.LuckTier(luck, maxLuck)
-
-    if tier >= 3
-        if r == 0
-            return "Your confidence holds."
-        elseif r == 1
-            return "Your resolve carries you forward."
-        elseif r == 2
-            return "Your steps feel true."
-        elseif r == 3
-            return "The path ahead is clear."
-        endif
-        return "You move with purpose."
-    elseif tier == 2
-        if r == 0
-            return "You feel steady again."
-        elseif r == 1
-            return "Your thoughts are clear."
-        elseif r == 2
-            return "You feel grounded."
-        elseif r == 3
-            return "Your footing is firm."
-        endif
-        return "You feel balanced once more."
-    elseif tier == 1
-        if r == 0
-            return "You remain unsettled."
-        elseif r == 1
-            return "Unease lingers."
-        elseif r == 2
-            return "Caution tempers your steps."
-        elseif r == 3
-            return "You feel on edge."
-        endif
-        return "Doubt has not fully left you."
-    endif
-
-    if r == 0
-        return "You are still shaken from your recent trial."
-    elseif r == 1
-        return "Your recent ordeal still weighs heavily on you."
-    elseif r == 2
-        return "Your breath has steadied, but not your thoughts."
-    elseif r == 3
-        return "You have not yet recovered from what nearly ended you."
-    endif
-    return "Your nerves have not fully settled."
-EndFunction
-
-String Function PickPostDeathLoadFlavor() Global
-    Int r = Utility.RandomInt(0, 4)
-    if r == 0
-        return "The premonition of your death grips your soul."
-    elseif r == 1
-        return "You return shaken from a waking nightmare."
-    elseif r == 2
-        return "You see the fatal moment just before the blow lands."
-    elseif r == 3
-        return "The vision lingers, warning of what could be."
-    endif
-    return "You stand with knowledge you never wanted."
+String Function BuildLoadStatsNotification(Int daysPassed, Int deaths, Int maxDeaths, Int anima, Int luck) Global
+    return "Day " + daysPassed + " | Deaths: " + deaths + " / " + maxDeaths + " | Anima: " + anima + " | Luck: " + luck
 EndFunction

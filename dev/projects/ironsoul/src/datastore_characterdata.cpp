@@ -62,7 +62,6 @@ namespace IronSoul
         { "luck", "IS_7315", "LuckPlayedToken", CharacterDataValueFormat::PlayedToken },
         { "luck", "IS_7316", "LuckNotificationTier", CharacterDataValueFormat::LuckNotificationTier },
 
-        { "ui", "IS_7317", "PostDeathLoadFlavorPending", CharacterDataValueFormat::Bool },
         { "ui", "IS_8597", "IronIntroShown", CharacterDataValueFormat::Bool },
         { "ui", "IS_9921", "SilverFeatMessageShown", CharacterDataValueFormat::Bool },
         { "ui", "IS_4797", "GoldFeatMessageShown", CharacterDataValueFormat::Bool },

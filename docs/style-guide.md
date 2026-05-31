@@ -144,7 +144,7 @@ Papyrus Function Verb Names:
 | `ResetX()` | Reset scoped gameplay state; reserve `ResetTransientState()` for runtime-only fields. | `ResetCurrentCharacterCounts(player, guid)` |
 | `RemoveX()` | Delete scoped data or detach hooks without implying permanent destruction. | `RemoveTrackedData(player, guid)` |
 | `DeleteX()` | Permanently remove a specific key, index, marker, or snapshot. | `DeleteGuidMarker(guid)` |
-| `ConsumeX()` | Read and clear one-shot or pending state. | `ConsumePostDeathLoadFlavorPending(player, guid)` |
+| `ConsumeX()` | Read and clear one-shot or pending state. | `ConsumeDeathFrontDelay()` |
 | `HandleX()` | Orchestrate event flow and broad side effects. | `HandlePlayerDying(player, caster)` |
 | `ResolveX()` | Perform lookup or discovery and return an object, value, fallback, or `None`. | `ResolveDraugnarokQuest()` |
 | `MaybeX()` | Conditionally perform an optional action. | `MaybeNotifyThreshold(player, guid, luck)` |

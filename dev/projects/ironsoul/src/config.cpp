@@ -56,7 +56,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "dragonsoulanticheat", "DragonSoulAnticheat", "General", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulincreasenotification", "DragonSoulIncreaseNotification", "General", 1, true, 0, true, 1, 0 },
 	{ "ironsoulintro", "IronSoulIntro", "General", 1, true, 0, true, 1, 0 },
-	{ "loadnotificationmode", "LoadNotificationMode", "General", 1, true, 0, true, 3, 0 },
+	{ "loadnotification", "LoadNotification", "General", 1, true, 0, true, 1, 0 },
 	{ "soulbonus", "SoulBonus", "General", 1, true, 0, true, 1, 0 },
 	{ "soulfatigue", "SoulFatigue", "General", 1, true, 0, true, 1, 0 },
 	{ "soulfeats", "SoulFeats", "General", 1, true, 0, true, 1, 0 },

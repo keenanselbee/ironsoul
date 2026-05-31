@@ -511,8 +511,6 @@ String Function ResolveKnownDataBase(String keyText, String guid) Global
         return "IS_7315"
     elseif keyText == "LuckNotificationTier" || keyText == "lucknotificationtier" || keyText == "IS_7316"
         return "IS_7316"
-    elseif keyText == "PostDeathLoadFlavorPending" || keyText == "postdeathloadflavorpending" || keyText == "IS_7317"
-        return "IS_7317"
     elseif keyText == "IronIntroShown" || keyText == "ironintroshown" || keyText == "IS_8597"
         return "IS_8597"
     elseif keyText == "SilverFeatMessageShown" || keyText == "silverfeatmessageshown" || keyText == "IS_9921"
@@ -585,7 +583,7 @@ Int Function KnownDataValueType(String keyBase) Global
         return 2
     elseif keyBase == "G.U.CURRENT" || keyBase == "I.R" || keyBase == "I.L" || keyBase == "I.D" \
         || keyBase == "IS_8155" || keyBase == "IS_9132" || keyBase == "IS_7341" \
-        || keyBase == "IS_7314" || keyBase == "IS_7315" || keyBase == "IS_7316" || keyBase == "IS_7317" \
+        || keyBase == "IS_7314" || keyBase == "IS_7315" || keyBase == "IS_7316" \
         || keyBase == "IS_8597" || keyBase == "IS_9921" || keyBase == "IS_4797" || keyBase == "IS_4513" \
         || keyBase == "IS_1155" || keyBase == "IS_1156" || keyBase == "IS_2204" || keyBase == "IS_2719" \
         || keyBase == "IS_4520" || keyBase == "IS_4779" || keyBase == "IS_9646" || keyBase == "IS_7440" \

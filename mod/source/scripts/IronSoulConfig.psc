@@ -84,7 +84,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsSoulFatigueEnabled()
 ; IsDragonSoulAnticheatEnabled()
 ; IsLuckReminderNotificationEnabled()
-; GetLoadNotificationMode()
+; IsLoadNotificationEnabled()
 ; IsUninstallMode()
 ; IsPermadeathEnabled()
 ; GetIronSoulPreset()
@@ -168,7 +168,7 @@ Bool _soulFatigueEnabled = True
 Bool _dragonSoulAnticheatEnabled = True
 
 Bool _luckReminderNotificationEnabled = True
-Int _loadNotificationMode = 1 ; 0=off,1=default,2=no flavor,3=only flavor
+Bool _loadNotificationEnabled = True
 
 Bool _uninstallMode = False
 Bool _permadeathEnabled = True
@@ -210,7 +210,7 @@ Function ResetDefaults()
     ; Luck / load notifications
     _luckReminderNotificationEnabled = True
     _luckLevel = 5
-    _loadNotificationMode = 1
+    _loadNotificationEnabled = True
     _luckRollMessageMode = 1
 
     ; Feats
@@ -288,7 +288,7 @@ Function LoadFromIni()
     Bool iniPermadeath = ReadFeatureEnabled("Permadeath", True)
 
     _luckReminderNotificationEnabled = ReadFeatureEnabled("LuckReminderNotification", True)
-    _loadNotificationMode = ReadIntRange("LoadNotificationMode", _loadNotificationMode, 0, 3)
+    _loadNotificationEnabled = ReadFeatureEnabled("LoadNotification", True)
     _luckRollMessageMode = ReadIntRange("LuckRollMessageMode", _luckRollMessageMode, 0, 2)
 
     Bool iniDefiantSoul = ReadFeatureEnabled("DefiantSoul", True)
@@ -510,8 +510,8 @@ Bool Function IsLuckReminderNotificationEnabled()
     return _luckReminderNotificationEnabled
 EndFunction
 
-Int Function GetLoadNotificationMode()
-    return _loadNotificationMode
+Bool Function IsLoadNotificationEnabled()
+    return _loadNotificationEnabled
 EndFunction
 
 Bool Function IsUninstallMode()

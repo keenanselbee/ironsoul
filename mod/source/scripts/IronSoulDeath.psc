@@ -24,7 +24,6 @@ Scriptname IronSoulDeath extends Quest
 ; GetTotalDeaths()
 ; SetCurrentDeathCount()
 ; ResetCurrentCharacterCounts()
-; ConsumePostDeathLoadFlavorPending()
 ; SyncCurrentDeathCountMirrors()
 ; RemoveTrackedData()
 
@@ -50,7 +49,6 @@ Quest Property brawlQuest Auto
 
 String Property deathCount = "IS_8155" AutoReadOnly
 String Property totalDeathCount = "IS_9132" AutoReadOnly ; Lifetime death counter; never resets.
-String Property postDeathLoadFlavorPending = "IS_7317" AutoReadOnly
 
 ; Death lock ownership:
 ; - Local death routes clear it before returning.
@@ -426,19 +424,6 @@ Function ResetCurrentCharacterCounts(Actor player, String guid)
     endif
 EndFunction
 
-Bool Function ConsumePostDeathLoadFlavorPending(Actor player, String guid)
-    if !HasCoreRuntime() || !player || guid == ""
-        return False
-    endif
-
-    Bool pending = Controller.Persistence.GetGuidInt(player, guid, postDeathLoadFlavorPending, 0) != 0
-    if pending
-        Controller.Persistence.SetGuidInt(player, guid, postDeathLoadFlavorPending, 0, True)
-        IronSoulNative.DataFlushIfDirty()
-    endif
-    return pending
-EndFunction
-
 Function SyncCurrentDeathCountMirrors(Actor player, String guid)
     if !HasCoreRuntime() || !player || guid == ""
         return
@@ -454,7 +439,6 @@ Function RemoveTrackedData(Actor player, String guid, Bool deleteMainData = True
 
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, deathCount, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, totalDeathCount, deleteMainData, unsetCosave)
-    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, postDeathLoadFlavorPending, deleteMainData, unsetCosave)
 EndFunction
 
 
@@ -474,7 +458,6 @@ Function IncrementDeathCount(Actor player, String guid)
 
     Int totalDeaths = GetTotalDeaths(player, guid) + 1
     Controller.Persistence.SetGuidInt(player, guid, totalDeathCount, totalDeaths, True)
-    Controller.Persistence.SetGuidInt(player, guid, postDeathLoadFlavorPending, 1, True)
 
     SyncDeathCountMirrors(player, deaths)
     if Controller.Globals
