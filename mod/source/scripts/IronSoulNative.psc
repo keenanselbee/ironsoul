@@ -70,6 +70,13 @@ Scriptname IronSoulNative Hidden
 ; ----------------------
 ; BeginCursorSuppress()
 ; EndCursorSuppress()
+; RefreshCursorSuppress()
+
+; --- Menu Blocking ---
+; ---------------------
+; BeginMenuBlock()
+; EndMenuBlock()
+; ClearMenuBlock()
 
 ; --- Music Fade ---
 ; ------------------
@@ -193,6 +200,16 @@ Bool Function CloseMenu(String menuName) Global Native
 ; Positive tokens hide/off-screen the cursor until each token is ended once.
 Int Function BeginCursorSuppress() Global Native
 Function EndCursorSuppress(Int token) Global Native
+Function RefreshCursorSuppress() Global Native
+
+
+; --- MENU BLOCKING ---
+; =====================
+;
+; Anticheat=0 makes BeginMenuBlock() return 0. EndMenuBlock(0) is safe.
+Int Function BeginMenuBlock(String reason, Bool releaseOnMainMenu = False) Global Native
+Function EndMenuBlock(Int token) Global Native
+Function ClearMenuBlock() Global Native
 
 
 ; --- MUSIC FADE ---

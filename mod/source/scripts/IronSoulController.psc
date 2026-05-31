@@ -563,6 +563,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
             tiersQ.PlayCHIMTransitionMessageSequenceSWF(soulTier, True, "0_defiant_permadeath_soulfatigue")
             soulTier = tiersQ.TIER_CHIM
         else
+            IronSoulNative.BeginMenuBlock("load-terminal-defiant-fatigue", True)
             uiComponent.OpenTimedMessageSWF_KeyDismiss_SFX("0_defiant_permadeath_soulfatigue", 55.0, 27.0, sfxQ.SFXPermadeath, player, False)
             FinalizeAndQuitMainMenu()
             return
@@ -579,6 +580,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     endif
     if deaths >= maxLives
         ; Match live permadeath pacing so load-enforced exhaustion does not dismiss faster.
+        IronSoulNative.BeginMenuBlock("load-terminal-permadeath", True)
         uiComponent.OpenTimedMessageSWF_KeyDismiss_SFX(IronSoulUI.ResolvePermadeathMenu(soulTier), 55.0, 27.0, sfxQ.SFXPermadeath, player, False)
         FinalizeAndQuitMainMenu()
         return
@@ -609,6 +611,7 @@ Function ResetTransientState()
 
     ; Quit latch is transient.
     _isQuitting = False
+    IronSoulNative.ClearMenuBlock()
 
     ; Luck component cache and roll telemetry are transient.
     if Luck
@@ -879,6 +882,7 @@ Function FinalizeAndQuit()
 
     _isQuitting = True
     _updateQueued = False
+    IronSoulNative.BeginMenuBlock("quit-desktop", False)
     IronSoulNative.StopHealthMonitor()
     ; Flush Luck timing cache (write-gated) before quitting.
     Luck.FlushDirtyCache()
@@ -899,6 +903,7 @@ Function FinalizeAndQuitMainMenu()
 
     _isQuitting = True
     _updateQueued = False
+    IronSoulNative.BeginMenuBlock("quit-main-menu", True)
     IronSoulNative.StopHealthMonitor()
     ; Flush Luck timing cache (write-gated) before quitting.
     Luck.FlushDirtyCache()

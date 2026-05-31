@@ -2,6 +2,7 @@
 #include "papyrus_healthmonitor.h"
 #include "papyrus_common.h"
 #include "config.h"
+#include "menu_blocker.h"
 
 #include <algorithm>
 #include <array>
@@ -194,6 +195,7 @@ namespace
         if (oldWorker.joinable()) {
             oldWorker.join();
         }
+        IronSoul::MenuBlocker::EndHealthDepletedBlock("monitor-stop");
         QueueSetGlobalTimeMultiplier(1.0f, "monitor-stop");
     }
 
@@ -289,6 +291,8 @@ namespace
                         bool shouldStartSlowmoRecovery = false;
                         bool shouldRecoverSlowmo = false;
                         bool shouldCompleteSlowmoRecovery = false;
+                        bool shouldBeginMenuBlock = false;
+                        bool shouldEndMenuBlock = false;
                         float recoverSlowmoMultiplier = 1.0f;
                         double nowGameplaySec = 0.0;
                         {
@@ -333,6 +337,7 @@ namespace
 
                             if (currentHealth <= 0.0f) {
                                 if (!g_healthMonitor.hpDepletedLatched) {
+                                    shouldBeginMenuBlock = true;
                                     if (DeathSlowMoEnabled()) {
                                         shouldApplySlowmo = true;
                                         g_healthMonitor.slowmoActive = true;
@@ -351,6 +356,7 @@ namespace
                                     } else if ((nowGameplaySec - g_healthMonitor.recoveredSinceSec) >= kRearArmRecoverySeconds) {
                                         g_healthMonitor.hpDepletedLatched = false;
                                         g_healthMonitor.recoveredSinceSec = 0.0;
+                                        shouldEndMenuBlock = true;
                                     }
                                 } else {
                                     g_healthMonitor.recoveredSinceSec = 0.0;
@@ -364,6 +370,12 @@ namespace
                             shouldCompleteSlowmoRecovery = false;
                         }
 
+                        if (shouldBeginMenuBlock) {
+                            IronSoul::MenuBlocker::BeginHealthDepletedBlock();
+                        }
+                        if (shouldEndMenuBlock) {
+                            IronSoul::MenuBlocker::EndHealthDepletedBlock("health-recovered");
+                        }
                         if (shouldStartSlowmoRecovery && InfoLoggingEnabled()) {
                             logger::info("DeathSlowMo: recovery start seconds={}", kDeathSlowmoRecoverSeconds);
                         }

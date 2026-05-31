@@ -10,6 +10,7 @@
 #include "papyrus_heartshards.h"
 #include "papyrus_itemselect.h"
 #include "papyrus_journal.h"
+#include "papyrus_menublocker.h"
 #include "papyrus_musicfade.h"
 #include "papyrus_runtime.h"
 
@@ -37,6 +38,7 @@ namespace IronSoul::Papyrus
             MusicFade::Register(a_vm);
             HealthMonitor::Register(a_vm);
             Cursor::Register(a_vm);
+            MenuBlocker::Register(a_vm);
             Data::Register(a_vm);
             Heartshards::Register(a_vm);
             return true;

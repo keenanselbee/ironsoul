@@ -184,6 +184,8 @@ Function HandleRevive(Actor target, Actor caster, String guid)
 
     LogDragonSoulRevive(IronSoulConfig.LOG_INFO(), "HandleDragonSoulRevive: Target=" + target + " Caster=" + caster + " GUID=" + guid)
 
+    Int menuBlockToken = IronSoulNative.BeginMenuBlock("dragon-soul-revive", False)
+
     Int soulTierDSR = 1
     if guid != ""
         soulTierDSR = tiers.GetCurrentTier(target, guid)
@@ -299,6 +301,7 @@ Function HandleRevive(Actor target, Actor caster, String guid)
         MarkerRef = None
     endif
 
+    IronSoulNative.EndMenuBlock(menuBlockToken)
     ReleaseDeathLock()
     LogDragonSoulRevive(IronSoulConfig.LOG_DBG(), "HandleDragonSoulRevive: Cleanup finished")
 EndFunction

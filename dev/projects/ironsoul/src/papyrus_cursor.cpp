@@ -485,11 +485,31 @@ namespace
             QueueRestore(restoreToken);
         }
     }
+
+    static void RefreshCursorSuppress(RE::StaticFunctionTag*)
+    {
+        if (IronSoul::Config::GetInt("CursorHide", 1) == 0) {
+            return;
+        }
+
+        std::uint64_t workerToken = 0;
+        {
+            std::scoped_lock lock(g_cursorSuppressState.lock);
+            if (g_cursorSuppressState.activeTokens.empty()) {
+                return;
+            }
+
+            workerToken = g_cursorSuppressState.workerToken.load();
+        }
+
+        QueueApplySuppression(workerToken, "refresh");
+    }
 }
 
     void Register(RE::BSScript::IVirtualMachine* a_vm)
     {
         a_vm->RegisterFunction("BeginCursorSuppress", kScriptName, BeginCursorSuppress);
         a_vm->RegisterFunction("EndCursorSuppress", kScriptName, EndCursorSuppress);
+        a_vm->RegisterFunction("RefreshCursorSuppress", kScriptName, RefreshCursorSuppress);
     }
 }

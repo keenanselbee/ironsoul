@@ -216,6 +216,8 @@ Function HandleDeathAndQuit(Actor player)
     IronSoulSFX sfx = Controller.SFX
     IronSoulEffects effects = Controller.Effects
 
+    IronSoulNative.BeginMenuBlock("death", True)
+
     ; Identity (GUID required).
     String guid = identity.GetTickGuid(player)
     if guid == ""
