@@ -135,6 +135,7 @@ V3: The Dragon Cult Rises
 - Add heat decay, cooldowns, post-attack reduction, and loop protection so assassin kills do not recursively create more assassin pressure.
 - Explore optional The Restless Dead integration for richer undead visual variety while preserving Dragon Cultist identity.
 - Alduin remains defeatable in V3.
+- Corpse system so towns show the effects of raids while main npcs stay alive.
 
 V4: Return of the Dead God
 - Add a full quest powered by the dream system, building on the historical Heart dreams introduced in V2.
