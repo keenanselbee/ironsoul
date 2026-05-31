@@ -38,6 +38,8 @@ Current TODO
 
 Heartshards
 
+Sunderhearts have begun manifesting throughout Tamriel, radiant remnants of Lorkhan’s Heart, alive with divine anima and forgotten tonal power.
+
 ```text
 | Heartshards Found | Unlocked Tier           | Quest Milestone                 | Starting Found Heartshards |
 | 0                 | Dormant Heartshard      | Dormant Heartshards can spawn   | 0                          |
@@ -52,37 +54,37 @@ Heartshards
 Proposed Heartshards:
 
 ```text
-| Family   | Weapon Effect                      | Armor/Apparel Effect               | Implementation               |
-| Tonal    | Improve selected weapon temper     | Improve selected armor temper      | Scripted item selection      |
-| Sundered | Armor-piercing damage              | Fortify armor rating               | Perk condition / AV modifier |
-| Wail     | Magicka damage / interrupt casters | Spell absorption / Fortify Magicka | Standard effects, tune       |
-| Pact     | Reduce target damage briefly       | Resist magic / resist damage       | Temporary debuff + AV        |
-| Red      | Fire damage                        | Resist fire                        | Standard enchantments        |
-| Ash      | Lingering fire/ash damage          | Resist fire + disease              | Standard effects             |
-| Blood    | Absorb health                      | Fortify health                     | Standard enchantments        |
-| Breath   | Absorb stamina                     | Fortify stamina                    | Standard enchantments        |
-| Memory   | Soul trap                          | Fortify enchanting                 | Standard + AV modifier       |
-| Dreaming | Fear or calm on hit                | Fortify illusion                   | Standard illusion + AV       |
-| Missing  | Absorb magicka                     | Fortify magicka                    | Standard enchantments        |
-| Mortal   | Bonus damage to undead             | Resist disease                     | Keyword condition            |
-| Scar     | Bleed / lingering damage           | Fortify health regen               | Magic effect + AV            |
-| Oath     | Bonus damage below half health     | Fortify block                      | Perk condition + AV          |
-| Betrayal | Sneak attack bonus                 | Fortify sneak / muffle             | Perk condition + AV          |
-| Pilgrim  | Turn undead                        | Fortify restoration                | Standard effects             |
-| Brass    | Stagger chance                     | Fortify heavy armor                | Perk proc + AV               |
-| Glass    | Critical chance                    | Fortify light armor                | Perk proc + AV               |
-| Storm    | Shock damage                       | Resist shock                       | Standard enchantments        |
-| Rime     | Frost damage                       | Resist frost                       | Standard enchantments        |
-| Thorn    | Poison damage                      | Resist poison                      | Standard effects             |
-| Burden   | Slow target                        | Fortify carry weight               | Standard slow + AV           |
-| Gale     | Weapon speed                       | Movement speed                     | AV modifiers, test           |
-| Mirror   | Retaliatory damage on hit          | Reflect damage                     | Scripted retaliation         |
-| Aegis    | Weaken target attack damage        | Resist normal weapons              | Temporary debuff + AV        |
-| Hunger   | Stamina drain                      | Reduced stamina costs              | Standard / AV effects        |
-| Crown    | Calm / command chance              | Fortify speech                     | Standard illusion + AV       |
-| Rune     | Bonus damage after spellcast       | Magicka regen                      | Small script / perk proc     |
-| Vigil    | Turn undead / reveal undead        | Detect dead                        | Standard effects             |
-| Doom     | Fear on hit                        | Shout recovery bonus               | Standard fear + AV           |
+| Type     | Weapon Effect                      | Armor/Apparel Effect               | Implementation               | Colour Scheme                 |
+| Tonal    | Improve selected weapon temper     | Improve selected armor temper      | Scripted item selection      | Kagrenac Gold (#f0b84a)       |
+| Sundered | Armor-piercing damage              | Fortify armor rating               | Perk condition / AV modifier | Sundered Ruby (#e02f3f)       |
+| Wail     | Magicka damage / interrupt casters | Spell absorption / Fortify Magicka | Standard effects, tune       | Wailglass Blue (#7aa2ff)      |
+| Pact     | Reduce target damage briefly       | Resist magic / resist damage       | Temporary debuff + AV        | Pactwine Rose (#b12c5a)       |
+| Red      | Fire damage                        | Resist fire                        | Standard enchantments        | Dragonflame (#ff4a1f)         |
+| Ash      | Lingering fire/ash damage          | Resist fire + disease              | Standard effects             | Ashfall Rust (#a86f5d)        |
+| Blood    | Absorb health                      | Fortify health                     | Standard enchantments        | Heartblood Ruby (#d91e5b)     |
+| Breath   | Absorb stamina                     | Fortify stamina                    | Standard enchantments        | Breathspring Teal (#2ee6a6)   |
+| Memory   | Soul trap                          | Fortify enchanting                 | Standard + AV modifier       | Mnemonic Indigo (#5964ff)     |
+| Dreaming | Fear or calm on hit                | Fortify illusion                   | Standard illusion + AV       | Lucid Violet (#d66bff)        |
+| Missing  | Absorb magicka                     | Fortify magicka                    | Standard enchantments        | Voidmark Blue (#233a8b)       |
+| Mortal   | Bonus damage to undead             | Resist disease                     | Keyword condition            | Gravebone (#cbb99a)           |
+| Scar     | Bleed / lingering damage           | Fortify health regen               | Magic effect + AV            | Scar-Suture (#c34b45)         |
+| Oath     | Bonus damage below half health     | Fortify block                      | Perk condition + AV          | Oathsteel (#6f86a8)           |
+| Betrayal | Sneak attack bonus                 | Fortify sneak / muffle             | Perk condition + AV          | Traitor Violet (#5b238c)      |
+| Pilgrim  | Turn undead                        | Fortify restoration                | Standard effects             | Pilgrim Candle (#ffe6a8)      |
+| Brass    | Stagger chance                     | Fortify heavy armor                | Perk proc + AV               | Weathered Brass (#b08a4b)     |
+| Glass    | Critical chance                    | Fortify light armor                | Perk proc + AV               | Glasscut Cyan (#7cf6e7)       |
+| Storm    | Shock damage                       | Resist shock                       | Standard enchantments        | Stormcharge (#3aa0ff)         |
+| Rime     | Frost damage                       | Resist frost                       | Standard enchantments        | Frostwake (#bdf4ff)           |
+| Thorn    | Poison damage                      | Resist poison                      | Standard effects             | Thornvenom (#9bff22)          |
+| Burden   | Slow target                        | Fortify carry weight               | Standard slow + AV           | Burden Umber (#8a5f3c)        |
+| Gale     | Weapon speed                       | Movement speed                     | AV modifiers, test           | Galefoam Mint (#a8ffd0)       |
+| Mirror   | Retaliatory damage on hit          | Reflect damage                     | Scripted retaliation         | Mirrorsheen Silver (#cfd8e3)  |
+| Aegis    | Weaken target attack damage        | Resist normal weapons              | Temporary debuff + AV        | Aegis Cobalt (#3452d8)        |
+| Hunger   | Stamina drain                      | Reduced stamina costs              | Standard / AV effects        | Hollow Bile (#c7d100)         |
+| Crown    | Calm / command chance              | Fortify speech                     | Standard illusion + AV       | Sovereign Gold (#ffe38a)      |
+| Rune     | Bonus damage after spellcast       | Magicka regen                      | Small script / perk proc     | Runelight Azure (#14b8ff)     |
+| Vigil    | Turn undead / reveal undead        | Detect dead                        | Standard effects             | Vigil White (#f3f7ff)         |
+| Doom     | Fear on hit                        | Shout recovery bonus               | Standard fear + AV           | Doomwine (#8b0018)            |
 ```
 
 - Create Heartshard item records and assets as Sigil Stone-adjacent MiscObjects using the spherical soul gem mesh as the visual base.
