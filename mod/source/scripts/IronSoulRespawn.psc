@@ -73,13 +73,7 @@ Function LogRespawn(Int level, String msg, Bool suppressNotify = False)
         return
     endif
 
-    String levelText = "ERR"
-    if level == IronSoulConfig.LOG_DBG()
-        levelText = "DBG"
-    elseif level == IronSoulConfig.LOG_INFO()
-        levelText = "INFO"
-    endif
-    Debug.Trace("[IronSoul] [" + levelText + "] [Respawn] " + msg)
+    Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Respawn] " + msg)
 EndFunction
 
 Function LogRespawnSnapshot(Int level, String msg)
@@ -88,13 +82,7 @@ Function LogRespawnSnapshot(Int level, String msg)
         return
     endif
 
-    String levelText = "ERR"
-    if level == IronSoulConfig.LOG_DBG()
-        levelText = "DBG"
-    elseif level == IronSoulConfig.LOG_INFO()
-        levelText = "INFO"
-    endif
-    Debug.Trace("[IronSoul] [Snapshot] [" + levelText + "] [Respawn] " + msg)
+    Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Snapshot] " + msg)
 EndFunction
 
 
@@ -321,8 +309,9 @@ Function LogSnapshot()
     LogRespawnSnapshot(IronSoulConfig.LOG_INFO(), "Respawn: Present=" + hasRespawn \
         + " Running=" + respawnRunning \
         + " Respawn=" + (Controller.Config.IsRespawnEnabled()) \
-        + " Available=" + _respawnAvailable \
-        + " WindowArmed=" + _respawnWindowArmed \
+        + " Available=" + _respawnAvailable)
+
+    LogRespawnSnapshot(IronSoulConfig.LOG_INFO(), "Respawn State: WindowArmed=" + _respawnWindowArmed \
         + " PendingDisable=" + _pendingDisableRespawn \
         + " PendingMenu=" + _pendingRespawnMenu \
         + " MenuArmed=" + _respawnMenuArmed)
@@ -332,7 +321,7 @@ Function LogSnapshot()
     endif
 
     if hasRespawn && Controller.Config.IsRespawnEnabled() && !respawnRunning
-        LogRespawnSnapshot(IronSoulConfig.LOG_ERR(), "WARNING: Respawn quest present but NOT running")
+        LogRespawnSnapshot(IronSoulConfig.LOG_ERR(), "Respawn: Quest present but NOT running")
     endif
 EndFunction
 

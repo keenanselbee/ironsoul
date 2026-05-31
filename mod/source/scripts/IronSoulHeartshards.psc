@@ -318,13 +318,7 @@ Function LogHeartshards(Int level, String msg, Bool suppressNotify = False)
         return
     endif
 
-    String levelText = "ERR"
-    if level == IronSoulConfig.LOG_DBG()
-        levelText = "DBG"
-    elseif level == IronSoulConfig.LOG_INFO()
-        levelText = "INFO"
-    endif
-    Debug.Trace("[IronSoul] [" + levelText + "] [Heartshards] " + msg)
+    Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Heartshards] " + msg)
 EndFunction
 
 Int Function GetHeartshardInventoryMode()

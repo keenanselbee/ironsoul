@@ -143,13 +143,7 @@ Function LogController(Int level, String msg, Bool suppressNotify = False)
         return
     endif
 
-    String levelText = "ERR"
-    if level == IronSoulConfig.LOG_DBG()
-        levelText = "DBG"
-    elseif level == IronSoulConfig.LOG_INFO()
-        levelText = "INFO"
-    endif
-    Debug.Trace("[IronSoul] [" + levelText + "] [Controller] " + msg)
+    Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Controller] " + msg)
 EndFunction
 
 Function LogControllerSnapshot(Int level, String msg)
@@ -158,13 +152,7 @@ Function LogControllerSnapshot(Int level, String msg)
         return
     endif
 
-    String levelText = "ERR"
-    if level == IronSoulConfig.LOG_DBG()
-        levelText = "DBG"
-    elseif level == IronSoulConfig.LOG_INFO()
-        levelText = "INFO"
-    endif
-    Debug.Trace("[IronSoul] [Snapshot] [" + levelText + "] [Controller] " + msg)
+    Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Snapshot] " + msg)
 EndFunction
 
 Bool Function LoadConfig()

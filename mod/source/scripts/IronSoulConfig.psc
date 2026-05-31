@@ -92,6 +92,7 @@ Scriptname IronSoulConfig extends Quest
 
 ; --- Logging ---
 ; ---------------
+; LogLevelTag()
 ; LogMsg()
 ; LogExternalMsg()
 ; LogComponentMsg()
@@ -552,13 +553,7 @@ Function LogMsg(Int level, String msg, Bool suppressNotify = False)
         Debug.Notification("[IS] " + msg)
     endif
 
-    if level == LOG_DBG()
-        Debug.Trace("[IronSoul]" + " [DBG] " + msg)
-    elseif level == LOG_INFO()
-        Debug.Trace("[IronSoul]" + " [INFO] " + msg)
-    else
-        Debug.Trace("[IronSoul]" + " [ERR] " + msg)
-    endif
+    Debug.Trace("[IronSoul]" + " [" + LogLevelTag(level) + "] " + msg)
 EndFunction
 
 Function LogExternalMsg(String source, Int level, String msg, Bool suppressNotify = False)
@@ -588,13 +583,7 @@ Function LogComponentMsg(String source, Int level, String msg, Bool suppressNoti
         Debug.Notification("[IS] " + msg)
     endif
 
-    if level == LOG_DBG()
-        Debug.Trace("[IronSoul]" + " [DBG] [" + source + "] " + msg)
-    elseif level == LOG_INFO()
-        Debug.Trace("[IronSoul]" + " [INFO] [" + source + "] " + msg)
-    else
-        Debug.Trace("[IronSoul]" + " [ERR] [" + source + "] " + msg)
-    endif
+    Debug.Trace("[IronSoul]" + " [" + LogLevelTag(level) + "] [" + source + "] " + msg)
 EndFunction
 
 Function LogMsgSnapshot(Int level, String msg)
@@ -605,7 +594,7 @@ Function LogMsgSnapshot(Int level, String msg)
         return
     endif
 
-    Debug.Trace("[IronSoul]" + " [Snapshot] " + msg)
+    Debug.Trace("[IronSoul]" + " [" + LogLevelTag(level) + "] [Snapshot] " + msg)
 EndFunction
 
 Function LogComponentSnapshot(String source, Int level, String msg)
@@ -616,27 +605,18 @@ Function LogComponentSnapshot(String source, Int level, String msg)
         return
     endif
 
-    if source == ""
-        source = "External"
-    endif
-
-    if level == LOG_DBG()
-        Debug.Trace("[IronSoul]" + " [Snapshot] [DBG] [" + source + "] " + msg)
-    elseif level == LOG_INFO()
-        Debug.Trace("[IronSoul]" + " [Snapshot] [INFO] [" + source + "] " + msg)
-    else
-        Debug.Trace("[IronSoul]" + " [Snapshot] [ERR] [" + source + "] " + msg)
-    endif
+    Debug.Trace("[IronSoul]" + " [" + LogLevelTag(level) + "] [Snapshot] " + msg)
 EndFunction
 
 Function LogSnapshot()
-    LogComponentSnapshot("Config", LOG_INFO(), "Config: Logging=" + _logEnabled \
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Core: Logging=" + _logEnabled \
         + " Level=" + _logLevel \
         + " Notify=" + _enableLogNotifications \
         + " Preset=" + _ironSoulPresetOrdinal \
         + " Permadeath=" + _permadeathEnabled \
-        + " UninstallMode=" + _uninstallMode \
-        + " HeartshardMessage=" + _heartshardMessageEnabled \
+        + " UninstallMode=" + _uninstallMode)
+
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Heartshards: HeartshardMessage=" + _heartshardMessageEnabled \
         + " HeartshardNotification=" + _heartshardNotificationEnabled \
         + " HeartshardInventoryMode=" + _heartshardInventoryMode \
         + " HeartshardTonalMaxTemper=" + _heartshardTonalMaxTemper)
@@ -644,29 +624,41 @@ Function LogSnapshot()
     LogComponentSnapshot("Config", LOG_INFO(), "Config Systems: LuckLevel=" + _luckLevel \
         + " SoulBonus=" + _soulBonusEnabled \
         + " SoulFeats=" + _soulFeatsEnabled \
-        + " DefiantSoul=" + _defiantSoulEnabled \
-        + " DragonSoulRevive=" + _dragonSoulReviveEnabled \
+        + " DefiantSoul=" + _defiantSoulEnabled)
+
+    LogComponentSnapshot("Config", LOG_INFO(), "Config DragonSoulRevive: DragonSoulRevive=" + _dragonSoulReviveEnabled \
         + " DragonSoulReviveTransform=" + _dragonSoulReviveTransformEnabled \
         + " DragonSoulIncreaseNotify=" + _dragonSoulIncreaseNotificationEnabled \
         + " DragonSoulReviveLimit=" + _dragonSoulReviveLimit)
 
-    LogComponentSnapshot("Config", LOG_INFO(), "Config Sound: SFX=" + _sfxEnabled \
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Core: SFX=" + _sfxEnabled \
         + " MusicFade=" + _musicFadeEnabled \
         + " IronIntroSFX=" + _ironIntroSFXEnabled \
         + " DeathSFX=" + _deathSFXEnabled \
         + " PermadeathSFX=" + _permadeathSFXEnabled \
-        + " RespawnSFX=" + _respawnSFXEnabled \
-        + " DefiantTransitionSFX=" + _defiantTransitionSFXEnabled \
+        + " RespawnSFX=" + _respawnSFXEnabled)
+
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Transitions: DefiantTransitionSFX=" + _defiantTransitionSFXEnabled \
         + " CHIMTransitionSFX=" + _chimTransitionSFXEnabled \
         + " DefiantRestoreSFX=" + _defiantRestoreSFXEnabled \
-        + " DefiantRestoreFeatSFX=" + _defiantRestoreFeatSFXEnabled \
-        + " HeartshardAbsorbSFX=" + _heartshardAbsorbSFXEnabled \
+        + " DefiantRestoreFeatSFX=" + _defiantRestoreFeatSFXEnabled)
+
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Events: HeartshardAbsorbSFX=" + _heartshardAbsorbSFXEnabled \
         + " DragonSoulReviveCastSFX=" + _dragonSoulReviveCastSFXEnabled \
         + " DragonSoulReviveSFX=" + _dragonSoulReviveSFXEnabled \
         + " FeatUnlockSFX=" + _featUnlockSFXEnabled \
         + " LuckRollSFX=" + _luckRollSFXEnabled \
         + " LuckOutcomeSFX=" + _luckOutcomeSFXEnabled \
         + " RespawnHeavyBreathingSFX=" + _respawnHeavyBreathingSFXEnabled)
+EndFunction
+
+String Function LogLevelTag(Int level) Global
+    if level == LOG_DBG()
+        return "D"
+    elseif level == LOG_INFO()
+        return "I"
+    endif
+    return "E"
 EndFunction
 
 Int Function LOG_ERR() Global

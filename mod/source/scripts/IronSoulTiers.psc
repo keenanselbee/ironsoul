@@ -232,13 +232,7 @@ Function LogTiers(Int level, String msg, Bool suppressNotify = False)
         return
     endif
 
-    String levelText = "ERR"
-    if level == IronSoulConfig.LOG_DBG()
-        levelText = "DBG"
-    elseif level == IronSoulConfig.LOG_INFO()
-        levelText = "INFO"
-    endif
-    Debug.Trace("[IronSoul] [" + levelText + "] [Tiers] " + msg)
+    Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Tiers] " + msg)
 EndFunction
 
 Function LogTiersSnapshot(Int level, String msg)
@@ -247,13 +241,7 @@ Function LogTiersSnapshot(Int level, String msg)
         return
     endif
 
-    String levelText = "ERR"
-    if level == IronSoulConfig.LOG_DBG()
-        levelText = "DBG"
-    elseif level == IronSoulConfig.LOG_INFO()
-        levelText = "INFO"
-    endif
-    Debug.Trace("[IronSoul] [Snapshot] [" + levelText + "] [Tiers] " + msg)
+    Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Snapshot] " + msg)
 EndFunction
 
 
@@ -386,13 +374,13 @@ Function LogSnapshot()
     endif
 
     if !MQ305
-        LogTiersSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: MQ305 (Quest)")
+        LogTiersSnapshot(IronSoulConfig.LOG_ERR(), "Tiers: MISSING PROPERTY: MQ305 (Quest)")
     endif
     if !DLC1VQ08
-        LogTiersSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: DLC1VQ08 (Quest)")
+        LogTiersSnapshot(IronSoulConfig.LOG_ERR(), "Tiers: MISSING PROPERTY: DLC1VQ08 (Quest)")
     endif
     if !DLC2MQ06
-        LogTiersSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: DLC2MQ06 (Quest)")
+        LogTiersSnapshot(IronSoulConfig.LOG_ERR(), "Tiers: MISSING PROPERTY: DLC2MQ06 (Quest)")
     endif
 
     Actor p = Game.GetPlayer()
@@ -402,9 +390,9 @@ Function LogSnapshot()
             Int tier = GetCurrentTier(p, guid)
             Int totalDeaths = Controller.Death.GetTotalDeaths(p, guid)
             if tier == TIER_DEFIANT
-                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "SoulTier=" + tier + " DefiantTrackedTier=" + GetDefiantTrackedTier(p, guid) + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid))
+                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "Tiers: SoulTier=" + tier + " DefiantTrackedTier=" + GetDefiantTrackedTier(p, guid) + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid))
             else
-                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "SoulTier=" + tier + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid))
+                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "Tiers: SoulTier=" + tier + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid))
             endif
         endif
     endif
