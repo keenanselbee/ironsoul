@@ -61,7 +61,7 @@ Luck is tied to [b]Optional Respawn Integration[/b].
 [*]All progression is tracked [b]per character[/b] via a persistent GUID identity model.
 [*]Native datastore uses main + mirror files, integrity checks, and self-heal behavior.
 [*]Co-save backups are maintained for key per-character values.
-[*]Optional anti-cheat handling for abnormal Dragon Soul jumps.
+[*]Optional anti-cheat handling for suspicious Dragon Soul gain.
 [/list]
 
 [heading][color=#e69138]Skyrim Character Sheet Compatibility (Optional)[/color][/heading]
@@ -78,7 +78,7 @@ Config path: [b]Data/SKSE/plugins/ironsoul.ini[/b]
 [*][b]DeathMessage[/b], [b]RespawnMessage[/b], [b]LoadNotification[/b], [b]LuckReminderNotification[/b], [b]LuckRollMessageMode[/b]: control message/UI behavior.
 [*][b]SoulFeats[/b], [b]SoulBonus[/b], [b]SoulFatigue[/b]: control progression and stat-modifier behavior.
 [*][b]DefiantResetSFX[/b], [b]HeartshardAbsorbSFX[/b]: control restore and Heartshard purge SFX behavior.
-[*][b]DragonSoulAnticheat[/b]: controls anti-cheat filtering for Dragon Soul gain deltas.
+[*][b]Anticheat[/b]: controls suspicious Dragon Soul gain detection. Menu blocking support is planned.
 [*][b]CHIM[/b]: enables CHIM transition path.
 [*][b]EnableCharacterSheetCompatibility[/b]: mirrors death count to DEPRECATED05.
 [*][b]UninstallMode[/b]: safe disable/uninstall flow.
