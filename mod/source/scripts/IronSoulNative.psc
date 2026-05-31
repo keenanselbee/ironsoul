@@ -68,7 +68,8 @@ Scriptname IronSoulNative Hidden
 
 ; --- Cursor Control ---
 ; ----------------------
-; SuppressCursor()
+; BeginCursorSuppress()
+; EndCursorSuppress()
 
 ; --- Music Fade ---
 ; ------------------
@@ -188,9 +189,10 @@ Bool Function CloseMenu(String menuName) Global Native
 ; --- CURSOR CONTROL ---
 ; =====================
 ;
-; CursorHide=0 no-ops. True advances move-right -> hide/off-screen.
-; Later True calls reapply suppression; one False restores the saved state.
-Function SuppressCursor(Bool suppress) Global Native
+; CursorHide=0 makes BeginCursorSuppress() return 0.
+; Positive tokens hide/off-screen the cursor until each token is ended once.
+Int Function BeginCursorSuppress() Global Native
+Function EndCursorSuppress(Int token) Global Native
 
 
 ; --- MUSIC FADE ---

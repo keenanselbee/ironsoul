@@ -256,12 +256,14 @@ Function OpenTimedMessageSWF(String menuName, Float duration = 6.0, Bool restore
         duration = 0.1
     endif
 
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
     FadeMusicForTransitionSequence()
 
     UI.CloseCustomMenu()
     UI.OpenCustomMenu(menuName, 0)
     Utility.WaitMenuMode(duration)
     UI.CloseCustomMenu()
+    IronSoulNative.EndCursorSuppress(cursorToken)
 
     if restoreMusic
         RestoreMusic()
@@ -342,11 +344,14 @@ Bool Function OpenKeyDismissMenu(String menuName, Float maxDuration = 6.0, Float
         minDismissSeconds = maxDuration
     endif
 
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
     UI.CloseCustomMenu()
 
     UI.OpenCustomMenu(menuName, 0)
 
-    return WaitKeyDismissMenu(maxDuration, minDismissSeconds)
+    Bool dismissedByKey = WaitKeyDismissMenu(maxDuration, minDismissSeconds)
+    IronSoulNative.EndCursorSuppress(cursorToken)
+    return dismissedByKey
 EndFunction
 
 Bool Function WaitKeyDismissMenu(Float maxDuration = 6.0, Float minDismissSeconds = 6.0)

@@ -337,7 +337,7 @@ Bool Function PerformRoll(Actor player, String guid)
         endif
 
         UI.CloseCustomMenu()
-        IronSoulNative.SuppressCursor(True)
+        Int cursorToken = IronSoulNative.BeginCursorSuppress()
         Utility.Wait(0.05)
 
         Controller.SFX.Play(Controller.SFX.SFXLuckRoll, player)
@@ -351,7 +351,7 @@ Bool Function PerformRoll(Actor player, String guid)
         UI.OpenCustomMenu(resultMenu, 0)
         Utility.WaitMenuMode(1.5)
         UI.CloseCustomMenu()
-        IronSoulNative.SuppressCursor(False)
+        IronSoulNative.EndCursorSuppress(cursorToken)
 
     elseif messageMode == 2
         String resultMenuOnly = "luck_defeat_" + roll20
@@ -361,10 +361,12 @@ Bool Function PerformRoll(Actor player, String guid)
             resultSFXOnly = Controller.SFX.SFXLuckSuccess
         endif
 
+        Int cursorTokenOnly = IronSoulNative.BeginCursorSuppress()
         Controller.SFX.Play(resultSFXOnly, player)
         UI.OpenCustomMenu(resultMenuOnly, 0)
         Utility.WaitMenuMode(1.0)
         UI.CloseCustomMenu()
+        IronSoulNative.EndCursorSuppress(cursorTokenOnly)
     endif
 
     _lastLuckRollValid = True

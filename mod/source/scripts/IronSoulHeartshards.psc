@@ -70,7 +70,7 @@ Scriptname IronSoulHeartshards extends Quest
 ; are splinters of consequence, small mineral survivals of a pressure that
 ; should have ended where it began.
 ;
-; The analogy to the Daedric sigil is tempting but imperfect. Such a sigil
+; The analogy to the sigil stone is tempting but imperfect. Such a sigil
 ; impresses an exterior will upon a prepared morpholith, making a gate where no
 ; gate should be. A heartshard, if such things exist, would be its mortal
 ; contrary: not a door opened outward, but a door prevented from closing.
@@ -843,11 +843,13 @@ Function PlayHeartshardPresentation(Actor player, String menuName)
         return
     endif
 
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
     Controller.Presentation.FadeMusicForTransitionSequence()
     UI.CloseCustomMenu()
     UI.OpenCustomMenu(menuName, 0)
     PlayHeartshardSFX(player)
     Controller.Presentation.WaitKeyDismissMenu(HEARTSHARD_PRESENTATION_MAX_SECONDS, HEARTSHARD_PRESENTATION_DISMISS_SECONDS)
+    IronSoulNative.EndCursorSuppress(cursorToken)
     Controller.Presentation.RestoreMusic()
 EndFunction
 

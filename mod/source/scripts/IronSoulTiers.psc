@@ -1111,8 +1111,12 @@ Function ShowTierUnlockMessageIfNeeded(Actor player, String guid, Int curTier, S
         return
     endif
     LogTiers(IronSoulConfig.LOG_INFO(), logMessage)
-    Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(ResolveSoulFeatUnlockMenu(player, guid, curTier, True), 30.0, 8.0)
+    String unlockMenu = ResolveSoulFeatUnlockMenu(player, guid, curTier, True)
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
+    Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(unlockMenu, 30.0, 8.0, False)
     MaybePlayLuckImprovedAfterTierUnlock(player)
+    IronSoulNative.EndCursorSuppress(cursorToken)
+    Controller.Presentation.RestoreMusic()
 EndFunction
 
 Function MaybePlayLuckImprovedAfterTierUnlock(Actor player)
@@ -1129,11 +1133,13 @@ Function MaybePlayLuckImprovedAfterTierUnlock(Actor player)
         return
     endif
 
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
     UI.CloseCustomMenu()
     UI.OpenCustomMenu("luck_improved", 0)
     Controller.SFX.Play(Controller.SFX.SFXLuckSuccess, player)
     Utility.WaitMenuMode(3.0)
     UI.CloseCustomMenu()
+    IronSoulNative.EndCursorSuppress(cursorToken)
 EndFunction
 
 String Function ResolveSoulFeatUnlockMenu(Actor player, String guid, Int soulTier, Bool consumeState = False)
@@ -1243,6 +1249,9 @@ EndFunction
 String Function ResolveDefiantRestoreEndingMenu(Actor player, String guid, Int targetTier, Bool restoredWithFeat, Bool consumeState = False)
     if restoredWithFeat
         return ResolveSoulFeatUnlockMenu(player, guid, targetTier, consumeState)
+    endif
+    if targetTier == TIER_DEFIANT
+        return "0_defiant_restore"
     endif
     return IronSoulUI.TierMenuPrefix(targetTier) + "_defiant_restore"
 EndFunction
@@ -1436,6 +1445,7 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
 
     Actor player = Game.GetPlayer()
 
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
     UI.CloseCustomMenu()
     FadeMusicForTransitionSequence()
 
@@ -1476,6 +1486,7 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
     else
         Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 30.0, 5.0, False)
     endif
+    IronSoulNative.EndCursorSuppress(cursorToken)
 EndFunction
 
 Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True)
@@ -1491,6 +1502,7 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
 
     Actor player = Game.GetPlayer()
 
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
     UI.CloseCustomMenu()
     FadeMusicForTransitionSequence()
 
@@ -1531,12 +1543,13 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
     else
         Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, False)
     endif
+    IronSoulNative.EndCursorSuppress(cursorToken)
 EndFunction
 
 Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, Bool restoredWithFeat = False, Bool restoreMusicAfterIntro = True)
     String m0 = "0_defiant_transition_flash"
-    String m1 = "0_defiant_reset"
-    String m2 = "0_defiant_reset_cracks"
+    String m1 = "0_defiant_restore"
+    String m2 = "0_defiant_restore_cracks"
     String m3 = endingMenu
 
     if m3 == ""
@@ -1546,6 +1559,7 @@ Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, B
 
     IronSoulNative.DataFlushIfDirty()
 
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
     UI.CloseCustomMenu()
     FadeMusicForTransitionSequence()
     if restoredWithFeat
@@ -1569,9 +1583,14 @@ Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, B
     UI.OpenCustomMenu(m0, 0)
     Utility.WaitMenuMode(0.5)
 
-    Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro)
+    Bool deferMusicRestore = restoredWithFeat && restoreMusicAfterIntro
+    Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro && !deferMusicRestore)
     if restoredWithFeat
         MaybePlayLuckImprovedAfterTierUnlock(player)
+    endif
+    IronSoulNative.EndCursorSuppress(cursorToken)
+    if deferMusicRestore
+        Controller.Presentation.RestoreMusic()
     endif
 EndFunction
 
