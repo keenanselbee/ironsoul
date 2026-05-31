@@ -337,7 +337,7 @@ Function Heartbeat(Actor player, String guid)
 
         Int accepted = 0
         if delta > 0
-            if !Controller.Config.IsDragonSoulAnticheatEnabled()
+            if !Controller.Config.IsAnticheatEnabled()
                 accepted = delta
             else
                 if delta > 3 && Controller.Config.IsDragonSoulIncreaseNotificationEnabled()

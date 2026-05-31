@@ -82,7 +82,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsSoulFeatsEnabled()
 ; IsSoulBonusEnabled()
 ; IsSoulFatigueEnabled()
-; IsDragonSoulAnticheatEnabled()
+; IsAnticheatEnabled()
 ; IsLuckReminderNotificationEnabled()
 ; IsLoadNotificationEnabled()
 ; IsUninstallMode()
@@ -165,7 +165,7 @@ Bool _defiantSoulEnabled = True
 Bool _soulFeatsEnabled = True
 Bool _soulBonusEnabled = True
 Bool _soulFatigueEnabled = True
-Bool _dragonSoulAnticheatEnabled = True
+Bool _anticheatEnabled = True
 
 Bool _luckReminderNotificationEnabled = True
 Bool _loadNotificationEnabled = True
@@ -219,7 +219,7 @@ Function ResetDefaults()
     _soulFatigueEnabled = True
 
     ; Additional toggles (ensure defaults reset on reload)
-    _dragonSoulAnticheatEnabled = True
+    _anticheatEnabled = True
     _sfxEnabled = True
     _musicFadeEnabled = True
     _ironIntroSFXEnabled = True
@@ -296,7 +296,7 @@ Function LoadFromIni()
     _soulFeatsEnabled = ReadFeatureEnabled("SoulFeats", True)
     _soulFatigueEnabled = ReadFeatureEnabled("SoulFatigue", True)
 
-    _dragonSoulAnticheatEnabled = ReadFeatureEnabled("DragonSoulAnticheat", True)
+    _anticheatEnabled = ReadFeatureEnabled("Anticheat", True)
     _dragonSoulIncreaseNotificationEnabled = ReadFeatureEnabled("DragonSoulIncreaseNotification", True)
     _sfxEnabled = ReadFeatureEnabled("SFX", True)
     _musicFadeEnabled = ReadFeatureEnabled("MusicFade", True)
@@ -502,8 +502,8 @@ Bool Function IsSoulFatigueEnabled()
     return _soulFatigueEnabled
 EndFunction
 
-Bool Function IsDragonSoulAnticheatEnabled()
-    return _dragonSoulAnticheatEnabled
+Bool Function IsAnticheatEnabled()
+    return _anticheatEnabled
 EndFunction
 
 Bool Function IsLuckReminderNotificationEnabled()

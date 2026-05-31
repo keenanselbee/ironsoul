@@ -41,6 +41,12 @@ struct ConfigKeySpec
 	std::int32_t flags;
 };
 
+struct ConfigKeyAliasSpec
+{
+	const char* aliasKey;
+	const char* canonicalKey;
+};
+
 static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "ironsoulpreset", "IronSoulPreset", "Difficulty", 0, false, 0, false, 0,
 		kConfigFlagIronSoulPreset | kConfigFlagDraugnarokRefresh },
@@ -51,9 +57,9 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "draugrthreatlevel", "DraugrThreatLevel", "Difficulty", 2, true, 1, true, 5,
 		kConfigFlagDraugrThreat | kConfigFlagDraugnarokRefresh },
 
+	{ "anticheat", "Anticheat", "General", 1, true, 0, true, 1, 0 },
 	{ "characterjournal", "CharacterJournal", "General", 1, true, 0, true, 1, 0 },
 	{ "deathmessage", "DeathMessage", "General", 1, true, 0, true, 1, 0 },
-	{ "dragonsoulanticheat", "DragonSoulAnticheat", "General", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulincreasenotification", "DragonSoulIncreaseNotification", "General", 1, true, 0, true, 1, 0 },
 	{ "ironsoulintro", "IronSoulIntro", "General", 1, true, 0, true, 1, 0 },
 	{ "loadnotification", "LoadNotification", "General", 1, true, 0, true, 1, 0 },
@@ -133,6 +139,10 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "enablelognotifications", "EnableLogNotifications", "Debug", 0, true, 0, true, 1, 0 },
 	{ "loglevel", "LogLevel", "Debug", 2, true, 1, true, 3, 0 },
 	{ "uninstallmode", "UninstallMode", "Debug", 0, true, 0, true, 1, kConfigFlagUninstallMode },
+};
+
+static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
+	{ "dragonsoulanticheat", "anticheat" },
 };
 
 	static bool IsInfoLoggingEnabledLocked()
@@ -507,10 +517,16 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 			return spec;
 		}
 
+		for (const ConfigKeyAliasSpec& alias : kConfigKeyAliases) {
+			if (alias.aliasKey == keyLower) {
+				return FindConfigKeySpecByCanonical(alias.canonicalKey);
+			}
+		}
+
 		// Permit "section.key" forms by canonicalizing to "key".
 		const std::size_t dot = keyLower.rfind('.');
 		if (dot != std::string::npos && dot + 1 < keyLower.size()) {
-			return FindConfigKeySpecByCanonical(std::string_view(keyLower).substr(dot + 1));
+			return FindConfigKeySpec(std::string_view(keyLower).substr(dot + 1));
 		}
 
 		return nullptr;
