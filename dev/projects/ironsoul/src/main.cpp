@@ -68,7 +68,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	IronSoul::InitializeLogging();
 
-	logger::info("{} v{} loading...", Plugin::NAME, Plugin::VERSION.string());
+	logger::info("Iron Soul SKSE plugin v{} loading...", Plugin::VERSION.string());
 	logger::info("Iron Soul: runtime = {}", a_skse->RuntimeVersion().string());
 
 	// Keep it simple: just init SKSE + trampoline.
