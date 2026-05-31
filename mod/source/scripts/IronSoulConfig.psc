@@ -93,6 +93,7 @@ Scriptname IronSoulConfig extends Quest
 ; --- Logging ---
 ; ---------------
 ; LogLevelTag()
+; LogSourceTag()
 ; LogMsg()
 ; LogExternalMsg()
 ; LogComponentMsg()
@@ -557,14 +558,11 @@ Function LogMsg(Int level, String msg, Bool suppressNotify = False)
 EndFunction
 
 Function LogExternalMsg(String source, Int level, String msg, Bool suppressNotify = False)
-    if source == ""
-        source = "External"
-    endif
     if msg == ""
         return
     endif
 
-    LogMsg(level, "[" + source + "] " + msg, suppressNotify)
+    LogMsg(level, "[" + LogSourceTag(source) + "] " + msg, suppressNotify)
 EndFunction
 
 Function LogComponentMsg(String source, Int level, String msg, Bool suppressNotify = False)
@@ -575,9 +573,7 @@ Function LogComponentMsg(String source, Int level, String msg, Bool suppressNoti
         return
     endif
 
-    if source == ""
-        source = "External"
-    endif
+    source = LogSourceTag(source)
 
     if _enableLogNotifications == 1 && !suppressNotify
         Debug.Notification("[IS] " + msg)
@@ -659,6 +655,43 @@ String Function LogLevelTag(Int level) Global
         return "I"
     endif
     return "E"
+EndFunction
+
+String Function LogSourceTag(String source) Global
+    if source == ""
+        return "External"
+    elseif source == "controller"
+        return "Controller"
+    elseif source == "config"
+        return "Config"
+    elseif source == "death"
+        return "Death"
+    elseif source == "dragonsoulrevive"
+        return "DragonSoulRevive"
+    elseif source == "draugnarok"
+        return "Draugnarok"
+    elseif source == "effects"
+        return "Effects"
+    elseif source == "heartshards"
+        return "Heartshards"
+    elseif source == "identity"
+        return "Identity"
+    elseif source == "journal"
+        return "Journal"
+    elseif source == "luck"
+        return "Luck"
+    elseif source == "ondying"
+        return "OnDying"
+    elseif source == "playeralias"
+        return "PlayerAlias"
+    elseif source == "respawn"
+        return "Respawn"
+    elseif source == "tiers"
+        return "Tiers"
+    elseif source == "ui"
+        return "UI"
+    endif
+    return source
 EndFunction
 
 Int Function LOG_ERR() Global
