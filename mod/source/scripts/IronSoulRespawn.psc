@@ -26,6 +26,8 @@ Scriptname IronSoulRespawn extends Quest
 
 ; --- Respawn Helpers ---
 ; -----------------------
+; BeginRespawnMenuBlock()
+; EndRespawnMenuBlock()
 ; IsBlockedByTransform()
 ; HandleDisableRespawn()
 ; HandleDisableRespawnWithRuntime()
@@ -49,6 +51,7 @@ Float _pendingDisableRespawnStartedAt = 0.0
 Bool _pendingRespawnMenu = False
 Bool _respawnMenuArmed = False
 Float _respawnWarningAt = 0.0
+Int _respawnMenuBlockToken = 0
 
 
 ; --- Component Helpers ---
@@ -90,6 +93,8 @@ EndFunction
 ; =======================
 
 Function ResetTransientState()
+    EndRespawnMenuBlock("reset")
+
     _respawnQuest = None
     _respawnAvailable = False
 
@@ -100,6 +105,7 @@ Function ResetTransientState()
     _pendingRespawnMenu = False
     _respawnMenuArmed = False
     _respawnWarningAt = 0.0
+    _respawnMenuBlockToken = 0
 EndFunction
 
 Function RefreshRuntime()
@@ -197,6 +203,7 @@ Bool Function TryStartRespawn(Actor player, String guid)
 
     LogRespawn(IronSoulConfig.LOG_INFO(), "TryStartRespawn: Begin respawn")
 
+    BeginRespawnMenuBlock()
     _respawnWindowArmed = True
     LogRespawn(IronSoulConfig.LOG_INFO(), "TryStartRespawn: Armed respawn window")
     player.GetActorBase().SetEssential(True)
@@ -247,6 +254,7 @@ EndFunction
 
 Bool Function Tick(Actor player)
     if !_pendingDisableRespawn && !_pendingRespawnMenu && !_respawnWindowArmed
+        EndRespawnMenuBlock("no-pending-state")
         return False
     endif
 
@@ -260,7 +268,7 @@ Bool Function Tick(Actor player)
 EndFunction
 
 Bool Function RequiresFastPolling()
-    return _pendingDisableRespawn
+    return _pendingDisableRespawn || _pendingRespawnMenu
 EndFunction
 
 Function UpdatePlayerProtectionState(Actor player)
@@ -329,6 +337,30 @@ EndFunction
 ; --- Respawn Helpers ---
 ; =======================
 
+Function BeginRespawnMenuBlock()
+    if _respawnMenuBlockToken > 0
+        return
+    endif
+
+    _respawnMenuBlockToken = IronSoulNative.BeginMenuBlock("respawn", False)
+    if _respawnMenuBlockToken > 0
+        LogRespawn(IronSoulConfig.LOG_INFO(), "BeginRespawnMenuBlock: token=" + _respawnMenuBlockToken)
+    endif
+EndFunction
+
+Function EndRespawnMenuBlock(String reason = "")
+    Int token = _respawnMenuBlockToken
+    _respawnMenuBlockToken = 0
+    if token <= 0
+        return
+    endif
+
+    IronSoulNative.EndMenuBlock(token)
+    if reason != ""
+        LogRespawn(IronSoulConfig.LOG_INFO(), "EndRespawnMenuBlock: reason=" + reason + " token=" + token)
+    endif
+EndFunction
+
 Bool Function IsBlockedByTransform(Actor player)
     if !HasCoreRuntime() || !player || !Controller.BeastList
         return False
@@ -369,10 +401,8 @@ Bool Function HandleDisableRespawnWithRuntime(Actor player, Bool runtimeAvailabl
     endif
 
     if !runtimeAvailable
-        if _pendingDisableRespawn || _respawnWindowArmed
-            _pendingDisableRespawn = False
-            _respawnWindowArmed = False
-            _pendingDisableRespawnStartedAt = 0.0
+        if _pendingDisableRespawn || _respawnWindowArmed || _respawnMenuBlockToken > 0
+            ClearPendingRespawnState()
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=respawn_unavailable")
         endif
         return False
@@ -416,10 +446,8 @@ EndFunction
 
 Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
     if !runtimeAvailable
-        if _pendingRespawnMenu || _respawnMenuArmed
-            _pendingRespawnMenu = False
-            _respawnMenuArmed = False
-            _respawnWarningAt = 0.0
+        if _pendingRespawnMenu || _respawnMenuArmed || _respawnMenuBlockToken > 0
+            ClearPendingRespawnState()
         endif
         return
     endif
@@ -449,9 +477,12 @@ Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
             Controller.Presentation.OpenTimedMessageSWF_SFX(IronSoulUI.ResolveRespawnMenu(soulTier), 6.0, Controller.SFX.SFXRespawn, player)
         endif
     endif
+    EndRespawnMenuBlock("respawn-menu-complete")
 EndFunction
 
 Function ClearPendingRespawnState()
+    EndRespawnMenuBlock("clear-pending-respawn")
+
     _pendingDisableRespawn = False
     _pendingRespawnMenu = False
     _respawnMenuArmed = False
