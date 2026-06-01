@@ -1123,7 +1123,9 @@ Function MaybePlayLuckImprovedAfterTierUnlock(Actor player)
 
     Int cursorToken = IronSoulNative.BeginCursorSuppress()
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
     UI.OpenCustomMenu("luck_improved", 0)
+    IronSoulNative.RefreshCursorSuppress()
     Controller.SFX.Play(Controller.SFX.SFXLuckSuccess, player)
     Utility.WaitMenuMode(3.0)
     UI.CloseCustomMenu()
@@ -1447,26 +1449,37 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
     endif
 
     UI.OpenCustomMenu(m1First, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(4.0)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m1Second, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m2, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.5)
 
     if restoreMusicAfterIntro
@@ -1504,32 +1517,43 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
     endif
 
     UI.OpenCustomMenu(m1, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(4.0)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m1, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m2, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.5)
 
     if restoreMusicAfterIntro
-        Controller.Presentation.OpenTimedMessageSWF_KeyDismissTrackedSFX(m3, 60.0, 10.0, True, transitionSFXInstance, transitionSFXStartedAt, DEFIANT_TRANSITION_SFX_SECONDS)
+        Controller.Presentation.OpenTimedMessageSWF_KeyDismissTrackedSFX(m3, 60.0, 9.0, True, transitionSFXInstance, transitionSFXStartedAt, DEFIANT_TRANSITION_SFX_SECONDS)
     else
-        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, False)
+        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 9.0, False)
     endif
     IronSoulNative.EndCursorSuppress(cursorToken)
 EndFunction
@@ -1557,24 +1581,41 @@ Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, B
     endif
 
     UI.OpenCustomMenu(m1, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(4.0)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m2, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
+    IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.5)
 
     Bool deferMusicRestore = restoredWithFeat && restoreMusicAfterIntro
-    Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro && !deferMusicRestore)
     if restoredWithFeat
+        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro && !deferMusicRestore)
         MaybePlayLuckImprovedAfterTierUnlock(player)
+    else
+        UI.CloseCustomMenu()
+        IronSoulNative.RefreshCursorSuppress()
+        UI.OpenCustomMenu(m3, 0)
+        IronSoulNative.RefreshCursorSuppress()
+        Utility.WaitMenuMode(4.0)
+        UI.CloseCustomMenu()
+        if restoreMusicAfterIntro
+            Controller.Presentation.RestoreMusic()
+        endif
     endif
     IronSoulNative.EndCursorSuppress(cursorToken)
     if deferMusicRestore

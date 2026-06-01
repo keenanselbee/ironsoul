@@ -342,6 +342,7 @@ Bool Function PerformRoll(Actor player, String guid)
 
         Controller.SFX.Play(resultSFX, player)
         UI.CloseCustomMenu()
+        IronSoulNative.RefreshCursorSuppress()
 
         UI.OpenCustomMenu(resultMenu, 0)
         IronSoulNative.RefreshCursorSuppress()
