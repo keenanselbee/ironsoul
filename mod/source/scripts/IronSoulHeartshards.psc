@@ -139,10 +139,14 @@ Int _pendingTonalHeartshardTier = 0
 Int _pendingTonalSessionToken = 0
 Int _pendingTonalSelectedIndex = -1
 Int _pendingTonalMaxTemper = 10
+Int _heartshardMenuBlockToken = 0
 
 Function ResetTransientState()
+    EndHeartshardMenuBlock("reset")
+
     _handlingUse = False
     ClearTonalEnhancementState()
+    _heartshardMenuBlockToken = 0
 EndFunction
 
 Bool Function HasCoreRuntime()
@@ -319,6 +323,30 @@ Function LogHeartshards(Int level, String msg, Bool suppressNotify = False)
     endif
 
     Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Heartshards] " + msg)
+EndFunction
+
+Function BeginHeartshardMenuBlock()
+    if _heartshardMenuBlockToken > 0
+        return
+    endif
+
+    _heartshardMenuBlockToken = IronSoulNative.BeginMenuBlock("heartshard-action", False)
+    if _heartshardMenuBlockToken > 0
+        LogHeartshards(IronSoulConfig.LOG_INFO(), "BeginHeartshardMenuBlock: token=" + _heartshardMenuBlockToken)
+    endif
+EndFunction
+
+Function EndHeartshardMenuBlock(String reason = "")
+    Int token = _heartshardMenuBlockToken
+    _heartshardMenuBlockToken = 0
+    if token <= 0
+        return
+    endif
+
+    IronSoulNative.EndMenuBlock(token)
+    if reason != ""
+        LogHeartshards(IronSoulConfig.LOG_INFO(), "EndHeartshardMenuBlock: reason=" + reason + " token=" + token)
+    endif
 EndFunction
 
 Int Function GetHeartshardInventoryMode()
@@ -699,6 +727,7 @@ Bool Function CompleteTonalEnhancement()
     _pendingTonalSessionToken = 0
     String enhanceResultText = GetHeartshardEnhanceResultText()
 
+    BeginHeartshardMenuBlock()
     CloseInventoryForHeartshardAction()
     PlayItemEnhancedPresentation(player)
     player.RemoveItem(heartshardBaseItem, 1, True)
@@ -786,6 +815,7 @@ Bool Function TryPurgeDeath(Actor player, String guid, Form heartshardBaseItem, 
         return False
     endif
 
+    BeginHeartshardMenuBlock()
     Int deathsAfterPurge = deathsBeforePurge - 1
     player.RemoveItem(heartshardBaseItem, 1, True)
     Controller.Death.SetCurrentDeathCount(player, guid, deathsAfterPurge)
@@ -827,24 +857,30 @@ EndFunction
 
 Function PlayHeartshardPresentation(Actor player, String menuName)
     if !player
+        EndHeartshardMenuBlock("heartshard-presentation-skipped")
         return
     endif
     if Controller && Controller.Config && !Controller.Config.IsHeartshardMessageEnabled()
         PlayHeartshardSFX(player)
+        EndHeartshardMenuBlock("heartshard-presentation-complete")
         return
     endif
     if menuName == ""
+        EndHeartshardMenuBlock("heartshard-presentation-skipped")
         return
     endif
 
     Int cursorToken = IronSoulNative.BeginCursorSuppress()
     Controller.Presentation.FadeMusicForTransitionSequence()
     UI.CloseCustomMenu()
+    IronSoulNative.RefreshCursorSuppress()
     UI.OpenCustomMenu(menuName, 0)
+    IronSoulNative.RefreshCursorSuppress()
     PlayHeartshardSFX(player)
     Controller.Presentation.WaitKeyDismissMenu(HEARTSHARD_PRESENTATION_MAX_SECONDS, HEARTSHARD_PRESENTATION_DISMISS_SECONDS)
     IronSoulNative.EndCursorSuppress(cursorToken)
     Controller.Presentation.RestoreMusic()
+    EndHeartshardMenuBlock("heartshard-presentation-complete")
 EndFunction
 
 Function PlayHeartshardSFX(Actor player)
