@@ -39,6 +39,7 @@ Current TODO
 Heartshards
 
 Sunderhearts have begun manifesting throughout Tamriel, radiant remnants of Lorkhan’s Heart, alive with divine anima and forgotten tonal power.
+They can purge a death, enhance an item, or be harvested for anima.
 
 ```text
 | Heartshards Found | Unlocked Tier           | Quest Milestone                 | Starting Found Heartshards |
