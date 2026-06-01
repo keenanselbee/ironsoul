@@ -2,7 +2,7 @@ set_xmakever('3.0.1')
 includes('lib/commonlibsse-ng')
 
 set_project('ironsoul')
-set_version('1.9.1')
+set_version('1.9.4')
 set_license('GPL-3.0')
 
 set_languages('c++23')
@@ -47,7 +47,7 @@ target('ironsoul')
     end
 
     add_rules('commonlibsse-ng.plugin', {
-        name        = 'ironsoul',
+        name        = 'Iron Soul SKSE plugin',
         author      = 'Keenan Selbee',
         description = 'SKSE64 plugin for Iron Soul providing native configuration, persistent character data, journal logging, and runtime UI, audio, and health-monitor support.',
         runtime     = runtime

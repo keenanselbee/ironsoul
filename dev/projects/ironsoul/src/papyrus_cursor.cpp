@@ -54,7 +54,6 @@ namespace
         bool customMenuFlagsValid{ false };
         bool customMenuHadUsesCursor{ false };
         bool customMenuHadUpdateUsesCursor{ false };
-        bool cursorMenuHidden{ false };
         std::array<OverlayAlphaState, kOverlayMenuNames.size()> overlayAlphaStates{};
 
         ~CursorSuppressState()
@@ -243,12 +242,11 @@ namespace
                 return;
             }
 
-            const bool customMenuCursorChanged = ClearCustomMenuCursorFlagsLocked();
+            ClearCustomMenuCursorFlagsLocked();
             const bool firstApply = !g_cursorSuppressState.suppressionApplied;
 
-            if (uiQueue && uiStr && (firstApply || customMenuCursorChanged || !g_cursorSuppressState.cursorMenuHidden)) {
+            if (uiQueue && uiStr) {
                 uiQueue->AddMessage(uiStr->cursorMenu, RE::UI_MESSAGE_TYPE::kHide, nullptr);
-                g_cursorSuppressState.cursorMenuHidden = true;
             }
             ApplyOverlayAlphaSuppressionLocked(ui);
 
@@ -339,7 +337,6 @@ namespace
                 g_cursorSuppressState.savedPosValid = false;
                 g_cursorSuppressState.savedVisibilityValid = false;
                 g_cursorSuppressState.warnedMissingCursor = false;
-                g_cursorSuppressState.cursorMenuHidden = false;
             }
 
             if (InfoLoggingEnabled()) {
@@ -350,7 +347,7 @@ namespace
 
     static void CursorWorker(std::uint64_t a_workerToken)
     {
-        constexpr auto kReapplyInterval = std::chrono::milliseconds(100);
+        constexpr auto kReapplyInterval = std::chrono::milliseconds(16);
 
         while (HasActiveSession(a_workerToken)) {
             QueueApplySuppression(a_workerToken, "worker");
@@ -422,7 +419,6 @@ namespace
                 g_cursorSuppressState.customMenuFlagsValid = false;
                 g_cursorSuppressState.customMenuHadUsesCursor = false;
                 g_cursorSuppressState.customMenuHadUpdateUsesCursor = false;
-                g_cursorSuppressState.cursorMenuHidden = false;
                 ResetOverlayAlphaStatesLocked();
                 workerToken = g_cursorSuppressState.workerToken.fetch_add(1) + 1;
                 startWorker = true;
