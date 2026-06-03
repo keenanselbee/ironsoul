@@ -36,20 +36,100 @@ Soft Requirements
 Current TODO
 ------------
 
+- Finish Ebon / Platinum restore work.
+
+Systems
+-------
+
+Anima
+
+Anima replaces dragon souls as the primary soul-tier progression currency. Anima and unlocked Soul Tiers are
+account-wide, making Iron Soul progression persist across characters for a stronger roguelite loop.
+
+Soul Tier unlock targets:
+
+```text
+| Soul Tier     | Unlock Requirement            |
+| Defiant Soul  | 100 Anima                     |
+| Silver Soul   | 250 Anima                     |
+| Gold Soul     | 500 Anima                     |
+| Ebon Soul     | 1,000 Anima                   |
+| Platinum Soul | 2,000 Anima                   |
+| Devour Soul   | 5,000 Anima + 50 dragon souls |
+```
+
+- Add account-wide Anima storage and account-wide Soul Tier unlock persistence.
+- Convert Soul Tier unlocking from dragon-soul thresholds to Anima thresholds, keeping dragon souls as an additional Devour Soul requirement.
+- Add Anima death rewards from tiered sources: draugr and other undead, dragon priests, dragons, and major bosses.
+- Add major Anima payouts for saga bosses such as Alduin, Harkon, and Miraak.
+- Add Heartshard use option `Absorb Anima`; when selected, the consumed Heartshard grants Anima based on its Heartshard tier.
+- Block Anima gain while the character is in Defiant Soul, preventing new Soul Tier unlocks during Defiant runs.
+- Assign Anima-bearing enemies a Soul Level that drives both their Anima reward and Soul Vigor behavior.
+- Draft Soul Levels: draugr/undead = 1, dragon priests = 2, dragons = 3, Alduin = 4, Miraak = 5; assign Harkon and other major bosses during tuning.
+- Implement Soul Vigor regeneration from enemy Soul Level comparison: enemies below the player's Soul Level have no regeneration, enemies at the player's Soul Level have mild regeneration, and enemies above the player's Soul Level have significant regeneration.
+- Treat the player as Soul Level 1 for Soul Vigor comparisons while in Defiant Soul.
+
+Monsters, Soul Levels, and Soul Vigor
+
+Soul Level is the creature-side progression band for Anima-bearing enemies. It determines both the Anima reward
+paid on death and how hard the enemy pushes back through Soul Vigor regeneration.
+
+Soul Vigor comparison:
+
+```text
+Enemy Soul Level < Player Soul Level: no Soul Vigor regeneration
+Enemy Soul Level = Player Soul Level: mild Soul Vigor regeneration
+Enemy Soul Level > Player Soul Level: significant Soul Vigor regeneration
+Defiant Soul characters count as Player Soul Level 1
+```
+
+Recommended Anima rewards:
+
+```text
+| Soul Level | Enemy Type / Examples                         | Suggested Reward                   |
+| 1          | Skeletons, draugr, basic undead               | 1 Anima                            |
+| 1          | Restless/wight/scourge draugr, tougher undead | 2-3 Anima                          |
+| 1          | Draugr deathlords, dungeon undead bosses      | 5-10 Anima                         |
+| 2          | Dragon priests, named undead cult bosses      | 50 Anima                           |
+| 3          | Dragons                                       | 100-250 Anima by dragon difficulty |
+| 4          | Harkon, Alduin, other world-shaking bosses    | 1000 Anima                         |
+| 5          | Miraak, secret/capstone soul enemies          | 2000 Anima                         |
+```
+
+Dragon reward draft:
+
+```text
+| Dragon Type      | Reward    |
+| Dragon           | 25 Anima  |
+| Blood Dragon     | 50 Anima  |
+| Frost Dragon     | 75 Anima  |
+| Elder Dragon     | 100 Anima |
+| Ancient Dragon   | 150 Anima |
+| Revered Dragon   | 200 Anima |
+| Legendary Dragon | 250 Anima |
+```
+
+- Keep common undead rewards low so Nordic ruins remain steady progress instead of tier skips.
+- Make dragon priests and named undead boss kills feel like real Anima milestones without replacing dragons.
+- Make major quest bosses large account-wide progression spikes, especially Alduin, Harkon, and Miraak.
+- Use Soul Vigor sparingly on low-tier enemies so regeneration feels like supernatural pressure rather than a universal combat tax.
+- Add INI tuning later for reward multipliers, Soul Vigor strength, and whether non-draugr undead count as Anima sources.
+
+
 Heartshards
 
 Sunderhearts have begun manifesting throughout Tamriel, radiant remnants of Lorkhan’s Heart, alive with divine anima and forgotten tonal power.
 They can purge a death, enhance an item, or be harvested for anima.
 
 ```text
-| Heartshards Found | Unlocked Tier           | Quest Milestone                 | Starting Found Heartshards |
-| 0                 | Dormant Heartshard      | Dormant Heartshards can spawn   | 0                          |
-| 5                 | Kindled Heartshard      | First major dream               | 1                          |
-| 10                | Resonant Heartshard     | Strong dream escalation         | 2                          |
-| 25                | Sublime Heartshard      | Heart influence becomes obvious | 3                          |
-| 40                | Transcendent Heartshard | Late-game metaphysical pressure | 4                          |
-| 50                | Heart complete          | Manifest the Heart              | 5                          |
-| 100               | Whole Heart             | Completionist restoration state | 10                         |
+| Anima / Soul Tier | Unlocked Tier           | Quest Milestone                 | Starting Found Heartshards |
+| 0 - Iron          | Dormant Heartshard      | Dormant Heartshards can spawn   | 0                          |
+| 250 - Silver      | Kindled Heartshard      | First major dream               | 1                          |
+| 500 - Gold        | Resonant Heartshard     | Strong dream escalation         | 2                          |
+| 1000 - Ebon       | Sublime Heartshard      | Heart influence becomes obvious | 3                          |
+| 2000 - Platinum   | Transcendent Heartshard | Late-game metaphysical pressure | 4                          |
+| 5000 - Devour     | Heart complete          | Manifest the Heart              | 5                          |
+| 10000 - ???       | Whole Heart             | Amaranth???                     | 10                         |
 ```
 
 Proposed Heartshards:
