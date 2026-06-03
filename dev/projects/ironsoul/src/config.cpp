@@ -556,11 +556,6 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		return value;
 	}
 
-	static std::int32_t NormalizePreset(std::int32_t presetOrdinal)
-	{
-		return NormalizePresetOrdinal(presetOrdinal);
-	}
-
 	static std::int32_t NormalizeBool(std::int32_t value, std::int32_t fallback)
 	{
 		if (value == 0 || value == 1) {
@@ -639,7 +634,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 
 	static std::string DifficultyLabelLocked(std::int32_t presetOrdinal)
 	{
-		presetOrdinal = NormalizePreset(presetOrdinal);
+		presetOrdinal = NormalizePresetOrdinal(presetOrdinal);
 		switch (PresetFamilyFromOrdinal(presetOrdinal)) {
 		case 1:
 			return "Dreamer" + PresetPlusTextLocked(presetOrdinal);
@@ -654,7 +649,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 
 	static std::string PresetConfigTextLocked(std::int32_t presetOrdinal)
 	{
-		presetOrdinal = NormalizePreset(presetOrdinal);
+		presetOrdinal = NormalizePresetOrdinal(presetOrdinal);
 		const std::int32_t presetFamily = PresetFamilyFromOrdinal(presetOrdinal);
 		std::string text = std::to_string(presetFamily);
 		if (presetFamily != 0) {
@@ -798,7 +793,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		}
 
 		if (HasConfigFlag(*spec, kConfigFlagPresetLockedCore) || HasConfigFlag(*spec, kConfigFlagDraugrThreat)) {
-			const std::int32_t currentPreset = NormalizePreset(GetConfigValueLocked("ironsoulpreset", 0));
+			const std::int32_t currentPreset = NormalizePresetOrdinal(GetConfigValueLocked("ironsoulpreset", 0));
 			if (currentPreset != 0) {
 				return std::string("Error: IronSoulPreset must be 0 (Override) before setting ") +
 					spec->displayName + ". Current preset is " + DifficultyLabelLocked(currentPreset) + ".";
@@ -863,7 +858,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 	std::int32_t GetIronSoulPresetOrdinal()
 	{
 		std::lock_guard lock(g_mutex);
-		return NormalizePreset(GetConfigValueLocked("ironsoulpreset", 0));
+		return NormalizePresetOrdinal(GetConfigValueLocked("ironsoulpreset", 0));
 	}
 
 	bool SetEffectiveDisplayDifficulty(std::int32_t presetFamily, std::int32_t displayRank)
@@ -920,7 +915,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 	{
 		std::lock_guard lock(g_mutex);
 
-		const std::int32_t preset = NormalizePreset(GetConfigValueLocked("ironsoulpreset", 0));
+		const std::int32_t preset = NormalizePresetOrdinal(GetConfigValueLocked("ironsoulpreset", 0));
 
 		std::string result;
 		result.reserve(2048);
