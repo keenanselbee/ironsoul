@@ -248,7 +248,6 @@ Function HandleDeathAndQuit(Actor player)
     ; presentationMode: 0 none, 1 Defiant transition, 2 CHIM transition, 3 death, 4 permadeath.
     Int presentationMode = 0
     String presentationMenu = ""
-    String presentationOverrideMenu = ""
     Bool quitToMainMenu = False
 
     ; Cached state for tier-aware menus.
@@ -278,7 +277,6 @@ Function HandleDeathAndQuit(Actor player)
         if !config.IsPermadeathEnabled() && !chimActive
             tiers.PromoteToCHIMTier(player, guid)
             presentationMode = 2
-            presentationOverrideMenu = "0_defiant_permadeath_soulfatigue"
         else
             presentationMode = 4
             presentationMenu = "0_defiant_permadeath_soulfatigue"
@@ -355,20 +353,16 @@ Function HandleDeathAndQuit(Actor player)
         endif
     endif
 
-    IronSoulNative.ReleaseDeathSlowMo(2.0, 0.0, "death-failure-kill")
-    Utility.Wait(2.0)
+    IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "death-failure-kill")
+    Utility.Wait(1.0)
 
     ; Ensure the player is not essential (kept as-is).
     player.GetActorBase().SetEssential(False)
 
     if presentationMode == 1
-        tiers.PlayDefiantTransitionMessageSequenceSWF(soulTierTD, False)
+        tiers.PlayDefiantTransitionSWF(soulTierTD, False)
     elseif presentationMode == 2
-        if presentationOverrideMenu != ""
-            tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False, presentationOverrideMenu)
-        else
-            tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False)
-        endif
+        tiers.PlayCHIMTransitionSWF(soulTierTD, False)
     elseif presentationMode == 3
         presentation.OpenTimedMessageSWF_SFX(presentationMenu, 6.0, sfx.SFXDeath, player, False)
     elseif presentationMode == 4

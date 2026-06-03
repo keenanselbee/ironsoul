@@ -124,7 +124,6 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "defianttransitionsfx", "DefiantTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "chimtransitionsfx", "CHIMTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "defiantrestoresfx", "DefiantRestoreSFX", "Sound", 1, true, 0, true, 1, 0 },
-	{ "defiantrestorefeatsfx", "DefiantRestoreFeatSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "heartshardabsorbsfx", "HeartshardAbsorbSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivecastsfx", "DragonSoulReviveCastSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivesfx", "DragonSoulReviveSFX", "Sound", 1, true, 0, true, 1, 0 },

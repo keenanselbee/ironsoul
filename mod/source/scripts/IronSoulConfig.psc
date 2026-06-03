@@ -11,7 +11,6 @@ Scriptname IronSoulConfig extends Quest
 ; CHIMTransitionSFX = 1
 ; DeathSFX = 1
 ; DefiantRestoreSFX = 1
-; DefiantRestoreFeatSFX = 1
 ; DefiantTransitionSFX = 1
 ; DragonSoulReviveCastSFX = 1
 ; DragonSoulReviveSFX = 1
@@ -71,7 +70,6 @@ Scriptname IronSoulConfig extends Quest
 ; IsDefiantTransitionSFXEnabled()
 ; IsCHIMTransitionSFXEnabled()
 ; IsDefiantRestoreSFXEnabled()
-; IsDefiantRestoreFeatSFXEnabled()
 ; IsHeartshardAbsorbSFXEnabled()
 ; IsDragonSoulReviveCastSFXEnabled()
 ; IsDragonSoulReviveSFXEnabled()
@@ -156,7 +154,6 @@ Bool _respawnSFXEnabled = True
 Bool _defiantTransitionSFXEnabled = True
 Bool _chimTransitionSFXEnabled = True
 Bool _defiantRestoreSFXEnabled = True
-Bool _defiantRestoreFeatSFXEnabled = True
 Bool _heartshardAbsorbSFXEnabled = True
 Bool _dragonSoulReviveCastSFXEnabled = True
 Bool _dragonSoulReviveSFXEnabled = True
@@ -234,7 +231,6 @@ Function ResetDefaults()
     _defiantTransitionSFXEnabled = True
     _chimTransitionSFXEnabled = True
     _defiantRestoreSFXEnabled = True
-    _defiantRestoreFeatSFXEnabled = True
     _heartshardAbsorbSFXEnabled = True
     _dragonSoulReviveCastSFXEnabled = True
     _dragonSoulReviveSFXEnabled = True
@@ -313,7 +309,6 @@ Function LoadFromIni()
     _defiantTransitionSFXEnabled = ReadFeatureEnabled("DefiantTransitionSFX", True)
     _chimTransitionSFXEnabled = ReadFeatureEnabled("CHIMTransitionSFX", True)
     _defiantRestoreSFXEnabled = ReadFeatureEnabled("DefiantRestoreSFX", True)
-    _defiantRestoreFeatSFXEnabled = ReadFeatureEnabled("DefiantRestoreFeatSFX", True)
     _heartshardAbsorbSFXEnabled = ReadFeatureEnabled("HeartshardAbsorbSFX", True)
     _dragonSoulReviveCastSFXEnabled = ReadFeatureEnabled("DragonSoulReviveCastSFX", True)
     _dragonSoulReviveSFXEnabled = ReadFeatureEnabled("DragonSoulReviveSFX", True)
@@ -462,10 +457,6 @@ EndFunction
 
 Bool Function IsDefiantRestoreSFXEnabled()
     return _defiantRestoreSFXEnabled
-EndFunction
-
-Bool Function IsDefiantRestoreFeatSFXEnabled()
-    return _defiantRestoreFeatSFXEnabled
 EndFunction
 
 Bool Function IsHeartshardAbsorbSFXEnabled()
@@ -644,8 +635,7 @@ Function LogSnapshot()
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Transitions: DefiantTransitionSFX=" + _defiantTransitionSFXEnabled \
         + " CHIMTransitionSFX=" + _chimTransitionSFXEnabled \
-        + " DefiantRestoreSFX=" + _defiantRestoreSFXEnabled \
-        + " DefiantRestoreFeatSFX=" + _defiantRestoreFeatSFXEnabled)
+        + " DefiantRestoreSFX=" + _defiantRestoreSFXEnabled)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Events: HeartshardAbsorbSFX=" + _heartshardAbsorbSFXEnabled \
         + " DragonSoulReviveCastSFX=" + _dragonSoulReviveCastSFXEnabled \

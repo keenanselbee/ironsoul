@@ -88,7 +88,6 @@ namespace IronSoul
         { "bosses", "IS_1627", "MolagBalKilled", CharacterDataValueFormat::Bool },
 
         { "defiant", "IS_1989", "DefiantFeatUnlocked", CharacterDataValueFormat::Bool },
-        { "defiant", "IS_2317", "DefiantQueuedFeatTier", CharacterDataValueFormat::SoulTier },
         { "defiant", "IS_9131", "DefiantStoredTier", CharacterDataValueFormat::SoulTier },
         { "defiant", "IS_9136", "DefiantEnteredByConsole", CharacterDataValueFormat::Bool },
         { "defiant", "IS_9137", "CHIMEnteredByConsole", CharacterDataValueFormat::Bool },

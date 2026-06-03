@@ -48,7 +48,6 @@ Scriptname IronSoulUI extends Quest
 ; ResolveRespawnMenu()
 ; ResolveSoulFeatUnlockMenuFromFacts()
 ; ResolveDefiantFeatUnlockMenu()
-; ResolveDefiantIntroMenu()
 ; ResolveDefiantTransitionMenu()
 ; ResolveCHIMTransitionMenu()
 ; ResolveLuckThresholdNotification()
@@ -689,8 +688,20 @@ String Function ResolveDefiantFeatUnlockMenu(Bool soulFatigueEnabled) Global
     return base
 EndFunction
 
-String Function ResolveDefiantIntroMenu(Bool soulBonusEnabled, Bool soulFatigueEnabled) Global
-    String base = "0_defiant_intro"
+String Function ResolveDefiantTransitionMenu(Int curTier, Bool soulBonusEnabled, Bool soulFatigueEnabled) Global
+    String base = "0_defiant_intro_transitioniron"
+    if curTier == 6
+        base = "0_defiant_intro_transitiondevour"
+    elseif curTier == 5
+        base = "0_defiant_intro_transitionplatinum"
+    elseif curTier == 4
+        base = "0_defiant_intro_transitionebon"
+    elseif curTier == 3
+        base = "0_defiant_intro_transitiongold"
+    elseif curTier == 2
+        base = "0_defiant_intro_transitionsilver"
+    endif
+
     if !soulBonusEnabled
         base = base + "_nobonus"
     endif
@@ -700,38 +711,23 @@ String Function ResolveDefiantIntroMenu(Bool soulBonusEnabled, Bool soulFatigueE
     return base
 EndFunction
 
-String Function ResolveDefiantTransitionMenu(Int curTier) Global
-    if curTier == 6
-        return "0_defiant_death_10_platinum"
-    elseif curTier == 5
-        return "0_defiant_death_10_platinum"
-    elseif curTier == 4
-        return "0_defiant_death_10_ebon"
-    elseif curTier == 3
-        return "0_defiant_death_10_gold"
-    elseif curTier == 2
-        return "0_defiant_death_10_silver"
-    endif
-    return "0_defiant_death_10_iron"
-EndFunction
-
 String Function ResolveCHIMTransitionMenu(Int curTier) Global
     if curTier == 0
-        return "9_chim_death_defiant"
+        return "9_chim_intro_transitiondefiant"
     elseif curTier == 1
-        return "9_chim_death_iron"
+        return "9_chim_intro_transitioniron"
     elseif curTier == 2
-        return "9_chim_death_silver"
+        return "9_chim_intro_transitionsilver"
     elseif curTier == 3
-        return "9_chim_death_gold"
+        return "9_chim_intro_transitiongold"
     elseif curTier == 4
-        return "9_chim_death_ebon"
+        return "9_chim_intro_transitionebon"
     elseif curTier == 6
-        return "9_chim_death_platinum"
+        return "9_chim_intro_transitiondevour"
     elseif curTier == 5
-        return "9_chim_death_platinum"
+        return "9_chim_intro_transitionplatinum"
     endif
-    return "9_chim_death_" + Utility.RandomInt(1, 9)
+    return "9_chim_intro_transitioniron"
 EndFunction
 
 String Function ResolveLuckThresholdNotification(Int tier) Global

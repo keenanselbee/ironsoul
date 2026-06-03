@@ -528,13 +528,13 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         tiersQ.PromoteToDefiantTier(player, guid, soulTier)
         journalQ.LogEventForGuid(player, guid, "You refuse Sovngarde and rise again. Defiant Soul awakened. Death limit is now 20.")
         ; Load-time Defiant promotion remains in-session, so restore music after the intro closes.
-        tiersQ.PlayDefiantTransitionMessageSequenceSWF(soulTier, True)
+        tiersQ.PlayDefiantTransitionSWF(soulTier, True)
         soulTier = tiersQ.TIER_DEFIANT
 
     elseif loadTransitionTier == tiersQ.TIER_CHIM
         LogController(IronSoulConfig.LOG_INFO(), "OnPlayerLoadGame: CHIM transition triggered on load")
         tiersQ.PromoteToCHIMTier(player, guid)
-        tiersQ.PlayCHIMTransitionMessageSequenceSWF(soulTier)
+        tiersQ.PlayCHIMTransitionSWF(soulTier)
         soulTier = tiersQ.TIER_CHIM
     endif
 
@@ -548,7 +548,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         if !cfg.IsPermadeathEnabled() && soulTier != tiersQ.TIER_CHIM
             tiersQ.PromoteToCHIMTier(player, guid)
             ; Load-time CHIM promotion should remain in-session; only death-driven CHIM transitions quit.
-            tiersQ.PlayCHIMTransitionMessageSequenceSWF(soulTier, True, "0_defiant_permadeath_soulfatigue")
+            tiersQ.PlayCHIMTransitionSWF(soulTier, True)
             soulTier = tiersQ.TIER_CHIM
         else
             IronSoulNative.BeginMenuBlock("load-terminal-defiant-fatigue", True)

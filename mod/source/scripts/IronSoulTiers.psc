@@ -54,8 +54,6 @@ Scriptname IronSoulTiers extends Quest
 ; InitializeDefiantState()
 ; ClearDefiantState()
 ; IsDefiantSoulFatigueTerminal()
-; GetDefiantQueuedFeatTier()
-; QueueDefiantFeatTierIfEligible()
 ; TryRestoreFromDefiant()
 ; PromoteToDefiantTier()
 ; PromoteToCHIMTier()
@@ -82,7 +80,7 @@ Scriptname IronSoulTiers extends Quest
 ; ResolveSoulFeatUnlockMenu()
 ; ResolveSoulFeatUnlockJournalEntry()
 ; ResolveDefiantRestoreJournalEntry()
-; ResolveDefiantRestoreEndingMenu()
+; ResolveDefiantRestoreMenu()
 
 ; --- Boss Latches ---
 ; --------------------
@@ -95,13 +93,12 @@ Scriptname IronSoulTiers extends Quest
 ; --- UI / SFX ---
 ; ----------------
 ; MaybeNotifyDragonSoulIncrease()
-; FadeMusicForTransitionSequence()
 ; CanPlayTierSFX()
 ; PlayTierSFX()
 ; PlayTierSFXInstance()
-; PlayCHIMTransitionMessageSequenceSWF()
-; PlayDefiantTransitionMessageSequenceSWF()
-; PlayDefiantRestoreMessageSequenceSWF()
+; PlayCHIMTransitionSWF()
+; PlayDefiantTransitionSWF()
+; PlayDefiantRestoreSWF()
 
 ; --- Tier Policy Helpers ---
 ; ---------------------------
@@ -131,7 +128,6 @@ Quest Property DLC2MQ06 Auto
 ; Tier-specific UI SFX
 Sound Property SFXCHIMTransition Auto
 Sound Property SFXDefiantRestore Auto
-Sound Property SFXDefiantRestoreFeat Auto
 Sound Property SFXDefiantTransition Auto
 Sound Property SFXHeartshardAbsorb Auto
 Sound Property SFXFeatUnlock Auto
@@ -165,7 +161,6 @@ String Property molagBalKilled             = "IS_1627" AutoReadOnly
 
 ; Defiant / CHIM
 String Property defiantFeatUnlocked        = "IS_1989" AutoReadOnly
-String Property defiantQueuedFeatTier      = "IS_2317" AutoReadOnly
 String Property defiantTrackedTier         = "IS_9131" AutoReadOnly
 String Property defiantEnteredByConsole    = "IS_9136" AutoReadOnly
 String Property chimEnteredByConsole       = "IS_9137" AutoReadOnly
@@ -189,8 +184,11 @@ Int Property TIER_TARGET_MODE_LOAD_CATCHUP = 4 AutoReadOnly
 Int Property IRON_SOUL_MAX_LIVES = 10 AutoReadOnly
 Int Property DEFIANT_SOUL_MAX_LIVES = 20 AutoReadOnly
 
-Float DEFIANT_TRANSITION_SFX_SECONDS = 72.54
-Float CHIM_TRANSITION_SFX_SECONDS = 72.54
+Float DEFIANT_TRANSITION_SECONDS = 47.0
+Float CHIM_TRANSITION_SECONDS = 59.0
+Float DEFIANT_RESTORE_SECONDS = 16.0
+Float TRANSITION_KEY_DISMISS_SECONDS = 10.0
+Float DEFIANT_RESTORE_KEY_DISMISS_SECONDS = 10.0
 
 Bool _pendingDragonSoulsRebaseline = False
 Bool _pendingFeats = False
@@ -285,7 +283,6 @@ Function RemoveTrackedData(Actor player, String guid, Bool deleteMainData = True
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, harkonKilled, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, molagBalKilled, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantFeatUnlocked, deleteMainData, unsetCosave)
-    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantQueuedFeatTier, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantTrackedTier, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, defiantEnteredByConsole, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, chimEnteredByConsole, deleteMainData, unsetCosave)
@@ -593,7 +590,6 @@ Function HandleProgressionRelevantChange(Actor player, String guid)
 
     Int liveTier = GetCurrentTier(player, guid)
     if liveTier == TIER_DEFIANT
-        QueueDefiantFeatTierIfEligible(player, guid)
         return
     endif
 
@@ -672,7 +668,6 @@ Function ClearDefiantState(Actor player, String guid)
         return
     endif
     Controller.Persistence.SetGuidInt(player, guid, defiantTrackedTier, TIER_IRON, True)
-    Controller.Persistence.SetGuidInt(player, guid, defiantQueuedFeatTier, TIER_IRON, True)
     Controller.Persistence.SetGuidInt(player, guid, defiantEnteredByConsole, 0, True)
 EndFunction
 
@@ -689,36 +684,6 @@ Bool Function IsDefiantSoulFatigueTerminal(Actor player, String guid)
     return player.GetAVMax("Health") <= 0.0
 EndFunction
 
-Int Function GetDefiantQueuedFeatTier(Actor player, String guid)
-    if !HasCoreRuntime() || !player || guid == ""
-        return TIER_IRON
-    endif
-    return NormalizeDefiantTrackedTier(Controller.Persistence.GetGuidInt(player, guid, defiantQueuedFeatTier, TIER_IRON))
-EndFunction
-
-Function QueueDefiantFeatTierIfEligible(Actor player, String guid)
-    if !HasCoreRuntime() || !player || guid == ""
-        return
-    endif
-    if GetCurrentTier(player, guid) != TIER_DEFIANT
-        return
-    endif
-    if !Controller.Config.IsSoulFeatsEnabled()
-        return
-    endif
-
-    Int trackedTier = GetDefiantTrackedTier(player, guid)
-    Int queuedTier = GetDefiantQueuedFeatTier(player, guid)
-    Int desiredTier = GetHighestEligibleNormalTierForPlayer(player, guid, GetDragonSoulsTotal(player, guid))
-    if desiredTier <= trackedTier || desiredTier <= queuedTier
-        return
-    endif
-
-    Controller.Persistence.SetGuidInt(player, guid, defiantQueuedFeatTier, desiredTier, True)
-    LogTiers(IronSoulConfig.LOG_INFO(), "QueueDefiantFeatTierIfEligible: Queued tier=" + desiredTier + " trackedTier=" + trackedTier)
-    IronSoulNative.DataFlushIfDirty()
-EndFunction
-
 Bool Function TryRestoreFromDefiant(Actor player, String guid)
     if !HasCoreRuntime() || !player || guid == ""
         return False
@@ -730,17 +695,8 @@ Bool Function TryRestoreFromDefiant(Actor player, String guid)
         return False
     endif
 
-    Int trackedTier = GetDefiantTrackedTier(player, guid)
-    Int queuedTier = GetDefiantQueuedFeatTier(player, guid)
-    Int targetTier = trackedTier
-    Bool restoredWithFeat = False
-    if Controller.Config.IsSoulFeatsEnabled() && queuedTier > trackedTier
-        targetTier = queuedTier
-        restoredWithFeat = True
-    endif
-
-    targetTier = NormalizeDefiantTrackedTier(targetTier)
-    String endingMenu = ResolveDefiantRestoreEndingMenu(player, guid, targetTier, restoredWithFeat, True)
+    Int targetTier = NormalizeDefiantTrackedTier(GetDefiantTrackedTier(player, guid))
+    String restoreMenu = ResolveDefiantRestoreMenu(targetTier)
 
     Controller.Persistence.SetGuidInt(player, guid, soulTierIndex, targetTier, True)
     SetManualTierOverrideActive(player, guid, False)
@@ -751,12 +707,12 @@ Bool Function TryRestoreFromDefiant(Actor player, String guid)
     SyncTierGlobalMirrors(player, guid)
 
     if Controller.Config.IsCharacterJournalEnabled()
-        Controller.Journal.LogEventForGuid(player, guid, ResolveDefiantRestoreJournalEntry(player, guid, targetTier, restoredWithFeat))
+        Controller.Journal.LogEventForGuid(player, guid, ResolveDefiantRestoreJournalEntry(player, guid, targetTier))
     endif
 
     IronSoulNative.DataFlushIfDirty()
 
-    PlayDefiantRestoreMessageSequenceSWF(player, endingMenu, restoredWithFeat, True)
+    PlayDefiantRestoreSWF(player, restoreMenu, True)
     return True
 EndFunction
 
@@ -1229,7 +1185,7 @@ String Function ResolveSoulFeatUnlockJournalEntry(Actor player, String guid, Int
     return IronSoulJournal.AppendTotalDeaths(baseText, Controller.Death.GetTotalDeaths(player, guid))
 EndFunction
 
-String Function ResolveDefiantRestoreJournalEntry(Actor player, String guid, Int targetTier, Bool restoredWithFeat)
+String Function ResolveDefiantRestoreJournalEntry(Actor player, String guid, Int targetTier)
     if !player || guid == "" || !IsNormalSoulTier(targetTier)
         return ""
     endif
@@ -1238,21 +1194,26 @@ String Function ResolveDefiantRestoreJournalEntry(Actor player, String guid, Int
     Int miraakFlagJ = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
     Int alduinFlagJ = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
     Int harkonFlagJ = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-    String baseText = ResolveDefiantRestoreJournalBase(targetTier, restoredWithFeat, molagFlagJ == 1, miraakFlagJ == 1, alduinFlagJ == 1, harkonFlagJ == 1)
+    String baseText = ResolveDefiantRestoreJournalBase(targetTier, molagFlagJ == 1, miraakFlagJ == 1, alduinFlagJ == 1, harkonFlagJ == 1)
     if baseText == ""
         return ""
     endif
     return IronSoulJournal.AppendTotalDeaths(baseText, Controller.Death.GetTotalDeaths(player, guid))
 EndFunction
 
-String Function ResolveDefiantRestoreEndingMenu(Actor player, String guid, Int targetTier, Bool restoredWithFeat, Bool consumeState = False)
-    if restoredWithFeat
-        return ResolveSoulFeatUnlockMenu(player, guid, targetTier, consumeState)
+String Function ResolveDefiantRestoreMenu(Int targetTier)
+    if targetTier == TIER_DEVOUR
+        return "0_defiant_restore_transitiondevour"
+    elseif targetTier == TIER_PLATINUM
+        return "0_defiant_restore_transitionplatinum"
+    elseif targetTier == TIER_EBON
+        return "0_defiant_restore_transitionebon"
+    elseif targetTier == TIER_GOLD
+        return "0_defiant_restore_transitiongold"
+    elseif targetTier == TIER_SILVER
+        return "0_defiant_restore_transitionsilver"
     endif
-    if targetTier == TIER_DEFIANT
-        return "0_defiant_restore"
-    endif
-    return IronSoulUI.TierMenuPrefix(targetTier) + "_defiant_restore"
+    return "0_defiant_restore_transitioniron"
 EndFunction
 
 
@@ -1378,10 +1339,6 @@ Function MaybeNotifyDragonSoulIncrease(Actor player, String guid, Int soulTier, 
     Debug.Notification("Dragon Souls Total: " + soulsTotal)
 EndFunction
 
-Function FadeMusicForTransitionSequence()
-    Controller.Presentation.FadeMusicForTransitionSequence()
-EndFunction
-
 Bool Function CanPlayTierSFX(Sound sfx)
     if !HasCoreRuntime() || !sfx
         return False
@@ -1396,8 +1353,6 @@ Bool Function CanPlayTierSFX(Sound sfx)
         return Controller.Config.IsCHIMTransitionSFXEnabled()
     elseif sfx == SFXDefiantRestore
         return Controller.Config.IsDefiantRestoreSFXEnabled()
-    elseif sfx == SFXDefiantRestoreFeat
-        return Controller.Config.IsDefiantRestoreFeatSFXEnabled()
     elseif sfx == SFXHeartshardAbsorb
         return Controller.Config.IsHeartshardAbsorbSFXEnabled()
     elseif sfx == SFXFeatUnlock || sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDevour || sfx == SFXFeatDefiant
@@ -1426,210 +1381,60 @@ Int Function PlayTierSFXInstance(Sound sfx, Actor source)
     return -1
 EndFunction
 
-Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True, String firstOpeningMenuOverride = "")
-    String m0 = "0_defiant_transition_flash"
-    String permadeathMenu = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
-    String m1First = firstOpeningMenuOverride
-    if m1First == ""
-        m1First = permadeathMenu
-    endif
-    String m1Second = m1First
-    String m2 = IronSoulUI.ResolveCHIMTransitionMenu(soulTierTD)
-    String m3 = "9_chim_intro"
+Function PlayCHIMTransitionSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True)
+    String menu = IronSoulUI.ResolveCHIMTransitionMenu(soulTierTD)
 
-    if m1First == "" || m1Second == "" || m2 == "" || m3 == ""
-        LogTiers(IronSoulConfig.LOG_ERR(), "PlayCHIMTransitionMessageSequenceSWF: One or more menus resolved empty")
+    if menu == ""
+        LogTiers(IronSoulConfig.LOG_ERR(), "PlayCHIMTransitionSWF: Transition menu resolved empty")
         return
     endif
 
     Actor player = Game.GetPlayer()
-
-    Int cursorToken = IronSoulNative.BeginCursorSuppress()
-    UI.CloseCustomMenu()
-    FadeMusicForTransitionSequence()
 
     Int transitionSFXInstance = -1
     Float transitionSFXStartedAt = 0.0
     if restoreMusicAfterIntro
         transitionSFXStartedAt = Utility.GetCurrentRealTime()
         transitionSFXInstance = PlayTierSFXInstance(SFXCHIMTransition, player)
+        Controller.Presentation.OpenTimedMessageSWF_KeyDismissTrackedSFX(menu, CHIM_TRANSITION_SECONDS, TRANSITION_KEY_DISMISS_SECONDS, True, transitionSFXInstance, transitionSFXStartedAt, CHIM_TRANSITION_SECONDS)
     else
         PlayTierSFX(SFXCHIMTransition, player)
+        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(menu, CHIM_TRANSITION_SECONDS, TRANSITION_KEY_DISMISS_SECONDS, False)
     endif
-
-    UI.OpenCustomMenu(m1First, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(4.0)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.25)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m1Second, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(3.35)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.25)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m2, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(3.35)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.5)
-
-    if restoreMusicAfterIntro
-        Controller.Presentation.OpenTimedMessageSWF_KeyDismissTrackedSFX(m3, 30.0, 5.0, True, transitionSFXInstance, transitionSFXStartedAt, CHIM_TRANSITION_SFX_SECONDS)
-    else
-        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 30.0, 5.0, False)
-    endif
-    IronSoulNative.EndCursorSuppress(cursorToken)
 EndFunction
 
-Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True)
-    String m0 = "0_defiant_transition_flash"
-    String m1 = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
-    String m2 = IronSoulUI.ResolveDefiantTransitionMenu(soulTierTD)
-    String m3 = IronSoulUI.ResolveDefiantIntroMenu(Controller.Config.IsSoulBonusEnabled(), Controller.Config.IsSoulFatigueEnabled())
+Function PlayDefiantTransitionSWF(Int soulTierTD, Bool restoreMusicAfterIntro = True)
+    String menu = IronSoulUI.ResolveDefiantTransitionMenu(soulTierTD, Controller.Config.IsSoulBonusEnabled(), Controller.Config.IsSoulFatigueEnabled())
 
-    if m1 == "" || m2 == "" || m3 == ""
-        LogTiers(IronSoulConfig.LOG_ERR(), "PlayDefiantTransitionMessageSequenceSWF: One or more menus resolved empty")
+    if menu == ""
+        LogTiers(IronSoulConfig.LOG_ERR(), "PlayDefiantTransitionSWF: Transition menu resolved empty")
         return
     endif
 
     Actor player = Game.GetPlayer()
-
-    Int cursorToken = IronSoulNative.BeginCursorSuppress()
-    UI.CloseCustomMenu()
-    FadeMusicForTransitionSequence()
 
     Int transitionSFXInstance = -1
     Float transitionSFXStartedAt = 0.0
     if restoreMusicAfterIntro
         transitionSFXStartedAt = Utility.GetCurrentRealTime()
         transitionSFXInstance = PlayTierSFXInstance(SFXDefiantTransition, player)
+        Controller.Presentation.OpenTimedMessageSWF_KeyDismissTrackedSFX(menu, DEFIANT_TRANSITION_SECONDS, TRANSITION_KEY_DISMISS_SECONDS, True, transitionSFXInstance, transitionSFXStartedAt, DEFIANT_TRANSITION_SECONDS)
     else
         PlayTierSFX(SFXDefiantTransition, player)
+        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(menu, DEFIANT_TRANSITION_SECONDS, TRANSITION_KEY_DISMISS_SECONDS, False)
     endif
-
-    UI.OpenCustomMenu(m1, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(4.0)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.25)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m1, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(3.35)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.25)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m2, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(3.35)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.5)
-
-    if restoreMusicAfterIntro
-        Controller.Presentation.OpenTimedMessageSWF_KeyDismissTrackedSFX(m3, 60.0, 9.0, True, transitionSFXInstance, transitionSFXStartedAt, DEFIANT_TRANSITION_SFX_SECONDS)
-    else
-        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 9.0, False)
-    endif
-    IronSoulNative.EndCursorSuppress(cursorToken)
 EndFunction
 
-Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, Bool restoredWithFeat = False, Bool restoreMusicAfterIntro = True)
-    String m0 = "0_defiant_transition_flash"
-    String m1 = "0_defiant_restore"
-    String m2 = "0_defiant_restore_cracks"
-    String m3 = endingMenu
-
-    if m3 == ""
-        LogTiers(IronSoulConfig.LOG_ERR(), "PlayDefiantRestoreMessageSequenceSWF: Restore menu resolved empty")
+Function PlayDefiantRestoreSWF(Actor player, String restoreMenu, Bool restoreMusicAfterIntro = True)
+    if restoreMenu == ""
+        LogTiers(IronSoulConfig.LOG_ERR(), "PlayDefiantRestoreSWF: Restore menu resolved empty")
         return
     endif
 
     IronSoulNative.DataFlushIfDirty()
 
-    Int cursorToken = IronSoulNative.BeginCursorSuppress()
-    UI.CloseCustomMenu()
-    FadeMusicForTransitionSequence()
-    if restoredWithFeat
-        PlayTierSFX(SFXDefiantRestoreFeat, player)
-    else
-        PlayTierSFX(SFXDefiantRestore, player)
-    endif
-
-    UI.OpenCustomMenu(m1, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(4.0)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.25)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m2, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(3.35)
-    UI.CloseCustomMenu()
-    IronSoulNative.PrimeCursorSuppress()
-
-    UI.OpenCustomMenu(m0, 0)
-    IronSoulNative.RefreshCursorSuppress()
-    Utility.WaitMenuMode(0.5)
-
-    Bool deferMusicRestore = restoredWithFeat && restoreMusicAfterIntro
-    if restoredWithFeat
-        Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(m3, 60.0, 10.0, restoreMusicAfterIntro && !deferMusicRestore)
-        MaybePlayLuckImprovedAfterTierUnlock(player)
-    else
-        UI.CloseCustomMenu()
-        IronSoulNative.PrimeCursorSuppress()
-        UI.OpenCustomMenu(m3, 0)
-        IronSoulNative.RefreshCursorSuppress()
-        Utility.WaitMenuMode(4.0)
-        UI.CloseCustomMenu()
-        if restoreMusicAfterIntro
-            Controller.Presentation.RestoreMusic()
-        endif
-    endif
-    IronSoulNative.EndCursorSuppress(cursorToken)
-    if deferMusicRestore
-        Controller.Presentation.RestoreMusic()
-    endif
+    PlayTierSFX(SFXDefiantRestore, player)
+    Controller.Presentation.OpenTimedMessageSWF_KeyDismiss(restoreMenu, DEFIANT_RESTORE_SECONDS, DEFIANT_RESTORE_KEY_DISMISS_SECONDS, restoreMusicAfterIntro)
 EndFunction
 
 
@@ -1944,15 +1749,12 @@ String Function ResolveSoulFeatUnlockJournalBase(Int soulTier, Bool molagKilled,
     return baseText
 EndFunction
 
-String Function ResolveDefiantRestoreJournalBase(Int targetTier, Bool restoredWithFeat, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled) Global
+String Function ResolveDefiantRestoreJournalBase(Int targetTier, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled) Global
     if !IsNormalSoulTier(targetTier)
         return ""
     endif
 
     String verb = "reclaimed"
-    if restoredWithFeat
-        verb = "claimed"
-    endif
 
     if targetTier == 6
         return "Defiant Soul restored. Devour Soul " + verb + "."
