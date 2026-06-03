@@ -1,12 +1,13 @@
 @echo off
 setlocal
 
-REM === Iron Soul combined log builder ===
-REM Writes the full SKSE ironsoul.log first, then appends filtered Papyrus IronSoul lines.
+REM === Iron Soul log builder ===
+REM Writes the full SKSE Iron Soul plugin log first, then appends filtered Papyrus IronSoul lines.
 
-set "SKSE_LOG=%USERPROFILE%\Documents\My Games\Skyrim Special Edition\SKSE\ironsoul.log"
+set "SKSE_LOG_DIR=%USERPROFILE%\Documents\My Games\Skyrim Special Edition\SKSE"
+set "SKSE_LOG=%SKSE_LOG_DIR%\IronSoulSKSE.log"
 set "PAPYRUS_LOG=%USERPROFILE%\Documents\My Games\Skyrim Special Edition\Logs\Script\Papyrus.0.log"
-set "OUT=%~dp0ironsoul-combined.log"
+set "OUT=%~dp0ironsoul.log"
 
 REM Start fresh.
 if exist "%OUT%" del "%OUT%"

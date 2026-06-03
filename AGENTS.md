@@ -12,6 +12,13 @@ Command Speed Rules
 - Direct-action commands are `BACKUP`, `DLL`, `LOG`, `OINI`, `OINI2`, `README`, `RINI2`, `ROADMAP`, and `TODO`.
 
 
+Do Not Edit Guard
+-----------------
+
+- If the user intentionally types `DNE` in their current prompt, treat it as "do not edit" for that prompt. Do not create, edit, move, delete, stage, commit, compile, build, refresh generated artifacts, launch external editors, or modify external paths during that prompt unless the user explicitly overrides `DNE` in the same prompt.
+- `DNE` only applies when it appears to be typed intentionally by the user as an instruction. Ignore incidental appearances inside pasted file contents, quoted text, strings, command output, diffs, logs, or examples.
+
+
 Working Rules
 -------------
 
@@ -170,7 +177,7 @@ COMPILE  Compile all Papyrus source scripts and refresh only changed repo .pex f
 DIFF     Show changed files and propose intelligent commit splits.
 DLL      Build and refresh mod/SKSE/plugins/ironsoul.dll.
 IMPLEMENT Execute the latest SUGGEST implementation proposal.
-LOG      Build tools/ironsoul-combined.log, summarize it, then open it in VS Code.
+LOG      Build tools/ironsoul.log, summarize it, then open it in VS Code.
 MSG      Generate a commit message for the currently staged files.
 OINI     Open the repo INI in VS Code.
 OINI2    Open the LoreRim+ Overwrite INI in VS Code for inspection.
@@ -192,7 +199,7 @@ Command behavior:
 - `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages that follow `docs/commit-style.md`. Use multiple commits when changes are independently revertible. Write detailed bullet-list commit bodies for complex, cross-system, risky, or hard-to-infer changes, especially scripts, native source, public config, persistence, generated outputs, and user-facing text. Use discretion for simple commits: when the subject fully explains a narrow docs, asset, formatting, or housekeeping change, propose a subject-only message with no body. If the user has asked to ignore specific files for the current plan, leave those files out of the proposed commits and list them separately as intentionally unplanned. Group `mod/SKSE/plugins/ironsoul.dll` with the matching `dev/projects/ironsoul/src` source commit when native source changes exist; propose a standalone `build(native)` commit only for an explicit DLL-only refresh. State that `COMMIT` will execute this proposal if the worktree is unchanged.
 - `DLL`: Treat the `DLL` command itself as the explicit user request to refresh the repo DLL. State that `mod/SKSE/plugins/ironsoul.dll` will be refreshed on success, then run `tools/build-skse-plugin.ps1 -RefreshRepoDll` without asking for another chat confirmation.
 - `IMPLEMENT`: Treat the `IMPLEMENT` command as confirmation to execute the latest `SUGGEST` proposal or the latest explicit implementation plan proposed in chat. Before editing, verify the current request, repo context, and worktree still match that proposal; if no current proposal exists, or if the context has changed enough that the proposal may be stale, run `SUGGEST` behavior and stop instead of editing. When executing, make the narrow proposed code/file changes, run the relevant verification, refresh generated artifacts when project rules require it, and report changed files and checks. Do not stage or commit unless the user separately asks.
-- `LOG`: Run `tools/build-ironsoul-log.bat`, then summarize `tools/ironsoul-combined.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul-combined.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul-combined.log"`.
+- `LOG`: Run `tools/build-ironsoul-log.bat`, then summarize `tools/ironsoul.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul.log"`.
 - `MSG`: Read only the currently staged files and staged diff needed to understand them, then generate a commit message in chat that follows `docs/commit-style.md`. Do not edit files, stage, commit, inspect unstaged changes, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. If no files are staged, say so and stop.
 - `OINI`: Open `C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini` in VS Code. Use `code --reuse-window "C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini"`.
 - `OINI2`: Open `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` in VS Code for inspection only. Use `code --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. Do not manually edit the overwrite INI.
