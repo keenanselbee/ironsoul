@@ -1614,6 +1614,9 @@ String Function SetIni(String k, String value, String persistFlag = "") Global
     endif
 
     String result = "Set " + displayName + "=" + value + " (" + mode + ")."
+    if !persistToIni
+        result = "Set " + displayName + "=" + value + " (" + mode + "; add t to persist to ironsoul.ini)."
+    endif
     if configLoaded
         result = result + " Iron Soul config component refreshed."
     elseif controller

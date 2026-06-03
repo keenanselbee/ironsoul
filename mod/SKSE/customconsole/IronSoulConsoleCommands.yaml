@@ -166,7 +166,7 @@ subs:
   - name: SetIni
     alias: sini
     func: SetIni
-    help: Sets an INI key in native cache and optionally updates its existing ironsoul.ini entry. IronSoulPreset accepts values like 3+; Override-only keys require IronSoulPreset=0.
+    help: Sets an INI key in native cache. Omit the persist flag for session/cache-only; add t or true to persist to ironsoul.ini. IronSoulPreset accepts values like 3+; Override-only keys require IronSoulPreset=0.
     args:
       - name: key
         alias: -k
@@ -181,9 +181,9 @@ subs:
       - name: persistToIni
         alias: -p
         type: String
-        default: t
+        default: ""
         required: false
-        help: Persist flag, accepts t/T/f/F/true/false.
+        help: Optional persist flag. Omit for session/cache-only; use t/true to persist, or f/false for explicit cache-only.
   - name: ReloadIni
     alias: rini
     func: ReloadIni
