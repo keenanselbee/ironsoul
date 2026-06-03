@@ -729,7 +729,7 @@ Bool Function CompleteTonalEnhancement()
 
     BeginHeartshardMenuBlock()
     CloseInventoryForHeartshardAction()
-    PlayItemEnhancedPresentation(player)
+    PlayHeartshardPresentation(player, HEARTSHARD_ITEM_ENHANCED_MENU)
     player.RemoveItem(heartshardBaseItem, 1, True)
     AwardHeartglass(player, heartshardType, heartshardTier)
     RegisterHeartshardUsed(player, heartshardType, heartshardTier)
@@ -825,7 +825,7 @@ Bool Function TryPurgeDeath(Actor player, String guid, Form heartshardBaseItem, 
     IronSoulNative.DataFlushIfDirty()
 
     CloseInventoryForHeartshardAction()
-    PlayDeathPurgedPresentation(player)
+    PlayHeartshardPresentation(player, HEARTSHARD_DEATH_PURGED_MENU)
     AwardHeartglass(player, heartshardType, heartshardTier)
     RegisterHeartshardUsed(player, heartshardType, heartshardTier)
     Controller.Tiers.TryRestoreFromDefiant(player, guid)
@@ -845,14 +845,6 @@ Function AwardHeartglass(Actor player, Int heartshardType = 0, Int heartshardTie
 
     player.AddItem(HeartshardSpent, 1, False)
     LogHeartshards(IronSoulConfig.LOG_INFO(), "AwardHeartglass: Awarded Heartglass for spent Heartshard type=" + heartshardType + " tier=" + heartshardTier)
-EndFunction
-
-Function PlayDeathPurgedPresentation(Actor player)
-    PlayHeartshardPresentation(player, HEARTSHARD_DEATH_PURGED_MENU)
-EndFunction
-
-Function PlayItemEnhancedPresentation(Actor player)
-    PlayHeartshardPresentation(player, HEARTSHARD_ITEM_ENHANCED_MENU)
 EndFunction
 
 Function PlayHeartshardPresentation(Actor player, String menuName)

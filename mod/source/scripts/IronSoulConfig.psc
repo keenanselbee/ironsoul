@@ -33,8 +33,6 @@ Scriptname IronSoulConfig extends Quest
 ; ResetDefaults()
 ; ApplyPresetCoreSettings()
 ; LoadFromIni()
-; ApplyDynamicSplashForTier()
-; ApplyDynamicDraugrEyesForPreset()
 ; ApplyDynamicPresetAssetsForTier()
 
 ; --- Loaded Config Queries ---
@@ -116,7 +114,6 @@ Scriptname IronSoulConfig extends Quest
 ; ClampLuckLevel()
 ; GetPresetLuckLevel()
 ; GetEffectiveLuckLevel()
-; ResolvePresetAssetId()
 
 
 ; --- Loaded Config State ---
@@ -318,17 +315,10 @@ Function LoadFromIni()
     _respawnHeavyBreathingSFXEnabled = ReadFeatureEnabled("RespawnHeavyBreathingSFX", True)
 EndFunction
 
-Function ApplyDynamicSplashForTier(Int tierId)
-    IronSoulNative.ApplyDynamicSplash(tierId, ResolvePresetAssetId(_ironSoulPresetOrdinal))
-EndFunction
-
-Function ApplyDynamicDraugrEyesForPreset()
-    IronSoulNative.ApplyDynamicDraugrEyes(ResolvePresetAssetId(_ironSoulPresetOrdinal))
-EndFunction
-
 Function ApplyDynamicPresetAssetsForTier(Int tierId)
-    ApplyDynamicSplashForTier(tierId)
-    ApplyDynamicDraugrEyesForPreset()
+    Int presetFamily = GetIronSoulPresetFamily(_ironSoulPresetOrdinal)
+    IronSoulNative.ApplyDynamicSplash(tierId, presetFamily)
+    IronSoulNative.ApplyDynamicDraugrEyes(presetFamily)
 EndFunction
 
 
@@ -827,8 +817,4 @@ Int Function GetEffectiveLuckLevel(Int presetOrdinal) Global
         luckLevel -= 1
     endif
     return ClampLuckLevel(luckLevel)
-EndFunction
-
-Int Function ResolvePresetAssetId(Int presetOrdinal) Global
-    return GetIronSoulPresetFamily(presetOrdinal)
 EndFunction

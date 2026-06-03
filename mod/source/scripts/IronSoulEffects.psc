@@ -17,19 +17,15 @@ Scriptname IronSoulEffects extends Quest
 ; GetDesiredSoulBonusSpellForFacts()
 ; GetDesiredSoulBonusSpell()
 ; SyncSoulBonusSpell()
-; ClearSoulBonusSpells()
 ; GetDesiredSoulFatigueStageForFacts()
 ; GetDesiredSoulFatigueSpellForFacts()
 ; GetDesiredSoulFatigueStage()
 ; GetDesiredSoulFatigueSpell()
 ; SyncSoulFatigueSpell()
-; ClearSoulFatigueSpells()
 ; SyncSoulPresentationSpells()
 ; ClearSoulPresentationSpells()
 ; SyncSoulPresentationAndStats()
-; GetAppliedSoulBonusSpellLabel()
 ; GetAppliedSoulBonusSpellCompactLabel()
-; GetAppliedSoulFatigueSpellLabel()
 ; GetAppliedSoulFatigueSpellCompactLabel()
 ; LogSnapshot()
 
@@ -180,10 +176,6 @@ Function SyncSoulBonusSpell(Actor player, String guid)
     SyncSoulBonusSpellFromSpells(player, desiredSpell, IronSoul_SoulBonus1Iron, IronSoul_SoulBonus2Silver, IronSoul_SoulBonus3Gold, IronSoul_SoulBonus4Ebon, IronSoul_SoulBonus5Platinum, IronSoul_SoulBonus6Devour, IronSoul_SoulBonus1IronDefiant, IronSoul_SoulBonus2SilverDefiant, IronSoul_SoulBonus3GoldDefiant, IronSoul_SoulBonus4EbonDefiant, IronSoul_SoulBonus5PlatinumDefiant)
 EndFunction
 
-Function ClearSoulBonusSpells(Actor player)
-    SyncSoulBonusSpellFromSpells(player, None, IronSoul_SoulBonus1Iron, IronSoul_SoulBonus2Silver, IronSoul_SoulBonus3Gold, IronSoul_SoulBonus4Ebon, IronSoul_SoulBonus5Platinum, IronSoul_SoulBonus6Devour, IronSoul_SoulBonus1IronDefiant, IronSoul_SoulBonus2SilverDefiant, IronSoul_SoulBonus3GoldDefiant, IronSoul_SoulBonus4EbonDefiant, IronSoul_SoulBonus5PlatinumDefiant)
-EndFunction
-
 Int Function GetDesiredSoulFatigueStageForFacts(Bool soulFatigueEnabled, Int liveTier, Int deaths)
     if !soulFatigueEnabled
         return 0
@@ -242,10 +234,6 @@ Function SyncSoulFatigueSpell(Actor player, String guid)
     SyncSoulFatigueSpellFromSpells(player, desiredSpell, IronSoul_SoulFatigue10, IronSoul_SoulFatigue11, IronSoul_SoulFatigue12, IronSoul_SoulFatigue13, IronSoul_SoulFatigue14, IronSoul_SoulFatigue15, IronSoul_SoulFatigue16, IronSoul_SoulFatigue17, IronSoul_SoulFatigue18, IronSoul_SoulFatigue19, IronSoul_SoulFatigue20)
 EndFunction
 
-Function ClearSoulFatigueSpells(Actor player)
-    SyncSoulFatigueSpellFromSpells(player, None, IronSoul_SoulFatigue10, IronSoul_SoulFatigue11, IronSoul_SoulFatigue12, IronSoul_SoulFatigue13, IronSoul_SoulFatigue14, IronSoul_SoulFatigue15, IronSoul_SoulFatigue16, IronSoul_SoulFatigue17, IronSoul_SoulFatigue18, IronSoul_SoulFatigue19, IronSoul_SoulFatigue20)
-EndFunction
-
 Function SyncSoulPresentationSpells(Actor player, Spell desiredBonusSpell, Spell desiredFatigueSpell)
     SyncSoulBonusSpellFromSpells(player, desiredBonusSpell, IronSoul_SoulBonus1Iron, IronSoul_SoulBonus2Silver, IronSoul_SoulBonus3Gold, IronSoul_SoulBonus4Ebon, IronSoul_SoulBonus5Platinum, IronSoul_SoulBonus6Devour, IronSoul_SoulBonus1IronDefiant, IronSoul_SoulBonus2SilverDefiant, IronSoul_SoulBonus3GoldDefiant, IronSoul_SoulBonus4EbonDefiant, IronSoul_SoulBonus5PlatinumDefiant)
     SyncSoulFatigueSpellFromSpells(player, desiredFatigueSpell, IronSoul_SoulFatigue10, IronSoul_SoulFatigue11, IronSoul_SoulFatigue12, IronSoul_SoulFatigue13, IronSoul_SoulFatigue14, IronSoul_SoulFatigue15, IronSoul_SoulFatigue16, IronSoul_SoulFatigue17, IronSoul_SoulFatigue18, IronSoul_SoulFatigue19, IronSoul_SoulFatigue20)
@@ -276,16 +264,8 @@ Function SyncSoulPresentationAndStats(Actor player, String guid)
     SyncSoulPresentationSpells(player, desiredBonusSpell, desiredFatigueSpell)
 EndFunction
 
-String Function GetAppliedSoulBonusSpellLabel(Actor player)
-    return GetAppliedSoulBonusSpellLabelFromSpells(player, IronSoul_SoulBonus1Iron, IronSoul_SoulBonus2Silver, IronSoul_SoulBonus3Gold, IronSoul_SoulBonus4Ebon, IronSoul_SoulBonus5Platinum, IronSoul_SoulBonus6Devour, IronSoul_SoulBonus1IronDefiant, IronSoul_SoulBonus2SilverDefiant, IronSoul_SoulBonus3GoldDefiant, IronSoul_SoulBonus4EbonDefiant, IronSoul_SoulBonus5PlatinumDefiant)
-EndFunction
-
 String Function GetAppliedSoulBonusSpellCompactLabel(Actor player)
     return GetAppliedSoulBonusSpellCompactLabelFromSpells(player, IronSoul_SoulBonus1Iron, IronSoul_SoulBonus2Silver, IronSoul_SoulBonus3Gold, IronSoul_SoulBonus4Ebon, IronSoul_SoulBonus5Platinum, IronSoul_SoulBonus6Devour, IronSoul_SoulBonus1IronDefiant, IronSoul_SoulBonus2SilverDefiant, IronSoul_SoulBonus3GoldDefiant, IronSoul_SoulBonus4EbonDefiant, IronSoul_SoulBonus5PlatinumDefiant)
-EndFunction
-
-String Function GetAppliedSoulFatigueSpellLabel(Actor player)
-    return GetAppliedSoulFatigueSpellLabelFromSpells(player, IronSoul_SoulFatigue10, IronSoul_SoulFatigue11, IronSoul_SoulFatigue12, IronSoul_SoulFatigue13, IronSoul_SoulFatigue14, IronSoul_SoulFatigue15, IronSoul_SoulFatigue16, IronSoul_SoulFatigue17, IronSoul_SoulFatigue18, IronSoul_SoulFatigue19, IronSoul_SoulFatigue20)
 EndFunction
 
 String Function GetAppliedSoulFatigueSpellCompactLabel(Actor player)

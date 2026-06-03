@@ -2029,7 +2029,7 @@ EndFunction
 int Function GetRaidWeatherChanceForMode(int aiMode, int aiRaidType, bool abNearby)
 
 	If aiMode == RAID_WEATHER_LEGACY_MAJOR_GLOBAL
-		If IsMajorWeatherRaid(aiRaidType)
+		If IsMajorRaidType(aiRaidType)
 			Return 100
 		EndIf
 		Return 0
@@ -2042,7 +2042,7 @@ int Function GetRaidWeatherChanceForMode(int aiMode, int aiRaidType, bool abNear
 	If aiMode == RAID_WEATHER_ALL_NEARBY
 		Return 100
 	ElseIf aiMode == RAID_WEATHER_MAJOR_NEARBY
-		If IsMajorWeatherRaid(aiRaidType)
+		If IsMajorRaidType(aiRaidType)
 			Return 100
 		EndIf
 		Return 0
@@ -2051,12 +2051,6 @@ int Function GetRaidWeatherChanceForMode(int aiMode, int aiRaidType, bool abNear
 	EndIf
 
 	Return 0
-
-EndFunction
-
-bool Function IsMajorWeatherRaid(int aiRaidType)
-
-	Return aiRaidType == RAID_MINOR_CAPITAL || aiRaidType == RAID_GATE || aiRaidType == RAID_CAPITAL
 
 EndFunction
 
