@@ -21,6 +21,7 @@ Scriptname IronSoulRespawn extends Quest
 ; TryStartRespawn()
 ; Tick()
 ; RequiresFastPolling()
+; HasPendingRespawnState()
 ; UpdatePlayerProtectionState()
 ; LogSnapshot()
 
@@ -93,19 +94,9 @@ EndFunction
 ; =======================
 
 Function ResetTransientState()
-    EndRespawnMenuBlock("reset")
-
+    ClearPendingRespawnState("reset")
     _respawnQuest = None
     _respawnAvailable = False
-
-    _pendingDisableRespawn = False
-    _respawnWindowArmed = False
-    _pendingDisableRespawnStartedAt = 0.0
-
-    _pendingRespawnMenu = False
-    _respawnMenuArmed = False
-    _respawnWarningAt = 0.0
-    _respawnMenuBlockToken = 0
 EndFunction
 
 Function RefreshRuntime()
@@ -214,12 +205,6 @@ Bool Function TryStartRespawn(Actor player, String guid)
         Controller.Presentation.FadeMusicForTransitionSequence()
     endif
 
-    Bool introShown = Controller.Presentation.ShowIronIntro(player, guid)
-
-    if introShown && !Controller.Config.IsRespawnMessageEnabled()
-        Controller.Presentation.RestoreMusic()
-    endif
-
     _pendingRespawnMenu = True
     _respawnMenuArmed = False
 
@@ -269,6 +254,10 @@ EndFunction
 
 Bool Function RequiresFastPolling()
     return _pendingDisableRespawn || _pendingRespawnMenu
+EndFunction
+
+Bool Function HasPendingRespawnState()
+    return _pendingDisableRespawn || _pendingRespawnMenu || _respawnMenuArmed || _respawnWindowArmed || _respawnMenuBlockToken > 0
 EndFunction
 
 Function UpdatePlayerProtectionState(Actor player)
@@ -383,6 +372,9 @@ EndFunction
 
 Bool Function HandleDisableRespawnWithRuntime(Actor player, Bool runtimeAvailable)
     if !player
+        if _pendingDisableRespawn || _respawnWindowArmed || _pendingRespawnMenu || _respawnMenuArmed || _respawnMenuBlockToken > 0
+            ClearPendingRespawnState("player-unavailable")
+        endif
         return False
     endif
 
@@ -393,7 +385,7 @@ Bool Function HandleDisableRespawnWithRuntime(Actor player, Bool runtimeAvailabl
         elseif (nowRT - _pendingDisableRespawnStartedAt) > Controller.PendingFastLoopWatchdogSeconds
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: watchdog cleared pending disable-respawn after " + (nowRT - _pendingDisableRespawnStartedAt) + "s")
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: Calling HandleDeathAndQuit")
-            ClearPendingRespawnState()
+            ClearPendingRespawnState("watchdog-timeout", False)
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=watchdog_timeout")
             Controller.Death.HandleDeathAndQuit(player)
             return False
@@ -401,8 +393,8 @@ Bool Function HandleDisableRespawnWithRuntime(Actor player, Bool runtimeAvailabl
     endif
 
     if !runtimeAvailable
-        if _pendingDisableRespawn || _respawnWindowArmed || _respawnMenuBlockToken > 0
-            ClearPendingRespawnState()
+        if _pendingDisableRespawn || _respawnWindowArmed || _pendingRespawnMenu || _respawnMenuArmed || _respawnMenuBlockToken > 0
+            ClearPendingRespawnState("runtime-unavailable")
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=respawn_unavailable")
         endif
         return False
@@ -412,7 +404,7 @@ Bool Function HandleDisableRespawnWithRuntime(Actor player, Bool runtimeAvailabl
         LogRespawn(IronSoulConfig.LOG_DBG(), "HandleDisableRespawn: pending disable respawn. dead=" + player.IsDead() + " bleed=" + player.IsBleedingOut())
         if player.IsDead() && !player.IsBleedingOut()
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: Player is dead; clearing pending disable-respawn state")
-            ClearPendingRespawnState()
+            ClearPendingRespawnState("player-dead-before-recovery")
             Controller.Death.ClearDeathEventLock()
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=player_dead_before_recovery")
             return False
@@ -447,7 +439,7 @@ EndFunction
 Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
     if !runtimeAvailable
         if _pendingRespawnMenu || _respawnMenuArmed || _respawnMenuBlockToken > 0
-            ClearPendingRespawnState()
+            ClearPendingRespawnState("menu-runtime-unavailable")
         endif
         return
     endif
@@ -467,21 +459,30 @@ Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
     _pendingRespawnMenu = False
     _respawnMenuArmed = False
 
-    if player && !player.IsDead() && Controller.Config.IsRespawnMessageEnabled()
-        String guid = Controller.Identity.GetTickGuid(player)
-        if guid != ""
-            Int soulTier = 1
-            if Controller.Tiers
-                soulTier = Controller.Tiers.GetCurrentTier(player, guid)
+    if player && !player.IsDead()
+        if Controller.Config.IsRespawnMessageEnabled()
+            String guid = Controller.Identity.GetTickGuid(player)
+            if guid != ""
+                Int soulTier = 1
+                if Controller.Tiers
+                    soulTier = Controller.Tiers.GetCurrentTier(player, guid)
+                endif
+                Controller.Presentation.OpenTimedMessageSWF_SFX(IronSoulUI.ResolveRespawnMenu(soulTier), 6.0, Controller.SFX.SFXRespawn, player)
             endif
-            Controller.Presentation.OpenTimedMessageSWF_SFX(IronSoulUI.ResolveRespawnMenu(soulTier), 6.0, Controller.SFX.SFXRespawn, player)
+            IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "respawn-menu-complete")
+        else
+            IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "respawn-message-disabled")
         endif
+    else
+        IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "respawn-menu-skipped")
     endif
     EndRespawnMenuBlock("respawn-menu-complete")
 EndFunction
 
-Function ClearPendingRespawnState()
-    EndRespawnMenuBlock("clear-pending-respawn")
+Function ClearPendingRespawnState(String reason = "clear-pending-respawn", Bool clearSlowMo = True)
+    Bool hadPendingState = _pendingDisableRespawn || _pendingRespawnMenu || _respawnMenuArmed || _respawnWindowArmed || _respawnMenuBlockToken > 0
+
+    EndRespawnMenuBlock(reason)
 
     _pendingDisableRespawn = False
     _pendingRespawnMenu = False
@@ -489,4 +490,8 @@ Function ClearPendingRespawnState()
     _respawnWindowArmed = False
     _pendingDisableRespawnStartedAt = 0.0
     _respawnWarningAt = 0.0
+
+    if clearSlowMo && hadPendingState
+        IronSoulNative.ClearDeathSlowMo("respawn-" + reason)
+    endif
 EndFunction

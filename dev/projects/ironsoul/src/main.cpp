@@ -10,7 +10,7 @@ namespace fs = std::filesystem;
 
 namespace IronSoul
 {
-	// Minimal: set up plugin logging to SKSE log dir /ironsoul.log
+	// Minimal: set up plugin logging to SKSE log dir /IronSoulSKSE.log
 
 	// --- Logging ---
 	// ===============
@@ -26,8 +26,7 @@ namespace IronSoul
 		fs::create_directories(logDir, ec);
 
 #ifdef NDEBUG
-		// Use the default plugin log name your docs expect.
-		const fs::path logPath = logDir / "ironsoul.log";
+		const fs::path logPath = logDir / "IronSoulSKSE.log";
 		auto sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath.string(), true);  // truncate on launch
 		auto log = std::make_shared<spdlog::logger>("global log", std::move(sink));
 		spdlog::set_default_logger(std::move(log));
@@ -39,7 +38,8 @@ namespace IronSoul
 #endif
 
 		spdlog::set_level(spdlog::level::info);
-		spdlog::flush_on(spdlog::level::warn);
+		spdlog::flush_on(spdlog::level::info);
+		spdlog::set_pattern("[%T.%e] [%=5t] [%L] %v");
 	}
 
 	// --- Directory Setup ---
@@ -68,10 +68,10 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	IronSoul::InitializeLogging();
 
-	logger::info("Iron Soul: runtime = {}", a_skse->RuntimeVersion().string());
-
 	// Keep it simple: just init SKSE + trampoline.
-	SKSE::Init(a_skse);
+	SKSE::Init(a_skse, false);
+	logger::info("{} v{}", SKSE::GetPluginName(), SKSE::GetPluginVersion());
+	logger::info("Iron Soul: runtime = {}", a_skse->RuntimeVersion().string());
 	SKSE::AllocTrampoline(1 << 10);
 
 	IronSoul::EnsureDirectories();

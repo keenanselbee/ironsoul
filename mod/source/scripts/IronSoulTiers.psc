@@ -67,6 +67,7 @@ Scriptname IronSoulTiers extends Quest
 
 ; --- Soul Feats ---
 ; ------------------
+; ResolveFeatUnlockSFX()
 ; ScheduleFeatUnlockSFX()
 ; ScheduleFeatCheck()
 ; HandleFeatUnlockSFX()
@@ -133,6 +134,7 @@ Sound Property SFXDefiantRestore Auto
 Sound Property SFXDefiantRestoreFeat Auto
 Sound Property SFXDefiantTransition Auto
 Sound Property SFXHeartshardAbsorb Auto
+Sound Property SFXFeatUnlock Auto
 Sound Property SFXFeatDefiant Auto
 Sound Property SFXFeatSilver Auto
 Sound Property SFXFeatGold Auto
@@ -328,7 +330,7 @@ Function Heartbeat(Actor player, String guid)
             if !Controller.Config.IsAnticheatEnabled()
                 accepted = delta
             else
-                if delta > 3 && Controller.Config.IsDragonSoulIncreaseNotificationEnabled()
+                if delta > 3 && Controller.Config.IsDragonSoulNotificationEnabled()
                     Debug.Notification("[Iron Soul] Unusual Dragon Soul increase detected (D=" + delta + ")")
                 endif
                 if delta <= 3
@@ -877,6 +879,13 @@ EndFunction
 ; --- Soul Feats ---
 ; ==================
 
+Sound Function ResolveFeatUnlockSFX()
+    if SFXFeatUnlock
+        return SFXFeatUnlock
+    endif
+    return SFXFeatSilver
+EndFunction
+
 Function ScheduleFeatUnlockSFX(Sound sfx, Float nowRT)
     if !sfx
         _pendingFeatUnlockSFX = None
@@ -947,7 +956,7 @@ Function TryScheduleFeats(Actor player)
     Int defFeat = Controller.Persistence.GetGuidInt(player, guid, defiantFeatUnlocked, 0)
     if defiantEligible && defFeat != 1
         if Controller.Config.IsDefiantSoulEnabled()
-            ScheduleFeatCheck(nowRT, SFXFeatDefiant)
+            ScheduleFeatCheck(nowRT, ResolveFeatUnlockSFX())
         else
             ScheduleFeatCheck(nowRT, None, False)
         endif
@@ -958,7 +967,7 @@ Function TryScheduleFeats(Actor player)
         Int desiredTier = GetHighestEligibleSoulFeatTier(player, guid, deaths, soulsObtained)
 
         if !manualTierOverride && desiredTier > curTier
-            ScheduleFeatCheck(nowRT, IronSoulSFX.ResolveSoulFeatUnlockSFX(desiredTier, SFXFeatSilver, SFXFeatGold, SFXFeatEbon, SFXFeatPlatinum, SFXFeatDevour))
+            ScheduleFeatCheck(nowRT, ResolveFeatUnlockSFX())
             return
         endif
 
@@ -967,7 +976,7 @@ Function TryScheduleFeats(Actor player)
         endif
 
         if ShouldScheduleShownTierMessage(player, guid, curTier)
-            ScheduleFeatCheck(nowRT, IronSoulSFX.ResolveSoulFeatUnlockSFX(curTier, SFXFeatSilver, SFXFeatGold, SFXFeatEbon, SFXFeatPlatinum, SFXFeatDevour))
+            ScheduleFeatCheck(nowRT, ResolveFeatUnlockSFX())
         endif
     endif
 EndFunction
@@ -1362,7 +1371,7 @@ EndFunction
 ; ================
 
 Function MaybeNotifyDragonSoulIncrease(Actor player, String guid, Int soulTier, Int soulsTotal)
-    if !HasCoreRuntime() || !Controller.Config.IsDragonSoulIncreaseNotificationEnabled()
+    if !HasCoreRuntime() || !Controller.Config.IsDragonSoulNotificationEnabled()
         return
     endif
 
@@ -1391,7 +1400,7 @@ Bool Function CanPlayTierSFX(Sound sfx)
         return Controller.Config.IsDefiantRestoreFeatSFXEnabled()
     elseif sfx == SFXHeartshardAbsorb
         return Controller.Config.IsHeartshardAbsorbSFXEnabled()
-    elseif sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDevour || sfx == SFXFeatDefiant
+    elseif sfx == SFXFeatUnlock || sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDevour || sfx == SFXFeatDefiant
         return Controller.Config.IsFeatUnlockSFXEnabled()
     endif
 
@@ -1452,31 +1461,31 @@ Function PlayCHIMTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMusicA
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(4.0)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m1Second, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m2, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
@@ -1520,31 +1529,31 @@ Function PlayDefiantTransitionMessageSequenceSWF(Int soulTierTD, Bool restoreMus
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(4.0)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m1, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m2, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
@@ -1584,19 +1593,19 @@ Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, B
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(4.0)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(0.25)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m2, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(3.35)
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(m0, 0)
     IronSoulNative.RefreshCursorSuppress()
@@ -1608,7 +1617,7 @@ Function PlayDefiantRestoreMessageSequenceSWF(Actor player, String endingMenu, B
         MaybePlayLuckImprovedAfterTierUnlock(player)
     else
         UI.CloseCustomMenu()
-        IronSoulNative.RefreshCursorSuppress()
+        IronSoulNative.PrimeCursorSuppress()
         UI.OpenCustomMenu(m3, 0)
         IronSoulNative.RefreshCursorSuppress()
         Utility.WaitMenuMode(4.0)

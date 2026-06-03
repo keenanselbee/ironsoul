@@ -60,8 +60,9 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "anticheat", "Anticheat", "General", 1, true, 0, true, 1, 0 },
 	{ "characterjournal", "CharacterJournal", "General", 1, true, 0, true, 1, 0 },
 	{ "deathmessage", "DeathMessage", "General", 1, true, 0, true, 1, 0 },
-	{ "dragonsoulincreasenotification", "DragonSoulIncreaseNotification", "General", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulnotification", "DragonSoulNotification", "General", 1, true, 0, true, 1, 0 },
 	{ "ironsoulintro", "IronSoulIntro", "General", 1, true, 0, true, 1, 0 },
+	{ "ironsoulintrodelayseconds", "IronSoulIntroDelaySeconds", "General", 23, true, 0, true, 120, 0 },
 	{ "loadnotification", "LoadNotification", "General", 1, true, 0, true, 1, 0 },
 	{ "soulbonus", "SoulBonus", "General", 1, true, 0, true, 1, 0 },
 	{ "soulfatigue", "SoulFatigue", "General", 1, true, 0, true, 1, 0 },
@@ -819,6 +820,9 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 			}
 
 			if (!wroteHeader) {
+				if (!result.empty() && result.back() == '\n') {
+					result += "\n";
+				}
 				result += "[";
 				result.append(sectionName.data(), sectionName.size());
 				result += "]\n";

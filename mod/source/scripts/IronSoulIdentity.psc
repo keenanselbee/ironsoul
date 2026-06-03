@@ -60,6 +60,7 @@ Int Property _idDayTolerance   = 3 Auto Hidden ; +/- day match window
 Bool _bootstrapActive = False
 Int _bootstrapTriesLeft = 0
 Bool _placeholderGuidMintAllowed = False
+Float _bootstrapStartedAt = 0.0
 
 String _tickGuid = ""
 Bool _tickGuidValid = False
@@ -101,6 +102,7 @@ Function ResetTransientState()
     _bootstrapActive = False
     _bootstrapTriesLeft = 0
     _placeholderGuidMintAllowed = False
+    _bootstrapStartedAt = 0.0
 
     _tickGuid = ""
     _tickGuidValid = False
@@ -116,6 +118,7 @@ Function StartBootstrap(Int tries = 10)
     _bootstrapActive = True
     _bootstrapTriesLeft = tries
     _placeholderGuidMintAllowed = False
+    _bootstrapStartedAt = Utility.GetCurrentRealTime()
 EndFunction
 
 Bool Function IsBootstrapActive()
@@ -136,9 +139,12 @@ Function AllowPlaceholderGuidMintAfterBootstrapTimeout()
     _placeholderGuidMintAllowed = True
 EndFunction
 
-Function CompleteBootstrap()
+Function CompleteBootstrap(Bool clearIntroTiming = True)
     _bootstrapActive = False
     _bootstrapTriesLeft = 0
+    if clearIntroTiming
+        _bootstrapStartedAt = 0.0
+    endif
 EndFunction
 
 String Function GetCachedGuid()
@@ -296,6 +302,21 @@ String Function EnsureGuid(Actor player)
     CommitGuid(player, guid, pn)
 
     LogIdentity(IronSoulConfig.LOG_INFO(), "EnsureGuid: GUID FINALIZED (" + guid + ", name=" + pn + ")")
+
+    Bool shouldScheduleIronIntro = _bootstrapStartedAt > 0.0 && player.GetLevel() <= 1
+    if shouldScheduleIronIntro && Controller && Controller.Config && Controller.Presentation
+        Float introDelay = Controller.Config.GetIronSoulIntroDelaySeconds() as Float
+        Float elapsed = Utility.GetCurrentRealTime() - _bootstrapStartedAt
+        if elapsed < 0.0
+            elapsed = 0.0
+        endif
+        introDelay -= elapsed
+        if introDelay < 0.0
+            introDelay = 0.0
+        endif
+        Controller.Presentation.ScheduleIronIntroAfterGuidFinalize(player, guid, introDelay)
+    endif
+    _bootstrapStartedAt = 0.0
 
     if Controller && Controller.Effects
         Controller.Effects.SyncSoulPresentationAndStats(player, guid)

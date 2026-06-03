@@ -70,6 +70,7 @@ Scriptname IronSoulNative Hidden
 ; ----------------------
 ; BeginCursorSuppress()
 ; EndCursorSuppress()
+; PrimeCursorSuppress()
 ; RefreshCursorSuppress()
 
 ; --- Menu Blocking ---
@@ -87,6 +88,10 @@ Scriptname IronSoulNative Hidden
 ; -------------------------
 ; StartHealthMonitor()
 ; StopHealthMonitor()
+; HoldDeathSlowMo()
+; ReleaseDeathSlowMo()
+; ClearDeathSlowMo()
+; KillPlayerImmediate()
 
 ; --- Heartshard Enhancement ---
 ; ------------------------------
@@ -200,6 +205,7 @@ Bool Function CloseMenu(String menuName) Global Native
 ; Positive tokens hide/off-screen the cursor until each token is ended once.
 Int Function BeginCursorSuppress() Global Native
 Function EndCursorSuppress(Int token) Global Native
+Function PrimeCursorSuppress() Global Native
 Function RefreshCursorSuppress() Global Native
 
 
@@ -223,10 +229,14 @@ Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0, Float fal
 ; --- HEALTH MONITORING ---
 ; =========================
 ;
-; Starts/stops 0.1s native health polling for slow motion only.
+; Starts/stops 0.2s native health polling for outcome-controlled slow motion.
 ; Does not dispatch death events to Papyrus.
 Function StartHealthMonitor() Global Native
 Function StopHealthMonitor() Global Native
+Function HoldDeathSlowMo(String reason = "") Global Native
+Function ReleaseDeathSlowMo(Float recoverySeconds = 1.0, Float delaySeconds = 0.0, String reason = "") Global Native
+Function ClearDeathSlowMo(String reason = "") Global Native
+Bool Function KillPlayerImmediate(Bool ragdollInstant = True, String reason = "") Global Native
 
 
 ; --- HEARTSHARD ENHANCEMENT ---

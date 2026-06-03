@@ -50,13 +50,14 @@ Scriptname IronSoulConfig extends Quest
 ; IsDragonSoulReviveTransformEnabled()
 ; GetDragonSoulReviveLimit()
 ; IsDragonSoulReviveMessageEnabled()
-; IsDragonSoulIncreaseNotificationEnabled()
+; IsDragonSoulNotificationEnabled()
 ; IsCharacterJournalEnabled()
 ; GetLuckLevel()
 ; GetLuckRollMessageMode()
 ; IsCharacterSheetCompatibilityEnabled()
 ; IsCosaveRecoveryBackupEnabled()
 ; IsIronSoulIntroEnabled()
+; GetIronSoulIntroDelaySeconds()
 ; IsHeartshardMessageEnabled()
 ; IsHeartshardNotificationEnabled()
 ; GetHeartshardInventoryMode()
@@ -134,13 +135,14 @@ Bool _dragonSoulReviveEnabled = True
 Bool _dragonSoulReviveTransformEnabled = True
 Int _dragonSoulReviveLimit = 3
 Bool _dragonSoulReviveMessageEnabled = True
-Bool _dragonSoulIncreaseNotificationEnabled = True
+Bool _dragonSoulNotificationEnabled = True
 Bool _characterJournalLogEnabled = True
 Int _luckLevel = 5
 Int _luckRollMessageMode = 1
 Bool _enableCharacterSheetCompatibility = False
 Bool _cosaveRecoveryBackupEnabled = True
 Bool _ironSoulIntroEnabled = True
+Int _ironSoulIntroDelaySeconds = 23
 Bool _heartshardMessageEnabled = True
 Bool _heartshardNotificationEnabled = True
 Int _heartshardInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
@@ -188,8 +190,9 @@ Function ResetDefaults()
     ; Messaging (SWF)
     _respawnMessageEnabled = True
     _dragonSoulReviveMessageEnabled = True
-    _dragonSoulIncreaseNotificationEnabled = True
+    _dragonSoulNotificationEnabled = True
     _ironSoulIntroEnabled = True
+    _ironSoulIntroDelaySeconds = 23
     _heartshardMessageEnabled = True
     _heartshardNotificationEnabled = True
     _heartshardInventoryMode = 1
@@ -276,6 +279,7 @@ Function LoadFromIni()
     _respawnEnabled = ReadFeatureEnabled("Respawn", True)
     _respawnMessageEnabled = ReadFeatureEnabled("RespawnMessage", True)
     _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
+    _ironSoulIntroDelaySeconds = ReadIntRange("IronSoulIntroDelaySeconds", _ironSoulIntroDelaySeconds, 0, 120)
     _heartshardMessageEnabled = ReadFeatureEnabled("HeartshardMessage", True)
     _heartshardNotificationEnabled = ReadFeatureEnabled("HeartshardNotification", True)
     _heartshardInventoryMode = ReadIntRange("HeartshardInventoryMode", _heartshardInventoryMode, 0, 3)
@@ -299,7 +303,7 @@ Function LoadFromIni()
     _soulFatigueEnabled = ReadFeatureEnabled("SoulFatigue", True)
 
     _anticheatEnabled = ReadFeatureEnabled("Anticheat", True)
-    _dragonSoulIncreaseNotificationEnabled = ReadFeatureEnabled("DragonSoulIncreaseNotification", True)
+    _dragonSoulNotificationEnabled = ReadFeatureEnabled("DragonSoulNotification", True)
     _sfxEnabled = ReadFeatureEnabled("SFX", True)
     _musicFadeEnabled = ReadFeatureEnabled("MusicFade", True)
     _ironIntroSFXEnabled = ReadFeatureEnabled("IronIntroSFX", True)
@@ -376,8 +380,8 @@ Bool Function IsDragonSoulReviveMessageEnabled()
     return _dragonSoulReviveMessageEnabled
 EndFunction
 
-Bool Function IsDragonSoulIncreaseNotificationEnabled()
-    return _dragonSoulIncreaseNotificationEnabled
+Bool Function IsDragonSoulNotificationEnabled()
+    return _dragonSoulNotificationEnabled
 EndFunction
 
 Bool Function IsCharacterJournalEnabled()
@@ -402,6 +406,10 @@ EndFunction
 
 Bool Function IsIronSoulIntroEnabled()
     return _ironSoulIntroEnabled
+EndFunction
+
+Int Function GetIronSoulIntroDelaySeconds()
+    return _ironSoulIntroDelaySeconds
 EndFunction
 
 Bool Function IsHeartshardMessageEnabled()
@@ -624,7 +632,7 @@ Function LogSnapshot()
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config DragonSoulRevive: DragonSoulRevive=" + _dragonSoulReviveEnabled \
         + " DragonSoulReviveTransform=" + _dragonSoulReviveTransformEnabled \
-        + " DragonSoulIncreaseNotify=" + _dragonSoulIncreaseNotificationEnabled \
+        + " DragonSoulNotify=" + _dragonSoulNotificationEnabled \
         + " DragonSoulReviveLimit=" + _dragonSoulReviveLimit)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Core: SFX=" + _sfxEnabled \
@@ -658,38 +666,40 @@ String Function LogLevelTag(Int level) Global
 EndFunction
 
 String Function LogSourceTag(String source) Global
+    ; Papyrus folds equal string literals to one PEX table entry, so build display
+    ; tags from fragments when a lowercase lookup key has different casing.
     if source == ""
-        return "External"
+        return "E" + "xternal"
     elseif source == "controller"
-        return "Controller"
+        return "C" + "ontroller"
     elseif source == "config"
-        return "Config"
+        return "C" + "onfig"
     elseif source == "death"
-        return "Death"
+        return "D" + "eath"
     elseif source == "dragonsoulrevive"
-        return "DragonSoulRevive"
+        return "D" + "ragonSoulRevive"
     elseif source == "draugnarok"
-        return "Draugnarok"
+        return "D" + "raugnarok"
     elseif source == "effects"
-        return "Effects"
+        return "E" + "ffects"
     elseif source == "heartshards"
-        return "Heartshards"
+        return "H" + "eartshards"
     elseif source == "identity"
-        return "Identity"
+        return "I" + "dentity"
     elseif source == "journal"
-        return "Journal"
+        return "J" + "ournal"
     elseif source == "luck"
-        return "Luck"
+        return "L" + "uck"
     elseif source == "ondying"
-        return "OnDying"
+        return "O" + "nDying"
     elseif source == "playeralias"
-        return "PlayerAlias"
+        return "P" + "layerAlias"
     elseif source == "respawn"
-        return "Respawn"
+        return "R" + "espawn"
     elseif source == "tiers"
-        return "Tiers"
+        return "T" + "iers"
     elseif source == "ui"
-        return "UI"
+        return "U" + "I"
     endif
     return source
 EndFunction

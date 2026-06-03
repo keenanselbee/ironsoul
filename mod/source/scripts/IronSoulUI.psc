@@ -15,8 +15,11 @@ Scriptname IronSoulUI extends Quest
 ; ResetTransientState()
 ; RegisterMusicFadeBridge()
 ; ScheduleLoadMessage()
+; ClearDelayedIronIntro()
+; ScheduleIronIntroAfterGuidFinalize()
 ; RequiresFastPolling()
 ; HandleLoadNotification()
+; HandleDelayedIronIntro()
 ; OpenTimedMessageSWF()
 ; OpenTimedMessageSWF_SFX()
 ; OpenTimedMessageSWF_KeyDismiss()
@@ -69,6 +72,10 @@ Bool _keyDismissPressed = False
 Bool _pendingLoadMessage = False
 Float _loadMessageAt = 0.0
 Float _pendingLoadMessageStartedAt = 0.0
+
+Bool _pendingIronIntro = False
+String _pendingIronIntroGuid = ""
+Float _ironIntroAt = 0.0
 
 Float TRANSITION_SFX_FADE_SECONDS = 1.0
 
@@ -123,6 +130,8 @@ Function ResetTransientState()
     _pendingLoadMessage = False
     _loadMessageAt = 0.0
     _pendingLoadMessageStartedAt = 0.0
+
+    ClearDelayedIronIntro()
 EndFunction
 
 Function RegisterMusicFadeBridge()
@@ -148,19 +157,52 @@ Function ScheduleLoadMessage(Bool isLoadGame)
     endif
 EndFunction
 
-Bool Function RequiresFastPolling(Float watchdogSeconds)
-    if !_pendingLoadMessage
-        _pendingLoadMessageStartedAt = 0.0
-        return False
+Function ClearDelayedIronIntro()
+    _pendingIronIntro = False
+    _pendingIronIntroGuid = ""
+    _ironIntroAt = 0.0
+EndFunction
+
+Function ScheduleIronIntroAfterGuidFinalize(Actor player, String guid, Float delaySeconds = 10.0)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
     endif
 
+    if delaySeconds < 0.0
+        delaySeconds = 0.0
+    endif
+
+    if !ShouldShowIronIntro(player, guid)
+        ClearDelayedIronIntro()
+        return
+    endif
+
+    _pendingIronIntro = True
+    _pendingIronIntroGuid = guid
+    _ironIntroAt = Utility.GetCurrentRealTime() + delaySeconds
+
+    LogUI(IronSoulConfig.LOG_INFO(), "ScheduleIronIntroAfterGuidFinalize: delayed intro pending for GUID=" + guid + " delay=" + delaySeconds + "s")
+
+    if Controller
+        Controller.QueueUpdate(delaySeconds)
+    endif
+EndFunction
+
+Bool Function RequiresFastPolling(Float watchdogSeconds)
     Float nowRT = Utility.GetCurrentRealTime()
+    Bool ironIntroDue = _pendingIronIntro && nowRT >= _ironIntroAt
+
+    if !_pendingLoadMessage
+        _pendingLoadMessageStartedAt = 0.0
+        return ironIntroDue
+    endif
+
     Float elapsed = nowRT - _pendingLoadMessageStartedAt
     if watchdogSeconds > 0.0 && _pendingLoadMessageStartedAt > 0.0 && elapsed > watchdogSeconds
         _pendingLoadMessage = False
         _pendingLoadMessageStartedAt = 0.0
         LogUI(IronSoulConfig.LOG_INFO(), "RequiresFastPolling: cleared pending load message after " + elapsed + "s")
-        return False
+        return ironIntroDue
     endif
 
     return True
@@ -202,6 +244,56 @@ Function HandleLoadNotification(Actor player)
     Debug.Notification(BuildLoadStatsNotification(daysPassed, deaths, maxDeaths, animaVal, luckVal))
 EndFunction
 
+Function HandleDelayedIronIntro(Actor player)
+    if !_pendingIronIntro
+        return
+    endif
+
+    if Utility.GetCurrentRealTime() < _ironIntroAt
+        return
+    endif
+
+    if !HasCoreRuntime() || !player
+        return
+    endif
+
+    if Utility.IsInMenuMode() || player.IsDead() || player.IsBleedingOut()
+        return
+    endif
+
+    if _keyDismissActive
+        return
+    endif
+
+    if Controller.Death && Controller.Death.IsDeathEventLocked()
+        return
+    endif
+
+    if Controller.Respawn && Controller.Respawn.HasPendingRespawnState()
+        return
+    endif
+
+    String guid = Controller.Identity.GetTickGuid(player)
+    if guid == ""
+        return
+    endif
+
+    if guid != _pendingIronIntroGuid
+        LogUI(IronSoulConfig.LOG_INFO(), "HandleDelayedIronIntro: cleared pending intro after GUID changed from " + _pendingIronIntroGuid + " to " + guid)
+        ClearDelayedIronIntro()
+        return
+    endif
+
+    if !ShouldShowIronIntro(player, guid)
+        LogUI(IronSoulConfig.LOG_INFO(), "HandleDelayedIronIntro: cleared pending intro because it is no longer eligible")
+        ClearDelayedIronIntro()
+        return
+    endif
+
+    ClearDelayedIronIntro()
+    ShowIronIntro(player, guid)
+EndFunction
+
 Function OpenTimedMessageSWF(String menuName, Float duration = 6.0, Bool restoreMusic = True)
     if menuName == ""
         return
@@ -215,7 +307,7 @@ Function OpenTimedMessageSWF(String menuName, Float duration = 6.0, Bool restore
     FadeMusicForTransitionSequence()
 
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
     UI.OpenCustomMenu(menuName, 0)
     IronSoulNative.RefreshCursorSuppress()
     Utility.WaitMenuMode(duration)
@@ -303,7 +395,7 @@ Bool Function OpenKeyDismissMenu(String menuName, Float maxDuration = 6.0, Float
 
     Int cursorToken = IronSoulNative.BeginCursorSuppress()
     UI.CloseCustomMenu()
-    IronSoulNative.RefreshCursorSuppress()
+    IronSoulNative.PrimeCursorSuppress()
 
     UI.OpenCustomMenu(menuName, 0)
     IronSoulNative.RefreshCursorSuppress()
@@ -383,6 +475,7 @@ Bool Function ShowIronIntro(Actor player, String guid)
     endif
 
     OpenTimedMessageSWF_KeyDismissIronIntro(SwfNoBonus("1_iron_intro", Controller.Config.IsSoulBonusEnabled()), 30.0, 14.5, Controller.SFX.SFXIronIntro, player)
+    RestoreMusic()
     Controller.Persistence.MarkIronIntroShown(player, guid)
     Utility.Wait(1.0)
     return True

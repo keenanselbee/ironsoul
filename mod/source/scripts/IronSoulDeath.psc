@@ -35,6 +35,7 @@ Scriptname IronSoulDeath extends Quest
 ; RestoreOnDyingHook()
 ; RemoveOnDyingHook()
 ; GetEffectiveMaxLivesForTier()
+; FinalizeDeathQuit()
 
 
 ; --- Wired Dependencies & Runtime State ---
@@ -131,6 +132,8 @@ Function HandlePlayerDying(Actor player, Actor caster)
         endif
     endif
 
+    IronSoulNative.HoldDeathSlowMo("death-event")
+
     String guid = identity.GetTickGuid(player)
     if guid == ""
         LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: GUID missing -> routing to HandleDeathAndQuit")
@@ -175,6 +178,7 @@ Function HandlePlayerDying(Actor player, Actor caster)
             ; Journal: luck-based survival line (tiered by luck value used for the roll).
             luck.JournalLogOutcome(True, player, guid)
             LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Luck SUCCESS -> Survival/Respawn")
+            IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "luck-success-menu-complete")
             if !respawn || !respawn.TryStartRespawn(player, guid)
                 HandleDeathAndQuit(player)
             endif
@@ -210,6 +214,7 @@ Function HandleDeathAndQuit(Actor player)
     IronSoulSFX sfx = Controller.SFX
     IronSoulEffects effects = Controller.Effects
 
+    IronSoulNative.HoldDeathSlowMo("death-failure")
     IronSoulNative.BeginMenuBlock("death", True)
 
     ; Identity (GUID required).
@@ -217,7 +222,8 @@ Function HandleDeathAndQuit(Actor player)
     if guid == ""
         LogDeath(IronSoulConfig.LOG_ERR(), "HandleDeathAndQuit: Missing GUID; exiting without logging state")
         Debug.MessageBox("Could not determine character identity. Exiting to prevent state corruption.")
-        Controller.FinalizeAndQuit()
+        IronSoulNative.ClearDeathSlowMo("death-missing-guid")
+        FinalizeDeathQuit(False)
         return
     endif
 
@@ -238,30 +244,12 @@ Function HandleDeathAndQuit(Actor player)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: ResetLuck()")
     endif
 
-    ; Non-luck death routes still need the fixed front-delay.
-    if !luck.ConsumeDeathFrontDelay()
-        Utility.Wait(0.5)
-    endif
-
-    player.GetActorBase().SetEssential(False)
-    player.EndDeferredKill()
-
-    Utility.Wait(0.01)
-
-    if player.IsEssential()
-        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Player is essential; calling KillEssential()")
-        player.KillEssential()
-    else
-        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Calling Kill()")
-        player.Kill()
-    endif
-
-    Utility.Wait(1.0)
-
-    presentation.ShowIronIntro(player, guid)
-
-    ; Ensure the player is not essential (kept as-is).
-    player.GetActorBase().SetEssential(False)
+    ; Queue the presentation after committing every outcome state mutation.
+    ; presentationMode: 0 none, 1 Defiant transition, 2 CHIM transition, 3 death, 4 permadeath.
+    Int presentationMode = 0
+    String presentationMenu = ""
+    String presentationOverrideMenu = ""
+    Bool quitToMainMenu = False
 
     ; Cached state for tier-aware menus.
     ; Soul tier/state: 0=Defiant, 1=Iron, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour, 9=CHIM.
@@ -274,19 +262,14 @@ Function HandleDeathAndQuit(Actor player)
 
     ; Defiant transition sequence (10th death, feat earned, not yet activated).
     if !defiantActive && transitionTier == tiers.TIER_DEFIANT
-        ; Commit Defiant activation FIRST so quitting/crashing during the UI sequence cannot lose it.
+        ; Commit Defiant activation before native kill so quitting/crashing during the UI sequence cannot lose it.
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Defiant Soul ACTIVATED (one-shot latch)")
         tiers.PromoteToDefiantTier(player, guid, soulTierTD)
 
         ; Journal: Defiant activation milestone.
         journal.LogEventForGuid(player, guid, "You refuse Sovngarde and rise again. Defiant Soul awakened. Death limit is now 20.")
-
-        tiers.PlayDefiantTransitionMessageSequenceSWF(soulTierTD, False)
-        Controller.FinalizeAndQuit()
-        return
-    endif
-
-    if defiantActive && defiantFatigueTerminal
+        presentationMode = 1
+    elseif defiantActive && defiantFatigueTerminal
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Defiant Soul FATIGUE terminal state reached")
         if config.IsCharacterJournalEnabled()
             Bool terminalFatigue = config.IsPermadeathEnabled() || chimActive
@@ -294,27 +277,20 @@ Function HandleDeathAndQuit(Actor player)
         endif
         if !config.IsPermadeathEnabled() && !chimActive
             tiers.PromoteToCHIMTier(player, guid)
-            tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False, "0_defiant_permadeath_soulfatigue")
-            Controller.FinalizeAndQuit()
-            return
+            presentationMode = 2
+            presentationOverrideMenu = "0_defiant_permadeath_soulfatigue"
+        else
+            presentationMode = 4
+            presentationMenu = "0_defiant_permadeath_soulfatigue"
+            quitToMainMenu = True
         endif
-
-        presentation.OpenTimedMessageSWF_KeyDismiss_SFX("0_defiant_permadeath_soulfatigue", 55.0, 27.0, sfx.SFXPermadeath, player, False)
-        Controller.FinalizeAndQuitMainMenu()
-        return
-    endif
-
-    ; CHIM transition sequence (10th death without Defiant transition, 10th Devour death with Permadeath off, or 20th death in Defiant).
-    if !chimActive && transitionTier == tiers.TIER_CHIM
+    elseif !chimActive && transitionTier == tiers.TIER_CHIM
+        ; CHIM transition sequence (10th death without Defiant transition, 10th Devour death with Permadeath off, or 20th death in Defiant).
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: CHIM Soul ACTIVATED (one-shot latch)")
         tiers.PromoteToCHIMTier(player, guid)
-        tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False)
-        Controller.FinalizeAndQuit()
-        return
-    endif
-
-    ; CHIM tier: every death uses a random dedicated CHIM death menu and exits.
-    if chimActive
+        presentationMode = 2
+    elseif chimActive
+        ; CHIM tier: every death uses a random dedicated CHIM death menu and exits.
         if config.IsCharacterJournalEnabled()
             if luck.ConsumeNextDeathJournalSuppression()
             else
@@ -322,46 +298,87 @@ Function HandleDeathAndQuit(Actor player)
             endif
         endif
         if config.IsDeathMessageEnabled()
-            presentation.OpenTimedMessageSWF_SFX(IronSoulUI.ResolveDeathMessageMenu(soulTierTD, deathsNow), 6.0, sfx.SFXDeath, player, False)
+            presentationMode = 3
+            presentationMenu = IronSoulUI.ResolveDeathMessageMenu(soulTierTD, deathsNow)
         endif
-        Controller.FinalizeAndQuit()
-        return
-    endif
-
-    ; Non-CHIM caps + messaging.
-    Int hardCap = tiers.IRON_SOUL_MAX_LIVES
-    if defiantActive
-        hardCap = tiers.DEFIANT_SOUL_MAX_LIVES
-    endif
-
-    Bool quitToMainMenu = False
-
-    ; Journal: normal death (non-cap). Special cases are handled above.
-    if config.IsCharacterJournalEnabled()
-        if luck.ConsumeNextDeathJournalSuppression()
-        elseif deathsNow < hardCap
-            journal.LogEventForGuid(player, guid, IronSoulJournal.DefeatOutcomeText(deathsNow, hardCap))
-        endif
-    endif
-
-    if deathsNow >= hardCap
-        ; Permadeath scenario:
-        ; - 10th death without Defiant/CHIM transition
-        ; - 10th Devour death when Permadeath is enabled
-        ; - 20th death with Defiant active when CHIM transition is not taken.
-        journal.LogEventForGuid(player, guid, IronSoulJournal.TrueDeathOutcomeText(deathsNow, hardCap))
-        presentation.OpenTimedMessageSWF_KeyDismiss_SFX(IronSoulUI.ResolvePermadeathMenu(soulTierTD), 55.0, 27.0, sfx.SFXPermadeath, player, False)
-        quitToMainMenu = True
     else
-        if config.IsDeathMessageEnabled()
-            presentation.OpenTimedMessageSWF_SFX(IronSoulUI.ResolveDeathMessageMenu(soulTierTD, deathsNow), 6.0, sfx.SFXDeath, player, False)
+        ; Non-CHIM caps + messaging.
+        Int hardCap = tiers.IRON_SOUL_MAX_LIVES
+        if defiantActive
+            hardCap = tiers.DEFIANT_SOUL_MAX_LIVES
         endif
+
+        ; Journal: normal death (non-cap). Special cases are handled above.
+        if config.IsCharacterJournalEnabled()
+            if luck.ConsumeNextDeathJournalSuppression()
+            elseif deathsNow < hardCap
+                journal.LogEventForGuid(player, guid, IronSoulJournal.DefeatOutcomeText(deathsNow, hardCap))
+            endif
+        endif
+
+        if deathsNow >= hardCap
+            ; Permadeath scenario:
+            ; - 10th death without Defiant/CHIM transition
+            ; - 10th Devour death when Permadeath is enabled
+            ; - 20th death with Defiant active when CHIM transition is not taken.
+            journal.LogEventForGuid(player, guid, IronSoulJournal.TrueDeathOutcomeText(deathsNow, hardCap))
+            presentationMode = 4
+            presentationMenu = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
+            quitToMainMenu = True
+        else
+            if config.IsDeathMessageEnabled()
+                presentationMode = 3
+                presentationMenu = IronSoulUI.ResolveDeathMessageMenu(soulTierTD, deathsNow)
+            endif
+        endif
+    endif
+
+    ; Non-luck death routes still need the fixed front-delay.
+    if !luck.ConsumeDeathFrontDelay()
+        Utility.Wait(0.5)
+    endif
+
+    player.GetActorBase().SetEssential(False)
+    player.EndDeferredKill()
+
+    Utility.Wait(0.01)
+
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Calling KillPlayerImmediate()")
+    Bool nativeKillQueued = IronSoulNative.KillPlayerImmediate(True, "death-failure")
+    if !nativeKillQueued
+        if player.IsEssential()
+            LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Native kill unavailable; calling KillEssential()")
+            player.KillEssential()
+        else
+            LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Native kill unavailable; calling Kill()")
+            player.Kill()
+        endif
+    endif
+
+    IronSoulNative.ReleaseDeathSlowMo(2.0, 0.0, "death-failure-kill")
+    Utility.Wait(2.0)
+
+    ; Ensure the player is not essential (kept as-is).
+    player.GetActorBase().SetEssential(False)
+
+    if presentationMode == 1
+        tiers.PlayDefiantTransitionMessageSequenceSWF(soulTierTD, False)
+    elseif presentationMode == 2
+        if presentationOverrideMenu != ""
+            tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False, presentationOverrideMenu)
+        else
+            tiers.PlayCHIMTransitionMessageSequenceSWF(soulTierTD, False)
+        endif
+    elseif presentationMode == 3
+        presentation.OpenTimedMessageSWF_SFX(presentationMenu, 6.0, sfx.SFXDeath, player, False)
+    elseif presentationMode == 4
+        presentation.OpenTimedMessageSWF_KeyDismiss_SFX(presentationMenu, 55.0, 27.0, sfx.SFXPermadeath, player, False)
     endif
 
     if quitToMainMenu
-        Controller.FinalizeAndQuitMainMenu()
+        FinalizeDeathQuit(True)
     else
-        Controller.FinalizeAndQuit()
+        FinalizeDeathQuit(False)
     endif
 EndFunction
 
@@ -518,4 +535,13 @@ Int Function GetEffectiveMaxLivesForTier(Int tierNow, Int ironMaxLives, Int defi
     endif
 
     return ironMaxLives
+EndFunction
+
+Function FinalizeDeathQuit(Bool mainMenu)
+    Utility.Wait(1.0)
+    if mainMenu
+        Controller.FinalizeAndQuitMainMenu()
+    else
+        Controller.FinalizeAndQuit()
+    endif
 EndFunction

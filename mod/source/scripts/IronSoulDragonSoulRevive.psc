@@ -209,13 +209,6 @@ Function HandleRevive(Actor target, Actor caster, String guid)
         endif
     endif
 
-    Bool willShowIronIntro = presentation.ShouldShowIronIntro(target, guid)
-    if willShowIronIntro
-        Utility.Wait(1.0)
-    endif
-
-    Bool introShown = presentation.ShowIronIntro(target, guid)
-
     if Marker
         MarkerRef = target.PlaceAtMe(Marker)
         if MarkerRef
@@ -260,8 +253,9 @@ Function HandleRevive(Actor target, Actor caster, String guid)
     if config.IsDragonSoulReviveMessageEnabled()
         PlayDragonSoulReviveSFX(IronSoulSFX.PickDragonSoulReviveCastSFX(SFXDragonSoulReviveCast1, SFXDragonSoulReviveCast2, SFXDragonSoulReviveCast3, SFXDragonSoulReviveCast4), target, True)
         presentation.OpenTimedMessageSWF(IronSoulUI.SwfNoBonus(ResolveMenu(target, guid), config.IsSoulBonusEnabled()), 3.0)
-    elseif introShown
-        presentation.RestoreMusic()
+        IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "dragon-soul-revive-complete")
+    else
+        IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "dragon-soul-revive-message-disabled")
     endif
 
     PlayDragonSoulReviveSFX(IronSoulSFX.PickDragonSoulReviveSFX(SFXDragonSoulRevive1, SFXDragonSoulRevive2, SFXDragonSoulRevive3, SFXDragonSoulRevive4), target, False)

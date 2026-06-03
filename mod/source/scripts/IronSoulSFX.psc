@@ -24,7 +24,6 @@ Scriptname IronSoulSFX extends Quest
 
 ; --- SFX Selection ---
 ; ---------------------
-; ResolveSoulFeatUnlockSFX()
 ; PickHeavyBreathingSFX()
 ; PickRandomSFX4()
 ; PickDragonSoulReviveCastSFX()
@@ -205,19 +204,6 @@ EndFunction
 
 ; --- SFX Selection ---
 ; =====================
-
-Sound Function ResolveSoulFeatUnlockSFX(Int soulTier, Sound silverSFX, Sound goldSFX, Sound ebonSFX, Sound platinumSFX, Sound devourSFX) Global
-    if soulTier == 6
-        return devourSFX
-    elseif soulTier == 5
-        return platinumSFX
-    elseif soulTier == 4
-        return ebonSFX
-    elseif soulTier == 3
-        return goldSFX
-    endif
-    return silverSFX
-EndFunction
 
 Sound Function PickHeavyBreathingSFX(Actor player, Sound heavy0, Sound heavy1, Sound heavy2, Sound heavy3, Sound heavy4, Sound heavy5, Sound heavy6, Sound heavy7, Sound heavy8, Sound heavy9) Global
     Int sex = 0

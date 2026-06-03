@@ -670,6 +670,9 @@ Event OnUpdate()
     ; Timed load-notification handler
     Presentation.HandleLoadNotification(player)
 
+    ; Delayed first-character intro, scheduled by fresh GUID finalization.
+    Presentation.HandleDelayedIronIntro(player)
+
     ; Low-frequency (5s) maintenance and progression integrity checks
     OnUpdateHeartbeat(player)
 
@@ -775,7 +778,7 @@ Bool Function BootstrapTick()
                 return False
             endif
 
-            Identity.CompleteBootstrap()
+            Identity.CompleteBootstrap(False)
             LogController(IronSoulConfig.LOG_ERR(), "BootstrapTick: Identity not ready after timeout; continuing normal polling")
             return False
         endif

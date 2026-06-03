@@ -221,6 +221,71 @@ namespace
         }
     }
 
+    static void ApplyMenuCursorSuppressionLocked(RE::MenuCursor* a_menuCursor, const char* a_reason)
+    {
+        if (!a_menuCursor) {
+            if (!g_cursorSuppressState.warnedMissingCursor) {
+                g_cursorSuppressState.warnedMissingCursor = true;
+                if (InfoLoggingEnabled()) {
+                    logger::warn("CursorSuppress: MenuCursor singleton unavailable");
+                }
+            }
+            return;
+        }
+
+        auto& rt = a_menuCursor->GetRuntimeData();
+        const bool firstApply = !g_cursorSuppressState.suppressionApplied;
+        if (firstApply) {
+            g_cursorSuppressState.savedPosX = rt.cursorPosX;
+            g_cursorSuppressState.savedPosY = rt.cursorPosY;
+            g_cursorSuppressState.savedPosValid = true;
+            g_cursorSuppressState.savedVisible = rt.showCursorCount >= 0;
+            g_cursorSuppressState.savedVisibilityValid = true;
+            g_cursorSuppressState.suppressionApplied = true;
+        }
+
+        const float baseW = rt.screenWidthX > 0.0f ? rt.screenWidthX : 1920.0f;
+        rt.cursorPosX = baseW + 10000.0f;
+        rt.cursorPosY = g_cursorSuppressState.savedPosValid ? g_cursorSuppressState.savedPosY : rt.cursorPosY;
+        a_menuCursor->SetCursorVisibility(false);
+
+        if (firstApply && InfoLoggingEnabled()) {
+            logger::info("CursorSuppress: applied reason={}", a_reason ? a_reason : "unknown");
+        }
+    }
+
+    static void QueuePrimeSuppression(std::uint64_t a_workerToken, const char* a_reason)
+    {
+        auto* task = SKSE::GetTaskInterface();
+        if (!task) {
+            if (InfoLoggingEnabled()) {
+                logger::warn("CursorSuppress: task interface unavailable during prime");
+            }
+            return;
+        }
+
+        task->AddTask([a_workerToken, a_reason]() {
+            auto* menuCursor = RE::MenuCursor::GetSingleton();
+            auto* uiQueue = RE::UIMessageQueue::GetSingleton();
+            auto* uiStr = RE::InterfaceStrings::GetSingleton();
+
+            std::scoped_lock lock(g_cursorSuppressState.lock);
+            if (g_cursorSuppressState.workerToken.load() != a_workerToken || g_cursorSuppressState.activeTokens.empty()) {
+                return;
+            }
+
+            g_cursorSuppressState.customMenuAddr = 0;
+            g_cursorSuppressState.customMenuFlagsValid = false;
+            g_cursorSuppressState.customMenuHadUsesCursor = false;
+            g_cursorSuppressState.customMenuHadUpdateUsesCursor = false;
+
+            if (uiQueue && uiStr) {
+                uiQueue->AddMessage(uiStr->cursorMenu, RE::UI_MESSAGE_TYPE::kHide, nullptr);
+            }
+            ApplyMenuCursorSuppressionLocked(menuCursor, a_reason);
+        });
+    }
+
     static void QueueApplySuppression(std::uint64_t a_workerToken, const char* a_reason)
     {
         auto* task = SKSE::GetTaskInterface();
@@ -243,41 +308,12 @@ namespace
             }
 
             ClearCustomMenuCursorFlagsLocked();
-            const bool firstApply = !g_cursorSuppressState.suppressionApplied;
 
             if (uiQueue && uiStr) {
                 uiQueue->AddMessage(uiStr->cursorMenu, RE::UI_MESSAGE_TYPE::kHide, nullptr);
             }
             ApplyOverlayAlphaSuppressionLocked(ui);
-
-            if (!menuCursor) {
-                if (!g_cursorSuppressState.warnedMissingCursor) {
-                    g_cursorSuppressState.warnedMissingCursor = true;
-                    if (InfoLoggingEnabled()) {
-                        logger::warn("CursorSuppress: MenuCursor singleton unavailable");
-                    }
-                }
-                return;
-            }
-
-            auto& rt = menuCursor->GetRuntimeData();
-            if (firstApply) {
-                g_cursorSuppressState.savedPosX = rt.cursorPosX;
-                g_cursorSuppressState.savedPosY = rt.cursorPosY;
-                g_cursorSuppressState.savedPosValid = true;
-                g_cursorSuppressState.savedVisible = rt.showCursorCount >= 0;
-                g_cursorSuppressState.savedVisibilityValid = true;
-                g_cursorSuppressState.suppressionApplied = true;
-            }
-
-            const float baseW = rt.screenWidthX > 0.0f ? rt.screenWidthX : 1920.0f;
-            rt.cursorPosX = baseW + 10000.0f;
-            rt.cursorPosY = g_cursorSuppressState.savedPosValid ? g_cursorSuppressState.savedPosY : rt.cursorPosY;
-            menuCursor->SetCursorVisibility(false);
-
-            if (firstApply && InfoLoggingEnabled()) {
-                logger::info("CursorSuppress: applied reason={}", a_reason ? a_reason : "unknown");
-            }
+            ApplyMenuCursorSuppressionLocked(menuCursor, a_reason);
         });
     }
 
@@ -500,12 +536,32 @@ namespace
 
         QueueApplySuppression(workerToken, "refresh");
     }
+
+    static void PrimeCursorSuppress(RE::StaticFunctionTag*)
+    {
+        if (IronSoul::Config::GetInt("CursorHide", 1) == 0) {
+            return;
+        }
+
+        std::uint64_t workerToken = 0;
+        {
+            std::scoped_lock lock(g_cursorSuppressState.lock);
+            if (g_cursorSuppressState.activeTokens.empty()) {
+                return;
+            }
+
+            workerToken = g_cursorSuppressState.workerToken.load();
+        }
+
+        QueuePrimeSuppression(workerToken, "prime");
+    }
 }
 
     void Register(RE::BSScript::IVirtualMachine* a_vm)
     {
         a_vm->RegisterFunction("BeginCursorSuppress", kScriptName, BeginCursorSuppress);
         a_vm->RegisterFunction("EndCursorSuppress", kScriptName, EndCursorSuppress);
+        a_vm->RegisterFunction("PrimeCursorSuppress", kScriptName, PrimeCursorSuppress);
         a_vm->RegisterFunction("RefreshCursorSuppress", kScriptName, RefreshCursorSuppress);
     }
 }
