@@ -24,6 +24,7 @@ Working Rules
 
 - Keep changes narrow and follow the existing style in the files being edited.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
+- Prefer not to add functions whose body is only one line of code unless there is a good reason, such as matching an existing interface, naming a repeated concept, or improving readability at the call site.
 - Do not revert or overwrite unrelated user changes.
 - Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented BACKUP command, xEdit staged inspection, and MO2 overwrite INI refresh below. External paths may otherwise be read or used as tool/import inputs only.
 - The BACKUP command may create and write only under `Z:\Backup\LoreRim\Iron Soul` outside the repo.
