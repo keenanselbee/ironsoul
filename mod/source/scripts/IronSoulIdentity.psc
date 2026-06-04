@@ -306,6 +306,9 @@ String Function EnsureGuid(Actor player)
     Bool shouldScheduleIronIntro = _bootstrapStartedAt > 0.0 && player.GetLevel() <= 1
     if shouldScheduleIronIntro && Controller && Controller.Config && Controller.Presentation
         Float introDelay = Controller.Config.GetIronSoulIntroDelaySeconds() as Float
+        if IsPlaceholderName(pn)
+            introDelay += 5.0
+        endif
         Float elapsed = Utility.GetCurrentRealTime() - _bootstrapStartedAt
         if elapsed < 0.0
             elapsed = 0.0

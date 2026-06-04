@@ -112,6 +112,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "dynamiclevelwidget", "DynamicLevelWidget", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "dynamicsplash", "DynamicSplash", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "musicfade", "MusicFade", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "redtintondeath", "RedTintOnDeath", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "slowmoondeath", "SlowMoOnDeath", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 
 	{ "musicvolumeoverride", "MusicVolumeOverride", "Sound", -1, true, -1, true, 100, 0 },
@@ -133,6 +134,8 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "respawnheavybreathingsfx", "RespawnHeavyBreathingSFX", "Sound", 1, true, 0, true, 1, 0 },
 
 	{ "enablecharactersheetcompatibility", "EnableCharacterSheetCompatibility", "Experimental", 0, true, 0, true, 1, 0 },
+
+	{ "requiemcompatibility", "RequiemCompatibility", "Compatibility", 1, true, 0, true, 1, 0 },
 
 	{ "enabledebug", "EnableDebug", "Debug", 0, true, 0, true, 1, 0 },
 	{ "enablelogging", "EnableLogging", "Debug", 0, true, 0, true, 1, 0 },
@@ -936,6 +939,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		AppendConfigSummarySection(result, "SKSEPlugin");
 		AppendConfigSummarySection(result, "Sound");
 		AppendConfigSummarySection(result, "Experimental");
+		AppendConfigSummarySection(result, "Compatibility");
 		AppendConfigSummarySection(result, "Debug");
 
 		if (!result.empty() && result.back() == '\n') {

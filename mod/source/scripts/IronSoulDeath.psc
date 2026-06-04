@@ -45,6 +45,8 @@ IronSoulController Property Controller Auto
 
 Spell Property IronSoulOnDyingSpell Auto
 
+ImageSpaceModifier Property DeathImod Auto
+
 ; Brawl exception.
 Quest Property brawlQuest Auto
 
@@ -105,6 +107,7 @@ EndFunction
 
 Function ResetTransientState()
     _deathEventLocked = False
+    ImageSpaceModifier.RemoveCrossFade(0.75)
 EndFunction
 
 ; Single entry point for ALL death events (HP <= 0).
@@ -129,6 +132,14 @@ Function HandlePlayerDying(Actor player, Actor caster)
         if brawlQuest.GetStage() > 0 && brawlQuest.GetStage() < 250
             LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Brawl detected, returning")
             return
+        endif
+    endif
+
+    if config.IsRedTintOnDeathEnabled()
+        if DeathImod
+            DeathImod.ApplyCrossFade(5.0)
+        else
+            LogDeath(IronSoulConfig.LOG_ERR(), "HandlePlayerDying: DeathImod property is not wired")
         endif
     endif
 

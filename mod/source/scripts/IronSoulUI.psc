@@ -14,6 +14,7 @@ Scriptname IronSoulUI extends Quest
 ; ----------------------------
 ; ResetTransientState()
 ; RegisterMusicFadeBridge()
+; RegisterMusicVolumeCacheMenus()
 ; ScheduleLoadMessage()
 ; ClearDelayedIronIntro()
 ; ScheduleIronIntroAfterGuidFinalize()
@@ -31,13 +32,17 @@ Scriptname IronSoulUI extends Quest
 ; PlayPresentationSFX()
 ; ShouldShowIronIntro()
 ; ShowIronIntro()
+; RefreshConfiguredMusicVolumeCache()
+; InvalidateConfiguredMusicVolumeCache()
 ; ResolveConfiguredMusicVolume()
+; HandleMusicAfterPlayerLoad()
 ; FadeMusicForTransitionSequence()
 ; RestoreMusic()
 ; OnKeyDown()
 ; RegisterForAllKeys()
 ; UnregisterForAllKeys()
-; OnMusicFadeSetVolume()
+; OnMenuClose()
+; OnMusicFadeComplete()
 
 ; --- Menu Naming ---
 ; -------------------
@@ -77,6 +82,12 @@ String _pendingIronIntroGuid = ""
 Float _ironIntroAt = 0.0
 
 Float TRANSITION_SFX_FADE_SECONDS = 1.0
+
+Float _cachedMenuMusicVolume = 1.0
+Bool _menuMusicVolumeCached = False
+String _menuMusicVolumeCacheReason = ""
+Bool _musicFadeActive = False
+Bool _menuMusicVolumeRefreshPending = False
 
 
 ; --- Component Helpers ---
@@ -135,7 +146,16 @@ EndFunction
 
 Function RegisterMusicFadeBridge()
     UnregisterForModEvent("IronSoul_MusicFadeSetVolume")
-    RegisterForModEvent("IronSoul_MusicFadeSetVolume", "OnMusicFadeSetVolume")
+    UnregisterForModEvent("IronSoul_MusicFadeComplete")
+    RegisterForModEvent("IronSoul_MusicFadeComplete", "OnMusicFadeComplete")
+EndFunction
+
+Function RegisterMusicVolumeCacheMenus()
+    UnregisterForMenu("Journal Menu")
+    UnregisterForMenu("TweenMenu")
+    RegisterForMenu("Journal Menu")
+    RegisterForMenu("TweenMenu")
+    LogUI(IronSoulConfig.LOG_DBG(), "Music volume cache menu watchers registered: Journal Menu, TweenMenu", True)
 EndFunction
 
 Function ScheduleLoadMessage(Bool isLoadGame)
@@ -480,45 +500,184 @@ Bool Function ShowIronIntro(Actor player, String guid)
     return True
 EndFunction
 
-Float Function ResolveConfiguredMusicVolume()
+Float Function RefreshConfiguredMusicVolumeCache(String reason = "")
+    String refreshReason = reason
+    if refreshReason == ""
+        refreshReason = "unspecified"
+    endif
+
+    Bool fromMenuClose = StringUtil.Find(refreshReason, "menu-close:") == 0
+    Bool nativeFadeActive = IronSoulNative.MusicFadeIsActive()
+    if _musicFadeActive != nativeFadeActive
+        Bool previousFadeActive = _musicFadeActive
+        _musicFadeActive = nativeFadeActive
+        LogUI(IronSoulConfig.LOG_INFO(), "Music volume cache synchronized fade state: reason=" + refreshReason \
+            + " previous=" + previousFadeActive \
+            + " native=" + nativeFadeActive, True)
+    endif
+
+    if _musicFadeActive
+        if fromMenuClose
+            _menuMusicVolumeRefreshPending = True
+        endif
+
+        Float activeVolume = 1.0
+        if _menuMusicVolumeCached
+            activeVolume = _cachedMenuMusicVolume
+        endif
+        Int skipLevel = IronSoulConfig.LOG_DBG()
+        if !_menuMusicVolumeCached
+            skipLevel = IronSoulConfig.LOG_INFO()
+        endif
+        LogUI(skipLevel, "Music volume cache refresh skipped during fade: reason=" + refreshReason \
+            + " cached=" + _menuMusicVolumeCached \
+            + " value=" + activeVolume \
+            + " pendingMenuRefresh=" + _menuMusicVolumeRefreshPending, True)
+        return activeVolume
+    endif
+
+    Float previousVolume = _cachedMenuMusicVolume
+    Bool hadPrevious = _menuMusicVolumeCached
+    Float resolvedVolume = 1.0
+    String source = "default"
+    Bool matched = False
+
     Int i = 0
-    while i < 8
+    while i < 8 && !matched
         Int uid = Utility.GetINIInt("uID" + i + ":AudioMenu")
         if uid == 466532
             Float matchedVolume = Utility.GetINIFloat("fVal" + i + ":AudioMenu")
+            source = "matched slot " + i
             if matchedVolume >= 0.0 && matchedVolume <= 1.0
-                return matchedVolume
+                resolvedVolume = matchedVolume
+            else
+                source = source + " invalid default"
             endif
-            return 1.0
+            matched = True
         endif
         i += 1
     endwhile
 
-    Float fallbackVolume = Utility.GetINIFloat("fVal3:AudioMenu")
-    if fallbackVolume >= 0.0 && fallbackVolume <= 1.0
-        return fallbackVolume
+    if !matched
+        Float fallbackVolume = Utility.GetINIFloat("fVal3:AudioMenu")
+        if fallbackVolume >= 0.0 && fallbackVolume <= 1.0
+            resolvedVolume = fallbackVolume
+            source = "fallback fVal3"
+        endif
     endif
-    return 1.0
+
+    _cachedMenuMusicVolume = resolvedVolume
+    _menuMusicVolumeCached = True
+    _menuMusicVolumeCacheReason = refreshReason
+    Bool clearedPendingRefresh = _menuMusicVolumeRefreshPending
+    _menuMusicVolumeRefreshPending = False
+
+    Bool changed = !hadPrevious || previousVolume != resolvedVolume
+    LogUI(IronSoulConfig.LOG_INFO(), "Music volume cache refreshed: reason=" + refreshReason \
+        + " value=" + resolvedVolume \
+        + " source=" + source \
+        + " previousValid=" + hadPrevious \
+        + " previous=" + previousVolume \
+        + " changed=" + changed \
+        + " menuClose=" + fromMenuClose \
+        + " pendingCleared=" + clearedPendingRefresh, True)
+
+    return resolvedVolume
 EndFunction
 
-Function FadeMusicForTransitionSequence()
-    if !HasMusicRuntime()
+Function InvalidateConfiguredMusicVolumeCache(String reason = "")
+    String invalidateReason = reason
+    if invalidateReason == ""
+        invalidateReason = "unspecified"
+    endif
+
+    Bool hadPrevious = _menuMusicVolumeCached
+    _menuMusicVolumeCached = False
+    _menuMusicVolumeCacheReason = invalidateReason
+    LogUI(IronSoulConfig.LOG_DBG(), "Music volume cache invalidated: reason=" + invalidateReason \
+        + " previousValid=" + hadPrevious \
+        + " previous=" + _cachedMenuMusicVolume, True)
+EndFunction
+
+Float Function ResolveConfiguredMusicVolume(String reason = "")
+    String resolveReason = reason
+    if resolveReason == ""
+        resolveReason = "unspecified"
+    endif
+
+    if _menuMusicVolumeCached
+        LogUI(IronSoulConfig.LOG_DBG(), "Music volume cache hit: reason=" + resolveReason + " value=" + _cachedMenuMusicVolume + " cachedBy=" + _menuMusicVolumeCacheReason, True)
+        return _cachedMenuMusicVolume
+    endif
+
+    return RefreshConfiguredMusicVolumeCache("lazy:" + resolveReason)
+EndFunction
+
+Function HandleMusicAfterPlayerLoad(String reason = "")
+    String loadReason = reason
+    if loadReason == ""
+        loadReason = "player-load"
+    endif
+
+    Float fallbackVolume = 1.0
+    if _menuMusicVolumeCached
+        fallbackVolume = _cachedMenuMusicVolume
+    endif
+
+    Bool savedFadeActive = _musicFadeActive
+    Bool recoveryStarted = IronSoulNative.MusicFadeRecoverAfterLoad(AudioCategoryMUS, fallbackVolume, savedFadeActive)
+    if recoveryStarted
+        _musicFadeActive = True
+        LogUI(IronSoulConfig.LOG_INFO(), "Music load recovery started: reason=" + loadReason \
+            + " savedFadeActive=" + savedFadeActive \
+            + " cached=" + _menuMusicVolumeCached \
+            + " fallback=" + fallbackVolume, True)
         return
     endif
 
-    Float menuMusicVol = ResolveConfiguredMusicVolume()
+    _musicFadeActive = False
+    RefreshConfiguredMusicVolumeCache(loadReason)
+EndFunction
+
+Function FadeMusicForTransitionSequence()
+    Bool nativeFadeActive = IronSoulNative.MusicFadeIsActive()
+    if !HasMusicRuntime()
+        _musicFadeActive = nativeFadeActive
+        return
+    endif
+    if nativeFadeActive
+        _musicFadeActive = True
+    endif
+
+    Float menuMusicVol = ResolveConfiguredMusicVolume("fade-out")
+    _musicFadeActive = True
     IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol)
 EndFunction
 
 Function RestoreMusic(Float seconds = 2.0)
+    Bool nativeFadeActive = IronSoulNative.MusicFadeIsActive()
+    if nativeFadeActive
+        _musicFadeActive = True
+    endif
     if !HasMusicRuntime()
-        return
+        if !nativeFadeActive
+            _musicFadeActive = False
+            return
+        endif
+        if !Controller || !Controller.Config || !AudioCategoryMUS
+            _musicFadeActive = True
+            LogUI(IronSoulConfig.LOG_INFO(), "Music fade restore deferred: active native session but runtime wiring is unavailable", True)
+            return
+        endif
+        LogUI(IronSoulConfig.LOG_INFO(), "Music fade restore continuing for active native session despite MusicFade=0", True)
     endif
 
     if seconds <= 0.0
         seconds = 0.1
     endif
-    IronSoulNative.MusicFadeIn(AudioCategoryMUS, seconds, ResolveConfiguredMusicVolume())
+    Float menuMusicVol = ResolveConfiguredMusicVolume("fade-in")
+    _musicFadeActive = True
+    IronSoulNative.MusicFadeIn(AudioCategoryMUS, seconds, menuMusicVol)
 EndFunction
 
 Event OnKeyDown(Int keyCode)
@@ -560,20 +719,28 @@ Function UnregisterForAllKeys()
     UnregisterForKey(279) ; GamepadY
 EndFunction
 
-Event OnMusicFadeSetVolume(String eventName, String strArg, Float numArg, Form sender)
+Event OnMenuClose(String menuName)
+    if menuName == "Journal Menu" || menuName == "TweenMenu"
+        RefreshConfiguredMusicVolumeCache("menu-close:" + menuName)
+    endif
+EndEvent
+
+Event OnMusicFadeComplete(String eventName, String strArg, Float numArg, Form sender)
     SoundCategory cat = sender as SoundCategory
     if !cat
         return
     endif
 
-    Float v = numArg
-    if v < 0.0
-        v = 0.0
-    elseif v > 1.0
-        v = 1.0
-    endif
+    _musicFadeActive = IronSoulNative.MusicFadeIsActive()
 
-    cat.SetVolume(v)
+    LogUI(IronSoulConfig.LOG_DBG(), "Music fade complete: phase=" + strArg \
+        + " final=" + numArg \
+        + " active=" + _musicFadeActive \
+        + " pendingMenuRefresh=" + _menuMusicVolumeRefreshPending, True)
+
+    if strArg == "in" && !_musicFadeActive && _menuMusicVolumeRefreshPending
+        RefreshConfiguredMusicVolumeCache("pending-menu-close-after-fade")
+    endif
 EndEvent
 
 

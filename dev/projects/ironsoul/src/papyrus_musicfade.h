@@ -7,5 +7,6 @@ namespace RE::BSScript
 
 namespace IronSoul::Papyrus::MusicFade
 {
+    void RegisterLifecycleHooks();
     void Register(RE::BSScript::IVirtualMachine* a_vm);
 }

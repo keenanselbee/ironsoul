@@ -52,7 +52,9 @@ Scriptname IronSoulConfig extends Quest
 ; GetLuckLevel()
 ; GetLuckRollMessageMode()
 ; IsCharacterSheetCompatibilityEnabled()
+; IsRequiemCompatibilityEnabled()
 ; IsCosaveRecoveryBackupEnabled()
+; IsRedTintOnDeathEnabled()
 ; IsIronSoulIntroEnabled()
 ; GetIronSoulIntroDelaySeconds()
 ; IsHeartshardMessageEnabled()
@@ -128,16 +130,18 @@ Bool _respawnMessageEnabled = True
 Bool _deathMessageEnabled = True
 Bool _dragonSoulReviveEnabled = True
 Bool _dragonSoulReviveTransformEnabled = True
-Int _dragonSoulReviveLimit = 3
+Int _dragonSoulReviveLimit = 1
 Bool _dragonSoulReviveMessageEnabled = True
 Bool _dragonSoulNotificationEnabled = True
 Bool _characterJournalLogEnabled = True
 Int _luckLevel = 5
 Int _luckRollMessageMode = 1
 Bool _enableCharacterSheetCompatibility = False
+Bool _requiemCompatibilityEnabled = True
 Bool _cosaveRecoveryBackupEnabled = True
+Bool _redTintOnDeathEnabled = True
 Bool _ironSoulIntroEnabled = True
-Int _ironSoulIntroDelaySeconds = 23
+Int _ironSoulIntroDelaySeconds = 24
 Bool _heartshardMessageEnabled = True
 Bool _heartshardNotificationEnabled = True
 Int _heartshardInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
@@ -196,7 +200,9 @@ Function ResetDefaults()
     _respawnEnabled = True
     _deathMessageEnabled = True
     _enableCharacterSheetCompatibility = False
+    _requiemCompatibilityEnabled = True
     _cosaveRecoveryBackupEnabled = True
+    _redTintOnDeathEnabled = True
     _dragonSoulReviveEnabled = True
     _dragonSoulReviveTransformEnabled = True
     _dragonSoulReviveLimit = 3
@@ -282,7 +288,9 @@ Function LoadFromIni()
     _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournal", True)
     _uninstallMode = ReadBool("UninstallMode", _uninstallMode)
     _enableCharacterSheetCompatibility = ReadBool("EnableCharacterSheetCompatibility", _enableCharacterSheetCompatibility)
+    _requiemCompatibilityEnabled = ReadFeatureEnabled("RequiemCompatibility", True)
     _cosaveRecoveryBackupEnabled = ReadFeatureEnabled("CosaveRecoveryBackup", True)
+    _redTintOnDeathEnabled = ReadFeatureEnabled("RedTintOnDeath", True)
 
     Bool iniPermadeath = ReadFeatureEnabled("Permadeath", True)
 
@@ -385,8 +393,16 @@ Bool Function IsCharacterSheetCompatibilityEnabled()
     return _enableCharacterSheetCompatibility
 EndFunction
 
+Bool Function IsRequiemCompatibilityEnabled()
+    return _requiemCompatibilityEnabled
+EndFunction
+
 Bool Function IsCosaveRecoveryBackupEnabled()
     return _cosaveRecoveryBackupEnabled
+EndFunction
+
+Bool Function IsRedTintOnDeathEnabled()
+    return _redTintOnDeathEnabled
 EndFunction
 
 Bool Function IsIronSoulIntroEnabled()

@@ -178,6 +178,8 @@ Function HandleRevive(Actor target, Actor caster, String guid)
 
     LogDragonSoulRevive(IronSoulConfig.LOG_INFO(), "HandleDragonSoulRevive: Target=" + target + " Caster=" + caster + " GUID=" + guid)
 
+    ImageSpaceModifier.RemoveCrossFade(0.5)
+
     Int menuBlockToken = IronSoulNative.BeginMenuBlock("dragon-soul-revive", False)
 
     Int soulTierDSR = 1

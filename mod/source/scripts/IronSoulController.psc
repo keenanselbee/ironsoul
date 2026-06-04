@@ -84,6 +84,7 @@ Scriptname IronSoulController extends Quest
 ; OnUpdate()
 ; OnUpdateHeartbeat()
 ; BootstrapTick()
+; SyncBootstrapDynamicAssets()
 ; QueueUpdate()
 ; RescheduleIfJobsRemain()
 ; StopRuntimeUpdates()
@@ -248,6 +249,16 @@ Bool Function LoadConfig()
     endif
 
     Config.LoadFromIni()
+    Game.SetGameSettingFloat("fPlayerDeathReloadTime", 3600.0)
+    if Config.IsRequiemCompatibilityEnabled()
+        GlobalVariable requiemNoDeathHandling = Game.GetFormFromFile(0x00AA1E9C, "Requiem.esp") as GlobalVariable
+        if requiemNoDeathHandling
+            requiemNoDeathHandling.SetValueInt(1)
+            LogController(IronSoulConfig.LOG_INFO(), "LoadConfig: Requiem death handling disabled")
+        else
+            LogController(IronSoulConfig.LOG_DBG(), "LoadConfig: Requiem death handling global not found", True)
+        endif
+    endif
     Respawn.RefreshRuntime()
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     Bool draugnarokEnabled = False
@@ -380,11 +391,9 @@ Event OnInit()
         return
     endif
     Presentation.RegisterMusicFadeBridge()
+    Presentation.RegisterMusicVolumeCacheMenus()
+    Presentation.RefreshConfiguredMusicVolumeCache("init")
     IronSoulNative.StartHealthMonitor()
-
-    ; Update dynamic assets for next game launch.
-    Config.ApplyDynamicPresetAssetsForTier(Tiers.TIER_IRON)
-    IronSoulNative.ApplyDynamicLevelWidget(Tiers.TIER_IRON)
 
     LogController(IronSoulConfig.LOG_INFO(), "IronSoulController: OnInit event fired")
 
@@ -423,6 +432,12 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         return
     endif
 
+    IronSoulUI uiComponent = Presentation
+    if uiComponent
+        uiComponent.RegisterMusicFadeBridge()
+        uiComponent.HandleMusicAfterPlayerLoad("player-load")
+    endif
+
     ; Transient reset and load rebaseline seed.
     ResetTransientState()
     if Tiers
@@ -444,7 +459,6 @@ Function OnPlayerLoadGame(Bool isLoadGame)
 
     IronSoulConfig cfg = Config
     IronSoulCleanup cleanupQ = Cleanup
-    IronSoulUI uiComponent = Presentation
     IronSoulIdentity ident = Identity
     IronSoulDeath deathQ = Death
     IronSoulJournal journalQ = Journal
@@ -453,6 +467,8 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     IronSoulEffects effectsQ = Effects
     IronSoulSFX sfxQ = SFX
     IronSoulGlobals globalsQ = Globals
+
+    uiComponent.RegisterMusicVolumeCacheMenus()
 
     ; Uninstall / re-enable flow.
     ; While uninstall mode is active, run/continue uninstall cleanup flow.
@@ -467,7 +483,6 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     endif
 
     ; Bootstrap and identity snapshot.
-    uiComponent.RegisterMusicFadeBridge()
     IronSoulNative.StartHealthMonitor()
     ; Re-arm bootstrap on each load so placeholder-name GUID gating remains active until identity stabilizes.
     StartBootstrap()
@@ -774,6 +789,7 @@ Bool Function BootstrapTick()
                 if Globals
                     Globals.SyncAll(p, bguid)
                 endif
+                SyncBootstrapDynamicAssets(p, bguid)
                 LogController(IronSoulConfig.LOG_INFO(), "BootstrapTick: GUID ready after bootstrap timeout; bootstrap complete (" + bguid + ")")
                 return False
             endif
@@ -794,9 +810,20 @@ Bool Function BootstrapTick()
     if Globals
         Globals.SyncAll(p, bguid)
     endif
+    SyncBootstrapDynamicAssets(p, bguid)
     LogController(IronSoulConfig.LOG_INFO(), "BootstrapTick: GUID ready; bootstrap complete (" + bguid + ")")
 
     return False
+EndFunction
+
+Function SyncBootstrapDynamicAssets(Actor player, String guid)
+    if !Tiers || !player || guid == ""
+        return
+    endif
+
+    Int tier = Tiers.GetCurrentTier(player, guid)
+    Tiers.SyncTierDynamicAssets(tier)
+    LogController(IronSoulConfig.LOG_DBG(), "SyncBootstrapDynamicAssets: tier=" + tier, True)
 EndFunction
 
 Function QueueUpdate(Float afDelay)

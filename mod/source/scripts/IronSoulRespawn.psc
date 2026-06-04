@@ -492,6 +492,7 @@ Function ClearPendingRespawnState(String reason = "clear-pending-respawn", Bool 
     _respawnWarningAt = 0.0
 
     if clearSlowMo && hadPendingState
+        ImageSpaceModifier.RemoveCrossFade(0.75)
         IronSoulNative.ClearDeathSlowMo("respawn-" + reason)
     endif
 EndFunction

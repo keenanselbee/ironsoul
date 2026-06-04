@@ -81,6 +81,8 @@ Scriptname IronSoulNative Hidden
 
 ; --- Music Fade ---
 ; ------------------
+; MusicFadeIsActive()
+; MusicFadeRecoverAfterLoad()
 ; MusicFadeOut()
 ; MusicFadeIn()
 
@@ -221,7 +223,10 @@ Function ClearMenuBlock() Global Native
 ; --- MUSIC FADE ---
 ; ==================
 ;
-; MusicFade=0 no-ops. FadeOut caches menuVolume as the FadeIn restore target.
+; MusicFade=0 blocks new FadeOut sessions; FadeIn may still restore an already-active session.
+; Load recovery bypasses MusicFade and immediately restores override/fallback volume when a fade crossed a load boundary.
+Bool Function MusicFadeIsActive() Global Native
+Bool Function MusicFadeRecoverAfterLoad(SoundCategory musicCategory, Float fallbackMenuVolume = 1.0, Bool savedFadeActive = False) Global Native
 Function MusicFadeOut(SoundCategory musicCategory, Float seconds = 2.0, Float menuVolume = -1.0) Global Native
 Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0, Float fallbackMenuVolume = -1.0) Global Native
 

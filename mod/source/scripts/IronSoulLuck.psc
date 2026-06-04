@@ -367,6 +367,10 @@ Bool Function PerformRoll(Actor player, String guid)
         IronSoulNative.EndCursorSuppress(cursorTokenOnly)
     endif
 
+    if success
+        ImageSpaceModifier.RemoveCrossFade(18.0)
+    endif
+
     _lastLuckRollValid = True
     _lastLuckRoll = roll100
     _lastLuckValue = luck

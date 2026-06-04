@@ -412,6 +412,13 @@ namespace
             return false;
         }
 
+        if (FileContentsEqual(a_src, a_dst)) {
+            if (InfoLoggingEnabled()) {
+                logger::info("{}: requested variant already installed, skipped replacement: {}", a_context, a_dst.string());
+            }
+            return false;
+        }
+
         if (!EnsureBackupBeforeReplace(a_dst, a_knownVariants, a_context)) {
             return false;
         }
