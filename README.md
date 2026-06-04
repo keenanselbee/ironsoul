@@ -246,6 +246,13 @@ V6: City Recovery
 - Quartermasters can supply city guards with silver swords once unlocked for that city.
 
 
+Music Credits
+-------------
+
+- Motoi Sakuraba: general music credit.
+- Mythic Harmonies: general music credit.
+
+
 Credits
 -------
 

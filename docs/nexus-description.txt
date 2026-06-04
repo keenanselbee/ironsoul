@@ -91,6 +91,13 @@ Config path: [b]Data/SKSE/plugins/ironsoul.ini[/b]
 [*]Save, then remove the mod (or leave it installed in disabled state).
 [/list]
 
+[heading][color=#e69138]Music Credits[/color][/heading]
+Motoi Sakuraba
+General music credit.
+
+Mythic Harmonies
+General music credit.
+
 [heading][color=#e69138]Credits[/color][/heading]
 [url=https://www.nexusmods.com/skyrimspecialedition/mods/94507]Simple Dragonsoul Resurrect[/url]
 Foundation credit for core Dragon Soul Revive concepts.

@@ -23,6 +23,7 @@ Working Rules
 -------------
 
 - Keep changes narrow and follow the existing style in the files being edited.
+- Treat `README.md` as the main project document; it contains the version, Current TODO, Roadmap, Credits, and other project direction notes.
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
 - Prefer not to add functions whose body is only one line of code unless there is a good reason, such as matching an existing interface, naming a repeated concept, or improving readability at the call site.
 - Do not revert or overwrite unrelated user changes.
