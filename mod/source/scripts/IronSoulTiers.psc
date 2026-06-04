@@ -65,7 +65,6 @@ Scriptname IronSoulTiers extends Quest
 
 ; --- Soul Feats ---
 ; ------------------
-; ResolveFeatUnlockSFX()
 ; ScheduleFeatUnlockSFX()
 ; ScheduleFeatCheck()
 ; HandleFeatUnlockSFX()
@@ -131,12 +130,6 @@ Sound Property SFXDefiantRestore Auto
 Sound Property SFXDefiantTransition Auto
 Sound Property SFXHeartshardAbsorb Auto
 Sound Property SFXFeatUnlock Auto
-Sound Property SFXFeatDefiant Auto
-Sound Property SFXFeatSilver Auto
-Sound Property SFXFeatGold Auto
-Sound Property SFXFeatEbon Auto
-Sound Property SFXFeatPlatinum Auto
-Sound Property SFXFeatDevour Auto
 
 ; Soul / feats
 String Property soulTierIndex              = "IS_2204" AutoReadOnly
@@ -186,9 +179,9 @@ Int Property DEFIANT_SOUL_MAX_LIVES = 20 AutoReadOnly
 
 Float DEFIANT_TRANSITION_SECONDS = 47.0
 Float CHIM_TRANSITION_SECONDS = 59.0
-Float DEFIANT_RESTORE_SECONDS = 16.0
-Float TRANSITION_KEY_DISMISS_SECONDS = 10.0
-Float DEFIANT_RESTORE_KEY_DISMISS_SECONDS = 10.0
+Float DEFIANT_RESTORE_SECONDS = 11.0
+Float TRANSITION_KEY_DISMISS_SECONDS = 7.0
+Float DEFIANT_RESTORE_KEY_DISMISS_SECONDS = 7.0
 
 Bool _pendingDragonSoulsRebaseline = False
 Bool _pendingFeats = False
@@ -835,13 +828,6 @@ EndFunction
 ; --- Soul Feats ---
 ; ==================
 
-Sound Function ResolveFeatUnlockSFX()
-    if SFXFeatUnlock
-        return SFXFeatUnlock
-    endif
-    return SFXFeatSilver
-EndFunction
-
 Function ScheduleFeatUnlockSFX(Sound sfx, Float nowRT)
     if !sfx
         _pendingFeatUnlockSFX = None
@@ -912,7 +898,7 @@ Function TryScheduleFeats(Actor player)
     Int defFeat = Controller.Persistence.GetGuidInt(player, guid, defiantFeatUnlocked, 0)
     if defiantEligible && defFeat != 1
         if Controller.Config.IsDefiantSoulEnabled()
-            ScheduleFeatCheck(nowRT, ResolveFeatUnlockSFX())
+            ScheduleFeatCheck(nowRT, SFXFeatUnlock)
         else
             ScheduleFeatCheck(nowRT, None, False)
         endif
@@ -923,7 +909,7 @@ Function TryScheduleFeats(Actor player)
         Int desiredTier = GetHighestEligibleSoulFeatTier(player, guid, deaths, soulsObtained)
 
         if !manualTierOverride && desiredTier > curTier
-            ScheduleFeatCheck(nowRT, ResolveFeatUnlockSFX())
+            ScheduleFeatCheck(nowRT, SFXFeatUnlock)
             return
         endif
 
@@ -932,7 +918,7 @@ Function TryScheduleFeats(Actor player)
         endif
 
         if ShouldScheduleShownTierMessage(player, guid, curTier)
-            ScheduleFeatCheck(nowRT, ResolveFeatUnlockSFX())
+            ScheduleFeatCheck(nowRT, SFXFeatUnlock)
         endif
     endif
 EndFunction
@@ -1355,7 +1341,7 @@ Bool Function CanPlayTierSFX(Sound sfx)
         return Controller.Config.IsDefiantRestoreSFXEnabled()
     elseif sfx == SFXHeartshardAbsorb
         return Controller.Config.IsHeartshardAbsorbSFXEnabled()
-    elseif sfx == SFXFeatUnlock || sfx == SFXFeatSilver || sfx == SFXFeatGold || sfx == SFXFeatEbon || sfx == SFXFeatPlatinum || sfx == SFXFeatDevour || sfx == SFXFeatDefiant
+    elseif sfx == SFXFeatUnlock
         return Controller.Config.IsFeatUnlockSFXEnabled()
     endif
 
