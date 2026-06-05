@@ -18,6 +18,8 @@ Scriptname IronSoulLuck extends Quest
 ; GetMaxForTier()
 ; GetCurrentMax()
 ; TickRegen()
+; RollOutcomeNow()
+; PlayRollPresentation()
 ; PerformRoll()
 ; JournalLogOutcome()
 ; AllowThresholdNotifications()
@@ -283,19 +285,24 @@ EndFunction
 
 Bool Function PerformRoll(Actor player, String guid)
     ; Returns True when Luck saves the player from death.
+    Bool success = RollOutcomeNow(player, guid)
+    PlayRollPresentation(player, success)
+    return success
+EndFunction
+
+Bool Function RollOutcomeNow(Actor player, String guid)
     if !HasCoreRuntime() || !player || guid == ""
         LogLuck(IronSoulConfig.LOG_ERR(), "PerformLuckRoll: Invalid args (player None or GUID empty) -> FAIL")
         return False
     endif
 
     _deathFrontDelayConsumed = False
+    _lastLuckRollValid = False
 
     if !IsRuntimeAvailable()
         LogLuck(IronSoulConfig.LOG_INFO(), "PerformLuckRoll: Inactive (Luck tied to Respawn; Respawn disabled/unavailable) -> FAIL")
         return False
     endif
-
-    Utility.Wait(0.5)
 
     Int nowSec = Utility.GetCurrentRealTime() as Int
     EnsureLoaded(player, guid, nowSec)
@@ -309,12 +316,37 @@ Bool Function PerformRoll(Actor player, String guid)
 
     Int roll100 = Utility.RandomInt(1, 100)
     Bool success = (roll100 <= luck)
-    Int roll20 = ComputeLuckRollD20(luck, roll100)
 
     if !success
         ResetValue(player, guid)
         ForcePersistNow(player, guid)
     endif
+
+    _lastLuckRollValid = True
+    _lastLuckRoll = roll100
+    _lastLuckValue = luck
+
+    String outcome = "Death"
+    if success
+        outcome = "Survival/Respawn"
+    endif
+    LogLuck(IronSoulConfig.LOG_INFO(), "PerformLuckRoll: LuckRoll: roll100=" + roll100 + " vs luck=" + luck + " -> " + outcome)
+
+    if !success
+        _deathFrontDelayConsumed = True
+    endif
+
+    return success
+EndFunction
+
+Function PlayRollPresentation(Actor player, Bool success)
+    if !HasCoreRuntime() || !player || !_lastLuckRollValid
+        return
+    endif
+
+    Utility.Wait(0.5)
+
+    Int roll20 = ComputeLuckRollD20(_lastLuckValue, _lastLuckRoll)
 
     Int messageMode = 1
     if Controller.Config
@@ -325,7 +357,7 @@ Bool Function PerformRoll(Actor player, String guid)
         String rollMenu = "luck_roll_" + roll20
         String resultMenu = "luck_defeat_" + roll20
         Sound resultSFX = Controller.SFX.SFXLuckFailure
-        if roll20 >= 11
+        if success
             resultMenu = "luck_survival_" + roll20
             resultSFX = Controller.SFX.SFXLuckSuccess
         endif
@@ -353,7 +385,7 @@ Bool Function PerformRoll(Actor player, String guid)
     elseif messageMode == 2
         String resultMenuOnly = "luck_defeat_" + roll20
         Sound resultSFXOnly = Controller.SFX.SFXLuckFailure
-        if roll20 >= 11
+        if success
             resultMenuOnly = "luck_survival_" + roll20
             resultSFXOnly = Controller.SFX.SFXLuckSuccess
         endif
@@ -366,26 +398,6 @@ Bool Function PerformRoll(Actor player, String guid)
         UI.CloseCustomMenu()
         IronSoulNative.EndCursorSuppress(cursorTokenOnly)
     endif
-
-    if success
-        ImageSpaceModifier.RemoveCrossFade(18.0)
-    endif
-
-    _lastLuckRollValid = True
-    _lastLuckRoll = roll100
-    _lastLuckValue = luck
-
-    String outcome = "Death"
-    if success
-        outcome = "Survival/Respawn"
-    endif
-    LogLuck(IronSoulConfig.LOG_INFO(), "PerformLuckRoll: LuckRoll: roll100=" + roll100 + " vs luck=" + luck + " -> " + outcome)
-
-    if !success
-        _deathFrontDelayConsumed = True
-    endif
-
-    return success
 EndFunction
 
 Function JournalLogOutcome(Bool survived, Actor player, String guid)

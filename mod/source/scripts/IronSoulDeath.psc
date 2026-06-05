@@ -13,6 +13,12 @@ Scriptname IronSoulDeath extends Quest
 ; --- Death Runtime ---
 ; ---------------------
 ; ResetTransientState()
+; PlayDeathInitialImod()
+; PlayDeathImod()
+; PlayPermadeathImod()
+; PlayLoadTransitionImodAndWait()
+; PlayLoadPermadeathSequence()
+; PlayBlackScreenImod()
 ; HandlePlayerDying()
 ; HandleDeathAndQuit()
 ; IsDeathEventLocked()
@@ -45,7 +51,10 @@ IronSoulController Property Controller Auto
 
 Spell Property IronSoulOnDyingSpell Auto
 
+ImageSpaceModifier Property DeathInitialImod Auto
 ImageSpaceModifier Property DeathImod Auto
+ImageSpaceModifier Property PermadeathImod Auto
+ImageSpaceModifier Property BlackScreenImod Auto
 
 ; Brawl exception.
 Quest Property brawlQuest Auto
@@ -58,6 +67,7 @@ String Property totalDeathCount = "IS_9132" AutoReadOnly ; Lifetime death counte
 ; - Dragon Soul Revive clears it when revive cleanup exits.
 ; - Respawn clears it after recovery, death-before-recovery, or watchdog fallback.
 Bool _deathEventLocked = False
+Float _deathInitialImodStartedAt = 0.0
 
 ; Permanent death counter AV (unused vanilla actor value; exposed for UI mods).
 String _deathAVName = "DEPRECATED05"
@@ -107,7 +117,87 @@ EndFunction
 
 Function ResetTransientState()
     _deathEventLocked = False
+    _deathInitialImodStartedAt = 0.0
     ImageSpaceModifier.RemoveCrossFade(0.75)
+EndFunction
+
+Function PlayDeathInitialImod()
+    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+        return
+    endif
+
+    if DeathInitialImod
+        DeathInitialImod.ApplyCrossFade(0.35)
+        _deathInitialImodStartedAt = Utility.GetCurrentRealTime()
+    else
+        _deathInitialImodStartedAt = 0.0
+        LogDeath(IronSoulConfig.LOG_ERR(), "PlayDeathInitialImod: DeathInitialImod property is not wired")
+    endif
+EndFunction
+
+Bool Function PlayDeathImod()
+    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+        return False
+    endif
+
+    if DeathImod
+        DeathImod.ApplyCrossFade(1.0)
+        return True
+    endif
+
+    LogDeath(IronSoulConfig.LOG_ERR(), "PlayDeathImod: DeathImod property is not wired")
+    return False
+EndFunction
+
+Bool Function PlayPermadeathImod()
+    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+        return False
+    endif
+
+    if PermadeathImod
+        PermadeathImod.ApplyCrossFade(1.0)
+        return True
+    endif
+
+    LogDeath(IronSoulConfig.LOG_ERR(), "PlayPermadeathImod: PermadeathImod property is not wired")
+    return False
+EndFunction
+
+Function PlayLoadTransitionImodAndWait()
+    if PlayPermadeathImod()
+        Utility.Wait(1.0)
+    endif
+EndFunction
+
+Function PlayLoadPermadeathSequence(Actor player, String menuName, Sound sfx, String menuBlockReason)
+    if !HasCoreRuntime() || !player || menuName == ""
+        return
+    endif
+    if menuBlockReason == ""
+        menuBlockReason = "load-terminal-permadeath"
+    endif
+
+    IronSoulNative.BeginMenuBlock(menuBlockReason, True)
+    PlayLoadTransitionImodAndWait()
+    Controller.Presentation.OpenTimedMessageSWF_KeyDismiss_SFX(menuName, 55.0, 27.0, sfx, player, False)
+    FinalizeDeathQuit(True)
+EndFunction
+
+Bool Function PlayBlackScreenImod(Float fadeSeconds = 2.0)
+    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+        return False
+    endif
+    if fadeSeconds <= 0.0
+        fadeSeconds = 0.1
+    endif
+
+    if BlackScreenImod
+        BlackScreenImod.ApplyCrossFade(fadeSeconds)
+        return True
+    endif
+
+    LogDeath(IronSoulConfig.LOG_ERR(), "PlayBlackScreenImod: BlackScreenImod property is not wired")
+    return False
 EndFunction
 
 ; Single entry point for ALL death events (HP <= 0).
@@ -135,15 +225,8 @@ Function HandlePlayerDying(Actor player, Actor caster)
         endif
     endif
 
-    if config.IsRedTintOnDeathEnabled()
-        if DeathImod
-            DeathImod.ApplyCrossFade(5.0)
-        else
-            LogDeath(IronSoulConfig.LOG_ERR(), "HandlePlayerDying: DeathImod property is not wired")
-        endif
-    endif
-
     IronSoulNative.HoldDeathSlowMo("death-event")
+    PlayDeathInitialImod()
 
     String guid = identity.GetTickGuid(player)
     if guid == ""
@@ -183,14 +266,27 @@ Function HandlePlayerDying(Actor player, Actor caster)
     if luck.IsRuntimeAvailable()
         LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Luck mode")
 
-        Bool luckSaved = luck.PerformRoll(player, guid)
+        Bool luckSaved = luck.RollOutcomeNow(player, guid)
+        Bool respawnReady = False
+
+        if luckSaved
+            respawnReady = respawn && respawn.ArmRespawnWindow(player, guid)
+        endif
+
+        luck.PlayRollPresentation(player, luckSaved)
 
         if luckSaved
             ; Journal: luck-based survival line (tiered by luck value used for the roll).
             luck.JournalLogOutcome(True, player, guid)
             LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Luck SUCCESS -> Survival/Respawn")
             IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "luck-success-menu-complete")
-            if !respawn || !respawn.TryStartRespawn(player, guid)
+            if !respawnReady
+                HandleDeathAndQuit(player)
+            else
+                respawn.QueueRespawnBlackFade(3.0, 6.0)
+            endif
+            if respawnReady && !respawn.TryStartRespawn(player, guid)
+                respawn.ClearPendingRespawnState("luck-success-start-failed", False)
                 HandleDeathAndQuit(player)
             endif
         else
@@ -340,6 +436,12 @@ Function HandleDeathAndQuit(Actor player)
                 presentationMenu = IronSoulUI.ResolveDeathMessageMenu(soulTierTD, deathsNow)
             endif
         endif
+    endif
+
+    if presentationMode == 1 || presentationMode == 2 || presentationMode == 4
+        PlayPermadeathImod()
+    else
+        PlayDeathImod()
     endif
 
     ; Non-luck death routes still need the fixed front-delay.
@@ -543,7 +645,12 @@ Int Function GetEffectiveMaxLivesForTier(Int tierNow, Int ironMaxLives, Int defi
 EndFunction
 
 Function FinalizeDeathQuit(Bool mainMenu)
-    Utility.Wait(1.0)
+    Float finalDelay = 1.0
+    if PlayBlackScreenImod(2.0)
+        finalDelay = 2.0
+    endif
+
+    Utility.Wait(finalDelay)
     if mainMenu
         Controller.FinalizeAndQuitMainMenu()
     else

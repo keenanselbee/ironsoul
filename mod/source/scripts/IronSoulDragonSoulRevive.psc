@@ -55,9 +55,9 @@ VisualEffect Property AbsorbEffect Auto
 VisualEffect Property AbsorbEffectTarget Auto
 Activator Property Marker Auto
 
-ImageSpaceModifier Property IntroFX Auto
-ImageSpaceModifier Property StaticFX Auto
-ImageSpaceModifier Property OutroFX Auto
+ImageSpaceModifier Property DSRIntroImod Auto
+ImageSpaceModifier Property DSRStaticImod Auto
+ImageSpaceModifier Property DSROutroImod Auto
 ShaderParticleGeometry Property PSGD Auto
 
 Sound Property SFXDragonSoulReviveCast1 Auto
@@ -177,8 +177,6 @@ Function HandleRevive(Actor target, Actor caster, String guid)
     endif
 
     LogDragonSoulRevive(IronSoulConfig.LOG_INFO(), "HandleDragonSoulRevive: Target=" + target + " Caster=" + caster + " GUID=" + guid)
-
-    ImageSpaceModifier.RemoveCrossFade(0.5)
 
     Int menuBlockToken = IronSoulNative.BeginMenuBlock("dragon-soul-revive", False)
 
@@ -459,14 +457,14 @@ EndFunction
 Function ShaderParticleIntro()
     _imageSpaceIsFinishing = False
 
-    if IntroFX
-        IntroFX.Apply()
+    if DSRIntroImod
+        DSRIntroImod.ApplyCrossFade(0.35)
     endif
 
-    Utility.Wait(0.15)
+    Utility.Wait(0.35)
 
-    if !_imageSpaceIsFinishing && StaticFX
-        StaticFX.Apply()
+    if !_imageSpaceIsFinishing && DSRStaticImod
+        DSRStaticImod.Apply()
     endif
 
     if PSGD
@@ -478,12 +476,12 @@ EndFunction
 Function ShaderParticleOutro()
     _imageSpaceIsFinishing = True
 
-    if OutroFX
-        OutroFX.Apply()
+    if DSROutroImod
+        DSROutroImod.Apply()
     endif
 
-    if StaticFX
-        StaticFX.Remove()
+    if DSRStaticImod
+        DSRStaticImod.Remove()
     endif
 
     if PSGD

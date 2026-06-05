@@ -18,6 +18,8 @@ Scriptname IronSoulRespawn extends Quest
 ; IsRuntimeAvailable()
 ; IsResolvedRuntimeAvailable()
 ; ShouldForceDeathBeforeLuck()
+; ArmRespawnWindow()
+; QueueRespawnBlackFade()
 ; TryStartRespawn()
 ; Tick()
 ; RequiresFastPolling()
@@ -30,6 +32,7 @@ Scriptname IronSoulRespawn extends Quest
 ; BeginRespawnMenuBlock()
 ; EndRespawnMenuBlock()
 ; IsBlockedByTransform()
+; HandleRespawnBlackFade()
 ; HandleDisableRespawn()
 ; HandleDisableRespawnWithRuntime()
 ; HandleRespawnMenu()
@@ -53,6 +56,13 @@ Bool _pendingRespawnMenu = False
 Bool _respawnMenuArmed = False
 Float _respawnWarningAt = 0.0
 Int _respawnMenuBlockToken = 0
+
+Bool _pendingRespawnBlackFade = False
+Bool _respawnBlackFadeStarted = False
+Float _respawnBlackFadeAt = 0.0
+Float _respawnBlackFadeStartedAt = 0.0
+Float _respawnBlackFadeOutCompleteAt = 0.0
+Float _respawnBlackFadeSeconds = 0.0
 
 
 ; --- Component Helpers ---
@@ -173,16 +183,7 @@ Bool Function ShouldForceDeathBeforeLuck(Actor player)
 EndFunction
 
 Bool Function TryStartRespawn(Actor player, String guid)
-    if !HasCoreRuntime() || !player || guid == ""
-        LogRespawn(IronSoulConfig.LOG_ERR(), "TryStartRespawn: Invalid args (player None or GUID empty); aborting respawn handler")
-        return False
-    endif
-    if !IsResolvedRuntimeAvailable()
-        LogRespawn(IronSoulConfig.LOG_INFO(), "TryStartRespawn: Respawn integration unavailable; routing to HandleDeathAndQuit")
-        return False
-    endif
-    if IsBlockedByTransform(player)
-        LogRespawn(IronSoulConfig.LOG_INFO(), "TryStartRespawn: Respawn blocked while transformed race=" + player.GetRace())
+    if !ArmRespawnWindow(player, guid)
         return False
     endif
 
@@ -195,11 +196,6 @@ Bool Function TryStartRespawn(Actor player, String guid)
     LogRespawn(IronSoulConfig.LOG_INFO(), "TryStartRespawn: Begin respawn")
 
     BeginRespawnMenuBlock()
-    _respawnWindowArmed = True
-    LogRespawn(IronSoulConfig.LOG_INFO(), "TryStartRespawn: Armed respawn window")
-    player.GetActorBase().SetEssential(True)
-    player.EndDeferredKill()
-    LogRespawn(IronSoulConfig.LOG_INFO(), "TryStartRespawn: Armed respawn window + SetEssential(TRUE) + EndDeferredKill()")
 
     if Controller.Config.IsRespawnMessageEnabled()
         Controller.Presentation.FadeMusicForTransitionSequence()
@@ -238,7 +234,7 @@ Bool Function TryStartRespawn(Actor player, String guid)
 EndFunction
 
 Bool Function Tick(Actor player)
-    if !_pendingDisableRespawn && !_pendingRespawnMenu && !_respawnWindowArmed
+    if !_pendingDisableRespawn && !_pendingRespawnMenu && !_respawnWindowArmed && !_pendingRespawnBlackFade && !_respawnBlackFadeStarted && _respawnBlackFadeOutCompleteAt <= 0.0
         EndRespawnMenuBlock("no-pending-state")
         return False
     endif
@@ -248,16 +244,17 @@ Bool Function Tick(Actor player)
     endif
 
     Bool runtimeAvailable = IsResolvedRuntimeAvailable()
+    HandleRespawnBlackFade()
     HandleRespawnMenuWithRuntime(player, runtimeAvailable)
     return HandleDisableRespawnWithRuntime(player, runtimeAvailable)
 EndFunction
 
 Bool Function RequiresFastPolling()
-    return _pendingDisableRespawn || _pendingRespawnMenu
+    return _pendingDisableRespawn || _pendingRespawnMenu || _respawnWindowArmed || _pendingRespawnBlackFade || _respawnBlackFadeStarted || _respawnBlackFadeOutCompleteAt > 0.0
 EndFunction
 
 Bool Function HasPendingRespawnState()
-    return _pendingDisableRespawn || _pendingRespawnMenu || _respawnMenuArmed || _respawnWindowArmed || _respawnMenuBlockToken > 0
+    return _pendingDisableRespawn || _pendingRespawnMenu || _respawnMenuArmed || _respawnWindowArmed || _pendingRespawnBlackFade || _respawnBlackFadeStarted || _respawnBlackFadeOutCompleteAt > 0.0 || _respawnMenuBlockToken > 0
 EndFunction
 
 Function UpdatePlayerProtectionState(Actor player)
@@ -311,7 +308,10 @@ Function LogSnapshot()
     LogRespawnSnapshot(IronSoulConfig.LOG_INFO(), "Respawn State: WindowArmed=" + _respawnWindowArmed \
         + " PendingDisable=" + _pendingDisableRespawn \
         + " PendingMenu=" + _pendingRespawnMenu \
-        + " MenuArmed=" + _respawnMenuArmed)
+        + " MenuArmed=" + _respawnMenuArmed \
+        + " PendingBlackFade=" + _pendingRespawnBlackFade \
+        + " BlackFadeStarted=" + _respawnBlackFadeStarted \
+        + " BlackFadeOutCompleteAt=" + _respawnBlackFadeOutCompleteAt)
 
     if Controller.Config.IsRespawnEnabled() && !hasRespawn
         LogRespawnSnapshot(IronSoulConfig.LOG_INFO(), "Respawn optional dependency not resolved; integration disabled")
@@ -361,6 +361,77 @@ Bool Function IsBlockedByTransform(Actor player)
     endif
 
     return Controller.BeastList.HasForm(currentRace)
+EndFunction
+
+Bool Function ArmRespawnWindow(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        LogRespawn(IronSoulConfig.LOG_ERR(), "ArmRespawnWindow: Invalid args (player None or GUID empty); aborting respawn handler")
+        return False
+    endif
+    if !IsResolvedRuntimeAvailable()
+        LogRespawn(IronSoulConfig.LOG_INFO(), "ArmRespawnWindow: Respawn integration unavailable; routing to HandleDeathAndQuit")
+        return False
+    endif
+    if IsBlockedByTransform(player)
+        LogRespawn(IronSoulConfig.LOG_INFO(), "ArmRespawnWindow: Respawn blocked while transformed race=" + player.GetRace())
+        return False
+    endif
+    if _respawnWindowArmed
+        return True
+    endif
+
+    _respawnWindowArmed = True
+    player.GetActorBase().SetEssential(True)
+    player.EndDeferredKill()
+    LogRespawn(IronSoulConfig.LOG_INFO(), "ArmRespawnWindow: Armed respawn window + SetEssential(TRUE) + EndDeferredKill()")
+    return True
+EndFunction
+
+Function QueueRespawnBlackFade(Float delaySeconds = 3.0, Float fadeSeconds = 6.0)
+    if !HasCoreRuntime()
+        return
+    endif
+    if !Controller.Config.IsRedTintOnDeathEnabled()
+        return
+    endif
+    if delaySeconds < 0.0
+        delaySeconds = 0.0
+    endif
+    if fadeSeconds <= 0.0
+        fadeSeconds = 0.1
+    endif
+
+    _pendingRespawnBlackFade = True
+    _respawnBlackFadeStarted = False
+    _respawnBlackFadeAt = Utility.GetCurrentRealTime() + delaySeconds
+    _respawnBlackFadeSeconds = fadeSeconds
+    LogRespawn(IronSoulConfig.LOG_INFO(), "QueueRespawnBlackFade: delay=" + delaySeconds + " fade=" + fadeSeconds)
+    Controller.QueueUpdate(Controller.FastPollSeconds)
+EndFunction
+
+Function HandleRespawnBlackFade()
+    if !_pendingRespawnBlackFade
+        return
+    endif
+    if Utility.GetCurrentRealTime() < _respawnBlackFadeAt
+        return
+    endif
+    if Utility.IsInMenuMode()
+        return
+    endif
+
+    _pendingRespawnBlackFade = False
+    _respawnBlackFadeStartedAt = Utility.GetCurrentRealTime()
+    if Controller.Death && Controller.Death.PlayBlackScreenImod(_respawnBlackFadeSeconds)
+        _respawnBlackFadeStarted = True
+        LogRespawn(IronSoulConfig.LOG_INFO(), "HandleRespawnBlackFade: started fade=" + _respawnBlackFadeSeconds)
+    else
+        Float fadeOutSeconds = 3.0
+        ImageSpaceModifier.RemoveCrossFade(fadeOutSeconds)
+        IronSoulNative.StartTimeMultiplierRamp(0.5, 1.0, fadeOutSeconds, "respawn-route-fadeout")
+        _respawnBlackFadeOutCompleteAt = _respawnBlackFadeStartedAt + fadeOutSeconds
+        LogRespawn(IronSoulConfig.LOG_INFO(), "HandleRespawnBlackFade: black IMOD unavailable; fading out route IMOD before menu")
+    endif
 EndFunction
 
 Bool Function HandleDisableRespawn(Actor player)
@@ -448,6 +519,30 @@ Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
         return
     endif
 
+    Float nowRT = Utility.GetCurrentRealTime()
+    if _pendingRespawnBlackFade
+        return
+    endif
+    if _respawnBlackFadeStarted
+        if nowRT < (_respawnBlackFadeStartedAt + _respawnBlackFadeSeconds)
+            return
+        endif
+        Float fadeOutSeconds = 3.0
+        ImageSpaceModifier.RemoveCrossFade(fadeOutSeconds)
+        IronSoulNative.StartTimeMultiplierRamp(0.5, 1.0, fadeOutSeconds, "respawn-black-fadeout")
+        _respawnBlackFadeStarted = False
+        _respawnBlackFadeOutCompleteAt = nowRT + fadeOutSeconds
+        LogRespawn(IronSoulConfig.LOG_INFO(), "HandleRespawnMenu: black fade complete; fading out before menu")
+        return
+    endif
+    if _respawnBlackFadeOutCompleteAt > 0.0
+        if nowRT < _respawnBlackFadeOutCompleteAt
+            return
+        endif
+        _respawnBlackFadeOutCompleteAt = 0.0
+        IronSoulNative.ClearTimeMultiplierRamp("respawn-black-fadeout-complete")
+    endif
+
     if Utility.GetCurrentRealTime() < _respawnWarningAt
         return
     endif
@@ -476,11 +571,12 @@ Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
     else
         IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "respawn-menu-skipped")
     endif
+    _respawnBlackFadeStarted = False
     EndRespawnMenuBlock("respawn-menu-complete")
 EndFunction
 
 Function ClearPendingRespawnState(String reason = "clear-pending-respawn", Bool clearSlowMo = True)
-    Bool hadPendingState = _pendingDisableRespawn || _pendingRespawnMenu || _respawnMenuArmed || _respawnWindowArmed || _respawnMenuBlockToken > 0
+    Bool hadPendingState = _pendingDisableRespawn || _pendingRespawnMenu || _respawnMenuArmed || _respawnWindowArmed || _pendingRespawnBlackFade || _respawnBlackFadeStarted || _respawnBlackFadeOutCompleteAt > 0.0 || _respawnMenuBlockToken > 0
 
     EndRespawnMenuBlock(reason)
 
@@ -490,9 +586,16 @@ Function ClearPendingRespawnState(String reason = "clear-pending-respawn", Bool 
     _respawnWindowArmed = False
     _pendingDisableRespawnStartedAt = 0.0
     _respawnWarningAt = 0.0
+    _pendingRespawnBlackFade = False
+    _respawnBlackFadeStarted = False
+    _respawnBlackFadeAt = 0.0
+    _respawnBlackFadeStartedAt = 0.0
+    _respawnBlackFadeOutCompleteAt = 0.0
+    _respawnBlackFadeSeconds = 0.0
 
     if clearSlowMo && hadPendingState
         ImageSpaceModifier.RemoveCrossFade(0.75)
+        IronSoulNative.ClearTimeMultiplierRamp("respawn-" + reason)
         IronSoulNative.ClearDeathSlowMo("respawn-" + reason)
     endif
 EndFunction

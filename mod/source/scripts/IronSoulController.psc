@@ -446,6 +446,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
 
     Actor player = Game.GetPlayer()
     if !player
+        IronSoulNative.EndLoadMenuBlock("player-unavailable")
         if Config
             LogController(IronSoulConfig.LOG_ERR(), "OnPlayerLoadGame: Player is None (Alias not filled yet?)")
         endif
@@ -454,6 +455,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
 
     ; Load config / log settings first.
     if !LoadConfig()
+        IronSoulNative.EndLoadMenuBlock("load-config-failed")
         return
     endif
 
@@ -473,6 +475,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     ; Uninstall / re-enable flow.
     ; While uninstall mode is active, run/continue uninstall cleanup flow.
     if cfg.IsUninstallMode()
+        IronSoulNative.EndLoadMenuBlock("uninstall-mode")
         cleanupQ.HandleUninstallMode(player)
         return
     endif
@@ -528,8 +531,12 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     if guid == ""
         LogController(IronSoulConfig.LOG_INFO(), "OnPlayerLoadGame: GUID not ready; deferring GUID-dependent load initialization")
         uiComponent.ScheduleLoadMessage(isLoadGame)
+        IronSoulNative.EndLoadMenuBlock("guid-not-ready")
         return
     endif
+
+    Int loadEnforcementBlockToken = IronSoulNative.BeginMenuBlock("load-enforcement-check", True)
+    IronSoulNative.EndLoadMenuBlock("papyrus-load-check-started")
 
     ; Load catch-up transitions.
     Int deaths     = deathQ.GetCurrentDeathCount(player, guid)
@@ -543,13 +550,17 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         tiersQ.PromoteToDefiantTier(player, guid, soulTier)
         journalQ.LogEventForGuid(player, guid, "You refuse Sovngarde and rise again. Defiant Soul awakened. Death limit is now 20.")
         ; Load-time Defiant promotion remains in-session, so restore music after the intro closes.
+        deathQ.PlayLoadTransitionImodAndWait()
         tiersQ.PlayDefiantTransitionSWF(soulTier, True)
+        ImageSpaceModifier.RemoveCrossFade(1.0)
         soulTier = tiersQ.TIER_DEFIANT
 
     elseif loadTransitionTier == tiersQ.TIER_CHIM
         LogController(IronSoulConfig.LOG_INFO(), "OnPlayerLoadGame: CHIM transition triggered on load")
         tiersQ.PromoteToCHIMTier(player, guid)
+        deathQ.PlayLoadTransitionImodAndWait()
         tiersQ.PlayCHIMTransitionSWF(soulTier)
+        ImageSpaceModifier.RemoveCrossFade(1.0)
         soulTier = tiersQ.TIER_CHIM
     endif
 
@@ -563,12 +574,13 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         if !cfg.IsPermadeathEnabled() && soulTier != tiersQ.TIER_CHIM
             tiersQ.PromoteToCHIMTier(player, guid)
             ; Load-time CHIM promotion should remain in-session; only death-driven CHIM transitions quit.
+            deathQ.PlayLoadTransitionImodAndWait()
             tiersQ.PlayCHIMTransitionSWF(soulTier, True)
+            ImageSpaceModifier.RemoveCrossFade(1.0)
             soulTier = tiersQ.TIER_CHIM
         else
-            IronSoulNative.BeginMenuBlock("load-terminal-defiant-fatigue", True)
-            uiComponent.OpenTimedMessageSWF_KeyDismiss_SFX("0_defiant_permadeath_soulfatigue", 55.0, 27.0, sfxQ.SFXPermadeath, player, False)
-            FinalizeAndQuitMainMenu()
+            deathQ.PlayLoadPermadeathSequence(player, "0_defiant_permadeath_soulfatigue", sfxQ.SFXPermadeath, "load-terminal-defiant-fatigue")
+            IronSoulNative.EndMenuBlock(loadEnforcementBlockToken)
             return
         endif
     endif
@@ -583,11 +595,12 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     endif
     if deaths >= maxLives
         ; Match live permadeath pacing so load-enforced exhaustion does not dismiss faster.
-        IronSoulNative.BeginMenuBlock("load-terminal-permadeath", True)
-        uiComponent.OpenTimedMessageSWF_KeyDismiss_SFX(IronSoulUI.ResolvePermadeathMenu(soulTier), 55.0, 27.0, sfxQ.SFXPermadeath, player, False)
-        FinalizeAndQuitMainMenu()
+        deathQ.PlayLoadPermadeathSequence(player, IronSoulUI.ResolvePermadeathMenu(soulTier), sfxQ.SFXPermadeath, "load-terminal-permadeath")
+        IronSoulNative.EndMenuBlock(loadEnforcementBlockToken)
         return
     endif
+
+    IronSoulNative.EndMenuBlock(loadEnforcementBlockToken)
 
     ; Final diagnostics.
     LogSystemSnapshot()
@@ -614,7 +627,7 @@ Function ResetTransientState()
 
     ; Quit latch is transient.
     _isQuitting = False
-    IronSoulNative.ClearMenuBlock()
+    IronSoulNative.ClearMenuBlockPreserveLoad()
 
     ; Luck component cache and roll telemetry are transient.
     if Luck
