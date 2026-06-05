@@ -21,6 +21,16 @@ namespace
     {
         IronSoul::MenuBlocker::Clear();
     }
+
+    static void ClearMenuBlockPreserveLoad(RE::StaticFunctionTag*)
+    {
+        IronSoul::MenuBlocker::ClearPreservingLoadBoundary();
+    }
+
+    static void EndLoadMenuBlock(RE::StaticFunctionTag*, std::string a_reason)
+    {
+        IronSoul::MenuBlocker::EndLoadBoundaryBlock(a_reason);
+    }
 }
 
     void Register(RE::BSScript::IVirtualMachine* a_vm)
@@ -28,5 +38,7 @@ namespace
         a_vm->RegisterFunction("BeginMenuBlock", kScriptName, BeginMenuBlock);
         a_vm->RegisterFunction("EndMenuBlock", kScriptName, EndMenuBlock);
         a_vm->RegisterFunction("ClearMenuBlock", kScriptName, ClearMenuBlock);
+        a_vm->RegisterFunction("ClearMenuBlockPreserveLoad", kScriptName, ClearMenuBlockPreserveLoad);
+        a_vm->RegisterFunction("EndLoadMenuBlock", kScriptName, EndLoadMenuBlock);
     }
 }

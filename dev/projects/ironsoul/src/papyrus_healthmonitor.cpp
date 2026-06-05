@@ -45,6 +45,23 @@ namespace
 
     HealthMonitorState g_healthMonitor;
 
+    struct TimeMultiplierRampState
+    {
+        std::mutex lock;
+        std::atomic<std::uint64_t> token{ 0 };
+        std::thread worker;
+
+        ~TimeMultiplierRampState()
+        {
+            token.fetch_add(1);
+            if (worker.joinable()) {
+                worker.join();
+            }
+        }
+    };
+
+    TimeMultiplierRampState g_timeMultiplierRamp;
+
     struct SlowMoSfxState
     {
         std::mutex lock;
@@ -253,6 +270,87 @@ namespace
                 logger::info("DeathSlowMo: BSTimer SetGlobalTimeMultiplier multiplier={} reason={}", mult, reason);
             }
         });
+    }
+
+    static void StartTimeMultiplierRampInternal(float a_fromMultiplier, float a_toMultiplier, float a_seconds, std::string a_reason)
+    {
+        const float fromMultiplier = std::clamp(a_fromMultiplier, 0.05f, 4.0f);
+        const float toMultiplier = std::clamp(a_toMultiplier, 0.05f, 4.0f);
+        const float seconds = a_seconds < 0.0f ? 0.0f : a_seconds;
+        const std::string reason = a_reason.empty() ? "time-ramp" : a_reason;
+
+        std::thread oldWorker;
+        std::uint64_t myToken = 0;
+        {
+            std::scoped_lock lock(g_timeMultiplierRamp.lock);
+            if (g_timeMultiplierRamp.worker.joinable()) {
+                oldWorker = std::move(g_timeMultiplierRamp.worker);
+            }
+            myToken = g_timeMultiplierRamp.token.fetch_add(1) + 1;
+
+            if (seconds > 0.0f) {
+                g_timeMultiplierRamp.worker = std::thread([myToken, fromMultiplier, toMultiplier, seconds, reason]() {
+                    const auto startedAt = std::chrono::steady_clock::now();
+                    const auto duration = std::chrono::duration<float>(seconds);
+
+                    while (g_timeMultiplierRamp.token.load() == myToken) {
+                        const auto now = std::chrono::steady_clock::now();
+                        const auto elapsed = now - startedAt;
+                        const float rawT = std::chrono::duration<float>(elapsed).count() / seconds;
+                        const float t = std::clamp(rawT, 0.0f, 1.0f);
+                        const float multiplier = fromMultiplier + ((toMultiplier - fromMultiplier) * t);
+
+                        QueueSetGlobalTimeMultiplier(multiplier, reason.c_str(), false);
+                        if (elapsed >= duration) {
+                            break;
+                        }
+
+                        if (!SleepCancelable(g_timeMultiplierRamp.token, myToken, std::chrono::milliseconds(50))) {
+                            return;
+                        }
+                    }
+
+                    if (g_timeMultiplierRamp.token.load() == myToken) {
+                        QueueSetGlobalTimeMultiplier(toMultiplier, reason.c_str());
+                    }
+                });
+            }
+        }
+
+        if (oldWorker.joinable()) {
+            oldWorker.join();
+        }
+
+        if (seconds <= 0.0f) {
+            QueueSetGlobalTimeMultiplier(toMultiplier, reason.c_str());
+        } else {
+            QueueSetGlobalTimeMultiplier(fromMultiplier, reason.c_str());
+            if (InfoLoggingEnabled()) {
+                logger::info("TimeMultiplierRamp: started from={} to={} seconds={} reason={}", fromMultiplier, toMultiplier, seconds, reason);
+            }
+        }
+    }
+
+    static void ClearTimeMultiplierRampInternal(std::string a_reason)
+    {
+        const std::string reason = a_reason.empty() ? "time-ramp-clear" : a_reason;
+        std::thread oldWorker;
+        {
+            std::scoped_lock lock(g_timeMultiplierRamp.lock);
+            g_timeMultiplierRamp.token.fetch_add(1);
+            if (g_timeMultiplierRamp.worker.joinable()) {
+                oldWorker = std::move(g_timeMultiplierRamp.worker);
+            }
+        }
+
+        if (oldWorker.joinable()) {
+            oldWorker.join();
+        }
+
+        QueueSetGlobalTimeMultiplier(1.0f, reason.c_str());
+        if (InfoLoggingEnabled()) {
+            logger::info("TimeMultiplierRamp: cleared reason={}", reason);
+        }
     }
 
     static void HoldDeathSlowMoInternal(std::string a_reason)
@@ -583,6 +681,16 @@ namespace
         ClearDeathSlowMoInternal(a_reason);
     }
 
+    static void StartTimeMultiplierRamp(RE::StaticFunctionTag*, float a_fromMultiplier, float a_toMultiplier, float a_seconds, std::string a_reason)
+    {
+        StartTimeMultiplierRampInternal(a_fromMultiplier, a_toMultiplier, a_seconds, a_reason);
+    }
+
+    static void ClearTimeMultiplierRamp(RE::StaticFunctionTag*, std::string a_reason)
+    {
+        ClearTimeMultiplierRampInternal(a_reason);
+    }
+
     static bool KillPlayerImmediate(RE::StaticFunctionTag*, bool a_ragdollInstant, std::string a_reason)
     {
         auto* task = SKSE::GetTaskInterface();
@@ -635,6 +743,8 @@ namespace
         a_vm->RegisterFunction("HoldDeathSlowMo", kScriptName, HoldDeathSlowMo);
         a_vm->RegisterFunction("ReleaseDeathSlowMo", kScriptName, ReleaseDeathSlowMo);
         a_vm->RegisterFunction("ClearDeathSlowMo", kScriptName, ClearDeathSlowMo);
+        a_vm->RegisterFunction("StartTimeMultiplierRamp", kScriptName, StartTimeMultiplierRamp);
+        a_vm->RegisterFunction("ClearTimeMultiplierRamp", kScriptName, ClearTimeMultiplierRamp);
         a_vm->RegisterFunction("KillPlayerImmediate", kScriptName, KillPlayerImmediate);
     }
 }

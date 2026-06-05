@@ -80,6 +80,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::Config::Load();
 	IronSoul::DataStore::Initialize();
 	IronSoul::MenuBlocker::RegisterSinks();
+	IronSoul::MenuBlocker::RegisterLifecycleHooks();
 	IronSoul::Papyrus::MusicFade::RegisterLifecycleHooks();
 
 	// Flush DataStore on save (most reliable session boundary)

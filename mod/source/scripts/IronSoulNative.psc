@@ -78,6 +78,8 @@ Scriptname IronSoulNative Hidden
 ; BeginMenuBlock()
 ; EndMenuBlock()
 ; ClearMenuBlock()
+; ClearMenuBlockPreserveLoad()
+; EndLoadMenuBlock()
 
 ; --- Music Fade ---
 ; ------------------
@@ -93,6 +95,8 @@ Scriptname IronSoulNative Hidden
 ; HoldDeathSlowMo()
 ; ReleaseDeathSlowMo()
 ; ClearDeathSlowMo()
+; StartTimeMultiplierRamp()
+; ClearTimeMultiplierRamp()
 ; KillPlayerImmediate()
 
 ; --- Heartshard Enhancement ---
@@ -218,6 +222,8 @@ Function RefreshCursorSuppress() Global Native
 Int Function BeginMenuBlock(String reason, Bool releaseOnMainMenu = False) Global Native
 Function EndMenuBlock(Int token) Global Native
 Function ClearMenuBlock() Global Native
+Function ClearMenuBlockPreserveLoad() Global Native
+Function EndLoadMenuBlock(String reason = "") Global Native
 
 
 ; --- MUSIC FADE ---
@@ -241,6 +247,8 @@ Function StopHealthMonitor() Global Native
 Function HoldDeathSlowMo(String reason = "") Global Native
 Function ReleaseDeathSlowMo(Float recoverySeconds = 1.0, Float delaySeconds = 0.0, String reason = "") Global Native
 Function ClearDeathSlowMo(String reason = "") Global Native
+Function StartTimeMultiplierRamp(Float fromMultiplier = 1.0, Float toMultiplier = 1.0, Float seconds = 0.0, String reason = "") Global Native
+Function ClearTimeMultiplierRamp(String reason = "") Global Native
 Bool Function KillPlayerImmediate(Bool ragdollInstant = True, String reason = "") Global Native
 
 

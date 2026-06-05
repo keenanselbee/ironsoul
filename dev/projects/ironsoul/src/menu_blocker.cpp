@@ -12,6 +12,9 @@
 
 namespace IronSoul::MenuBlocker
 {
+    std::int32_t BeginInternal(std::string_view a_reason, bool a_releaseOnMainMenu, bool a_healthDepletedToken);
+    void EndInternal(std::int32_t a_token, std::string_view a_reason);
+
 namespace
 {
     using UEFlag = RE::ControlMap::UEFlag;
@@ -19,6 +22,7 @@ namespace
     constexpr auto kPollInterval = std::chrono::milliseconds(50);
     constexpr auto kSleepSlice = std::chrono::milliseconds(10);
     constexpr auto kBlockedAttemptLogInterval = std::chrono::seconds(1);
+    constexpr auto kLoadBoundaryWatchdog = std::chrono::seconds(5);
 
     constexpr std::array<std::string_view, 20> kForbiddenMenus{
         "MessageBoxMenu",
@@ -83,6 +87,10 @@ namespace
         std::thread worker;
         std::int32_t nextToken{ 0 };
         std::int32_t healthDepletedToken{ 0 };
+        std::int32_t loadBoundaryToken{ 0 };
+        std::uint64_t loadBoundarySerial{ 0 };
+        std::atomic<std::uint64_t> loadBoundaryWatchdogToken{ 0 };
+        std::thread loadBoundaryWatchdog;
         std::unordered_map<std::int32_t, bool> activeTokens;
         ControlSnapshot controls;
         bool releaseOnMainMenu{ false };
@@ -96,6 +104,10 @@ namespace
 
         ~BlockerState()
         {
+            loadBoundaryWatchdogToken.fetch_add(1);
+            if (loadBoundaryWatchdog.joinable()) {
+                loadBoundaryWatchdog.join();
+            }
             workerToken.fetch_add(1);
             if (worker.joinable()) {
                 worker.join();
@@ -465,21 +477,41 @@ namespace
         QueueRestoreControls(a_restoreToken);
     }
 
-    void ClearInternal()
+    void ClearInternal(bool a_preserveLoadBoundary)
     {
         std::thread oldWorker;
         std::uint64_t restoreToken = 0;
         bool shouldRestore = false;
+        bool preservedLoadBoundary = false;
 
         {
             std::scoped_lock lock(g_state.lock);
             shouldRestore = IsActiveLocked() || g_state.controls.captured;
+            const auto loadToken = g_state.loadBoundaryToken;
+            preservedLoadBoundary = a_preserveLoadBoundary &&
+                loadToken > 0 &&
+                g_state.activeTokens.contains(loadToken);
+
             g_state.activeTokens.clear();
+            if (preservedLoadBoundary) {
+                g_state.activeTokens[loadToken] = false;
+            } else {
+                g_state.loadBoundaryToken = 0;
+                ++g_state.loadBoundarySerial;
+                g_state.loadBoundaryWatchdogToken.fetch_add(1);
+            }
             g_state.healthDepletedToken = 0;
-            g_state.releaseOnMainMenu = false;
+            g_state.releaseOnMainMenu = std::any_of(
+                g_state.activeTokens.begin(),
+                g_state.activeTokens.end(),
+                [](const auto& entry) {
+                    return entry.second;
+                });
             g_state.lastBlockedInputLogSec = 0.0;
             g_state.lastBlockedMenuLogSec = 0.0;
-            if (shouldRestore) {
+            if (preservedLoadBoundary) {
+                shouldRestore = false;
+            } else if (shouldRestore) {
                 StopWorkerAndRestore(oldWorker, restoreToken);
             }
         }
@@ -489,6 +521,105 @@ namespace
             if (InfoLoggingEnabled()) {
                 logger::info("MenuBlocker: cleared");
             }
+        } else if (preservedLoadBoundary) {
+            QueueEnforce();
+            if (InfoLoggingEnabled()) {
+                logger::info("MenuBlocker: cleared preserving load boundary");
+            }
+        }
+    }
+
+    bool SleepLoadBoundaryWatchdog(std::uint64_t a_watchdogToken)
+    {
+        const auto deadline = std::chrono::steady_clock::now() + kLoadBoundaryWatchdog;
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (g_state.loadBoundaryWatchdogToken.load() != a_watchdogToken) {
+                return false;
+            }
+            std::this_thread::sleep_for(kSleepSlice);
+        }
+
+        return g_state.loadBoundaryWatchdogToken.load() == a_watchdogToken;
+    }
+
+    void WatchLoadBoundary(std::int32_t a_token, std::uint64_t a_serial, std::uint64_t a_watchdogToken)
+    {
+        if (!SleepLoadBoundaryWatchdog(a_watchdogToken)) {
+            return;
+        }
+
+        bool shouldEnd = false;
+        {
+            std::scoped_lock lock(g_state.lock);
+            shouldEnd = g_state.loadBoundaryToken == a_token &&
+                g_state.loadBoundarySerial == a_serial &&
+                g_state.activeTokens.contains(a_token);
+            if (shouldEnd) {
+                g_state.loadBoundaryToken = 0;
+                ++g_state.loadBoundarySerial;
+            }
+        }
+
+        if (shouldEnd) {
+            EndInternal(a_token, "load-boundary-watchdog");
+        }
+    }
+
+    void StartLoadBoundaryWatchdog(std::int32_t a_token, std::uint64_t a_serial)
+    {
+        std::thread oldWatchdog;
+        const auto watchdogToken = g_state.loadBoundaryWatchdogToken.fetch_add(1) + 1;
+
+        {
+            std::scoped_lock lock(g_state.lock);
+            if (g_state.loadBoundaryWatchdog.joinable()) {
+                oldWatchdog = std::move(g_state.loadBoundaryWatchdog);
+            }
+            g_state.loadBoundaryWatchdog = std::thread(WatchLoadBoundary, a_token, a_serial, watchdogToken);
+        }
+
+        if (oldWatchdog.joinable()) {
+            oldWatchdog.join();
+        }
+    }
+
+    void BeginLoadBoundaryBlock()
+    {
+        EndLoadBoundaryBlock("load-boundary-restart");
+
+        if (IronSoul::Config::GetAllowedInt("Anticheat", 1) != 1) {
+            return;
+        }
+
+        const auto token = BeginInternal("load-boundary", false, false);
+        if (token <= 0) {
+            return;
+        }
+
+        std::uint64_t serial = 0;
+        {
+            std::scoped_lock lock(g_state.lock);
+            g_state.loadBoundaryToken = token;
+            serial = ++g_state.loadBoundarySerial;
+        }
+
+        StartLoadBoundaryWatchdog(token, serial);
+
+        if (InfoLoggingEnabled()) {
+            logger::info("MenuBlocker: load boundary token={} watchdog={}s", token, kLoadBoundaryWatchdog.count());
+        }
+    }
+
+    void OnSKSEMessage(SKSE::MessagingInterface::Message* a_message)
+    {
+        if (!a_message) {
+            return;
+        }
+
+        if (a_message->type == SKSE::MessagingInterface::kPostLoadGame) {
+            BeginLoadBoundaryBlock();
+        } else if (a_message->type == SKSE::MessagingInterface::kPreLoadGame) {
+            EndLoadBoundaryBlock("pre-load");
         }
     }
 }
@@ -541,7 +672,7 @@ namespace
 
         const std::string_view menuName{ a_event->menuName.c_str() ? a_event->menuName.c_str() : "" };
         if (IsMainMenu(menuName) && ShouldReleaseOnMainMenu()) {
-            ClearInternal();
+            ClearInternal(false);
             return RE::BSEventNotifyControl::kContinue;
         }
 
@@ -668,6 +799,10 @@ namespace
             if (g_state.healthDepletedToken == a_token) {
                 g_state.healthDepletedToken = 0;
             }
+            if (g_state.loadBoundaryToken == a_token) {
+                g_state.loadBoundaryToken = 0;
+                ++g_state.loadBoundarySerial;
+            }
 
             g_state.releaseOnMainMenu = std::any_of(
                 g_state.activeTokens.begin(),
@@ -717,6 +852,20 @@ namespace
         EndInternal(GetHealthDepletedToken(), a_reason);
     }
 
+    void EndLoadBoundaryBlock(std::string_view a_reason)
+    {
+        std::int32_t token = 0;
+        {
+            std::scoped_lock lock(g_state.lock);
+            token = g_state.loadBoundaryToken;
+            g_state.loadBoundaryToken = 0;
+            ++g_state.loadBoundarySerial;
+            g_state.loadBoundaryWatchdogToken.fetch_add(1);
+        }
+
+        EndInternal(token, a_reason);
+    }
+
     std::int32_t Begin(std::string_view a_reason, bool a_releaseOnMainMenu)
     {
         return BeginInternal(a_reason, a_releaseOnMainMenu, false);
@@ -729,6 +878,27 @@ namespace
 
     void Clear()
     {
-        ClearInternal();
+        ClearInternal(false);
+    }
+
+    void ClearPreservingLoadBoundary()
+    {
+        ClearInternal(true);
+    }
+
+    void RegisterLifecycleHooks()
+    {
+        auto* messaging = SKSE::GetMessagingInterface();
+        if (!messaging) {
+            logger::warn("MenuBlocker: messaging interface unavailable; load boundary block disabled");
+            return;
+        }
+
+        if (!messaging->RegisterListener(OnSKSEMessage)) {
+            logger::warn("MenuBlocker: failed to register load boundary listener");
+            return;
+        }
+
+        logger::info("MenuBlocker: load boundary listener registered");
     }
 }

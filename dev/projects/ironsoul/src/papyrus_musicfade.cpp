@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <format>
 #include <string>
 #include <thread>
 
@@ -13,7 +14,11 @@ namespace IronSoul::Papyrus::MusicFade
 {
 namespace
 {
+    static constexpr const char* kMusicFadeSetVolumeEvent = "IronSoul_MusicFadeSetVolume";
     static constexpr const char* kMusicFadeCompleteEvent = "IronSoul_MusicFadeComplete";
+    static constexpr int kMusicFadeStepCount = 20;
+    static constexpr int kMusicFadeFinalStep = kMusicFadeStepCount + 1;
+    static constexpr float kMusicFadeNoopEpsilon = 0.0001f;
 
     struct MusicFadeState
     {
@@ -24,6 +29,8 @@ namespace
         std::atomic<bool> warnedMissingSink{ false };
         std::atomic<bool> warnedMissingCategory{ false };
         float currentVolume{ 1.0f };
+        std::uint64_t currentVolumeToken{ 0 };
+        int currentVolumeStep{ 0 };
         float cachedMenuVolume{ -1.0f };
         bool cachedMenuVolumeValid{ false };
         bool sessionActive{ false };
@@ -67,7 +74,16 @@ namespace
         return true;
     }
 
-    static void SendMusicFadeComplete(RE::BGSSoundCategory* a_category, const std::string& a_phase, float a_volume)
+    static std::string BuildMusicFadePayload(std::uint64_t a_token, const std::string& a_phase, const char* a_kind, int a_step)
+    {
+        return std::format("token={};phase={};kind={};step={}", a_token, a_phase, a_kind ? a_kind : "", a_step);
+    }
+
+    static void SendMusicFadeEvent(
+        const char* a_eventName,
+        RE::BGSSoundCategory* a_category,
+        const std::string& a_payload,
+        float a_volume)
     {
         auto* modCallbacks = SKSE::GetModCallbackEventSource();
         if (!modCallbacks) {
@@ -77,11 +93,27 @@ namespace
             return;
         }
 
-        const SKSE::ModCallbackEvent ev(kMusicFadeCompleteEvent, a_phase.c_str(), Clamp01(a_volume), a_category);
+        const SKSE::ModCallbackEvent ev(a_eventName, a_payload.c_str(), Clamp01(a_volume), a_category);
         modCallbacks->SendEvent(&ev);
     }
 
-    static bool QueueSetMusicVolume(RE::FormID a_categoryFormID, float a_volume, std::uint64_t a_token)
+    static void SendMusicFadeSetVolume(
+        RE::BGSSoundCategory* a_category,
+        const std::string& a_phase,
+        const char* a_kind,
+        float a_volume,
+        std::uint64_t a_token,
+        int a_step)
+    {
+        SendMusicFadeEvent(kMusicFadeSetVolumeEvent, a_category, BuildMusicFadePayload(a_token, a_phase, a_kind, a_step), a_volume);
+    }
+
+    static void SendMusicFadeComplete(RE::BGSSoundCategory* a_category, const std::string& a_phase, float a_volume, std::uint64_t a_token)
+    {
+        SendMusicFadeEvent(kMusicFadeCompleteEvent, a_category, BuildMusicFadePayload(a_token, a_phase, "complete", kMusicFadeFinalStep), a_volume);
+    }
+
+    static bool QueueSetMusicVolume(RE::FormID a_categoryFormID, float a_volume, std::uint64_t a_token, const std::string& a_phase, int a_step)
     {
         auto* task = SKSE::GetTaskInterface();
         if (!task || a_categoryFormID == 0) {
@@ -90,31 +122,48 @@ namespace
         }
 
         const float v = Clamp01(a_volume);
-        task->AddTask([a_categoryFormID, v, a_token]() {
-            std::scoped_lock operationGuard(g_musicFade.operationLock);
-            if (g_musicFade.token.load() != a_token) {
-                return;
-            }
-
-            auto* category = RE::TESForm::LookupByID<RE::BGSSoundCategory>(a_categoryFormID);
-            if (!category) {
-                if (!g_musicFade.warnedMissingCategory.exchange(true)) {
-                    logger::warn("Music fade: SoundCategory lookup failed for formID={}", a_categoryFormID);
+        task->AddTask([a_categoryFormID, v, a_token, phase = a_phase, step = a_step]() {
+            RE::BGSSoundCategory* category = nullptr;
+            {
+                std::scoped_lock operationGuard(g_musicFade.operationLock);
+                if (g_musicFade.token.load() != a_token) {
+                    return;
                 }
-                return;
+
+                category = RE::TESForm::LookupByID<RE::BGSSoundCategory>(a_categoryFormID);
+                if (!category) {
+                    if (!g_musicFade.warnedMissingCategory.exchange(true)) {
+                        logger::warn("Music fade: SoundCategory lookup failed for formID={}", a_categoryFormID);
+                    }
+                    return;
+                }
+
+                if (g_musicFade.token.load() != a_token) {
+                    return;
+                }
+
+                std::scoped_lock lock(g_musicFade.lock);
+                if (g_musicFade.token.load() != a_token) {
+                    return;
+                }
+                if (g_musicFade.currentVolumeToken == a_token && step <= g_musicFade.currentVolumeStep) {
+                    return;
+                }
+                g_musicFade.currentVolumeToken = a_token;
+                g_musicFade.currentVolumeStep = step;
+                g_musicFade.currentVolume = v;
             }
 
             if (g_musicFade.token.load() != a_token) {
                 return;
             }
-
-            category->SetCategoryVolume(v);
-
-            std::scoped_lock lock(g_musicFade.lock);
-            if (g_musicFade.token.load() != a_token) {
-                return;
+            {
+                std::scoped_lock lock(g_musicFade.lock);
+                if (g_musicFade.currentVolumeToken != a_token || g_musicFade.currentVolumeStep != step) {
+                    return;
+                }
             }
-            g_musicFade.currentVolume = v;
+            SendMusicFadeSetVolume(category, phase, "step", v, a_token, step);
         });
         return true;
     }
@@ -159,12 +208,12 @@ namespace
                     return;
                 }
 
-                category->SetCategoryVolume(v);
-
                 std::scoped_lock lock(g_musicFade.lock);
                 if (g_musicFade.token.load() != a_token) {
                     return;
                 }
+                g_musicFade.currentVolumeToken = a_token;
+                g_musicFade.currentVolumeStep = kMusicFadeFinalStep;
                 g_musicFade.currentVolume = v;
                 if (phase == "in") {
                     g_musicFade.sessionActive = false;
@@ -174,7 +223,8 @@ namespace
             if (InfoLoggingEnabled()) {
                 logger::info("Music fade: finalization completed token={} phase={} final={}", a_token, phase, v);
             }
-            SendMusicFadeComplete(category, phase, v);
+            SendMusicFadeSetVolume(category, phase, "final", v, a_token, kMusicFadeFinalStep);
+            SendMusicFadeComplete(category, phase, v, a_token);
         });
         return true;
     }
@@ -209,12 +259,12 @@ namespace
                     return;
                 }
 
-                category->SetCategoryVolume(v);
-
                 std::scoped_lock lock(g_musicFade.lock);
                 if (g_musicFade.token.load() != a_token) {
                     return;
                 }
+                g_musicFade.currentVolumeToken = a_token;
+                g_musicFade.currentVolumeStep = kMusicFadeFinalStep;
                 g_musicFade.currentVolume = v;
                 g_musicFade.sessionActive = false;
                 g_musicFade.loadRecoveryRequired = false;
@@ -223,7 +273,8 @@ namespace
             if (InfoLoggingEnabled()) {
                 logger::info("Music fade: load recovery completed token={} final={}", a_token, v);
             }
-            SendMusicFadeComplete(category, "in", v);
+            SendMusicFadeSetVolume(category, "in", "recovery", v, a_token, kMusicFadeFinalStep);
+            SendMusicFadeComplete(category, "in", v, a_token);
         });
         return true;
     }
@@ -338,6 +389,8 @@ namespace
         {
             std::scoped_lock lock(g_musicFade.lock);
             start = Clamp01(g_musicFade.currentVolume);
+            g_musicFade.currentVolumeToken = myToken;
+            g_musicFade.currentVolumeStep = 0;
             if (InfoLoggingEnabled()) {
                 logger::info("Music fade: worker begin token={} phase={} start={} target={} seconds={}", myToken, a_phase, start, target, seconds);
             }
@@ -355,24 +408,31 @@ namespace
                 return;
             }
 
-            constexpr int kSteps = 20;
-            const auto stepSleep = std::chrono::duration<float>(seconds / static_cast<float>(kSteps));
+            const float delta = start > target ? start - target : target - start;
+            if (delta <= kMusicFadeNoopEpsilon) {
+                if (QueueMusicFadeFinalize(a_categoryFormID, phase, target, myToken) && InfoLoggingEnabled()) {
+                    logger::info("Music fade: no-op finalization queued token={} phase={} value={}", myToken, phase, target);
+                }
+                return;
+            }
 
-            for (int i = 1; i <= kSteps; ++i) {
+            const auto stepSleep = std::chrono::duration<float>(seconds / static_cast<float>(kMusicFadeStepCount));
+
+            for (int i = 1; i <= kMusicFadeStepCount; ++i) {
                 if (g_musicFade.token.load() != myToken) {
                     if (InfoLoggingEnabled()) {
-                        logger::info("Music fade: worker canceled token={} phase={} step={}/{}", myToken, phase, i, kSteps);
+                        logger::info("Music fade: worker canceled token={} phase={} step={}/{}", myToken, phase, i, kMusicFadeStepCount);
                     }
                     return;
                 }
 
-                const float t = static_cast<float>(i) / static_cast<float>(kSteps + 1);
+                const float t = static_cast<float>(i) / static_cast<float>(kMusicFadeStepCount + 1);
                 const float v = start + (target - start) * t;
-                QueueSetMusicVolume(a_categoryFormID, v, myToken);
+                QueueSetMusicVolume(a_categoryFormID, v, myToken, phase, i);
 
                 if (!SleepCancelable(myToken, stepSleep)) {
                     if (InfoLoggingEnabled()) {
-                        logger::info("Music fade: sleep canceled token={} phase={} step={}/{}", myToken, phase, i, kSteps);
+                        logger::info("Music fade: sleep canceled token={} phase={} step={}/{}", myToken, phase, i, kMusicFadeStepCount);
                     }
                     return;
                 }
