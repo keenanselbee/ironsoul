@@ -246,13 +246,6 @@ V6: City Recovery
 - Quartermasters can supply city guards with silver swords once unlocked for that city.
 
 
-Music Credits
--------------
-
-- Motoi Sakuraba: general music credit.
-- Mythic Harmonies: general music credit.
-
-
 Credits
 -------
 
@@ -264,3 +257,10 @@ Credits
 - [High Quality Dice Skins](https://www.nexusmods.com/baldursgate3/mods/1220), by Sir William Snugglepuff: credit for dice visual source material used by Luck roll presentation.
 - [Spherical Soulgems SSE](https://www.nexusmods.com/skyrimspecialedition/mods/66634), by Fishbiter: credit for sigil stone mesh source material used as the Heartshard visual base.
 - [Spherical Soulgems SSE - Particle Lights for ENB](https://www.nexusmods.com/skyrimspecialedition/mods/66668), by DeterministicFreeWill: credit for ENB particle light/glow source.
+
+
+Music Credits
+-------------
+
+- [The Ancient Dragon](https://www.youtube.com/watch?v=3bWizcifhRI), by Motoi Sakuraba.
+- [Gods of War](https://youtu.be/QWXLzA-c_ow), by Mythic Harmonies
