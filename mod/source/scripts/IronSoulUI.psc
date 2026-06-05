@@ -14,6 +14,19 @@ Scriptname IronSoulUI extends Quest
 ; ----------------------------
 ; ResetTransientState()
 ; RegisterMusicFadeBridge()
+; ExtractMusicFadeEventField()
+; ParseMusicFadeEventToken()
+; ParseMusicFadeEventStep()
+; ClearMusicFadeFinalVolumeState()
+; ClearMusicFadeVolumeOrderState()
+; ResetMusicFadeSessionToken()
+; SetMusicFadeEventToken()
+; PrepareMusicFadeTokenAdvance()
+; AcceptMusicFadeEventToken()
+; AcceptMusicFadeVolumeOrder()
+; ClampMusicFadeVolume()
+; MarkMusicFadeFinalVolumeApplied()
+; HasMusicFadeFinalVolumeApplied()
 ; RegisterMusicVolumeCacheMenus()
 ; ScheduleLoadMessage()
 ; ClearDelayedIronIntro()
@@ -42,6 +55,7 @@ Scriptname IronSoulUI extends Quest
 ; RegisterForAllKeys()
 ; UnregisterForAllKeys()
 ; OnMenuClose()
+; OnMusicFadeSetVolume()
 ; OnMusicFadeComplete()
 
 ; --- Menu Naming ---
@@ -88,6 +102,13 @@ Bool _menuMusicVolumeCached = False
 String _menuMusicVolumeCacheReason = ""
 Bool _musicFadeActive = False
 Bool _menuMusicVolumeRefreshPending = False
+Int _musicFadeToken = 0
+Bool _musicFadeTokenValid = False
+Bool _musicFadeAwaitingNewToken = False
+Int _musicFadeFinalVolumeToken = 0
+Bool _musicFadeFinalVolumeApplied = False
+Int _musicFadeVolumeOrderToken = 0
+Int _musicFadeVolumeOrderStep = 0
 
 
 ; --- Component Helpers ---
@@ -147,7 +168,168 @@ EndFunction
 Function RegisterMusicFadeBridge()
     UnregisterForModEvent("IronSoul_MusicFadeSetVolume")
     UnregisterForModEvent("IronSoul_MusicFadeComplete")
+    ResetMusicFadeSessionToken()
+    RegisterForModEvent("IronSoul_MusicFadeSetVolume", "OnMusicFadeSetVolume")
     RegisterForModEvent("IronSoul_MusicFadeComplete", "OnMusicFadeComplete")
+EndFunction
+
+String Function ExtractMusicFadeEventField(String payload, String fieldName)
+    if payload == "" || fieldName == ""
+        return ""
+    endif
+
+    String prefix = fieldName + "="
+    Int valueStart = StringUtil.Find(payload, prefix)
+    if valueStart == -1
+        return ""
+    endif
+
+    valueStart += StringUtil.GetLength(prefix)
+    Int valueEnd = StringUtil.Find(payload, ";", valueStart)
+    if valueEnd == -1
+        return StringUtil.Substring(payload, valueStart)
+    endif
+    return StringUtil.Substring(payload, valueStart, valueEnd - valueStart)
+EndFunction
+
+Int Function ParseMusicFadeEventToken(String payload)
+    String tokenText = ExtractMusicFadeEventField(payload, "token")
+    if tokenText == ""
+        return -1
+    endif
+    return tokenText as Int
+EndFunction
+
+Int Function ParseMusicFadeEventStep(String payload)
+    String stepText = ExtractMusicFadeEventField(payload, "step")
+    if stepText == ""
+        return 0
+    endif
+    return stepText as Int
+EndFunction
+
+Function ClearMusicFadeFinalVolumeState()
+    _musicFadeFinalVolumeToken = 0
+    _musicFadeFinalVolumeApplied = False
+EndFunction
+
+Function ClearMusicFadeVolumeOrderState()
+    _musicFadeVolumeOrderToken = 0
+    _musicFadeVolumeOrderStep = 0
+EndFunction
+
+Function ResetMusicFadeSessionToken()
+    _musicFadeToken = 0
+    _musicFadeTokenValid = False
+    _musicFadeAwaitingNewToken = False
+    ClearMusicFadeFinalVolumeState()
+    ClearMusicFadeVolumeOrderState()
+EndFunction
+
+Function SetMusicFadeEventToken(Int token)
+    if token != _musicFadeToken
+        ClearMusicFadeFinalVolumeState()
+        ClearMusicFadeVolumeOrderState()
+    endif
+
+    _musicFadeToken = token
+    _musicFadeTokenValid = True
+    _musicFadeAwaitingNewToken = False
+EndFunction
+
+Function PrepareMusicFadeTokenAdvance()
+    _musicFadeAwaitingNewToken = True
+EndFunction
+
+Bool Function AcceptMusicFadeEventToken(Int token, String kind)
+    if token <= 0
+        LogUI(IronSoulConfig.LOG_INFO(), "Music fade event ignored without valid token: kind=" + kind + " token=" + token, True)
+        return False
+    endif
+
+    if _musicFadeAwaitingNewToken
+        if _musicFadeToken > 0 && token <= _musicFadeToken
+            LogUI(IronSoulConfig.LOG_DBG(), "Music fade stale event ignored while awaiting new token: kind=" + kind \
+                + " token=" + token \
+                + " current=" + _musicFadeToken, True)
+            return False
+        endif
+        SetMusicFadeEventToken(token)
+        return True
+    endif
+
+    if _musicFadeTokenValid
+        if token == _musicFadeToken
+            return True
+        endif
+        if token < _musicFadeToken
+            LogUI(IronSoulConfig.LOG_DBG(), "Music fade stale event ignored: kind=" + kind \
+                + " token=" + token \
+                + " current=" + _musicFadeToken, True)
+            return False
+        endif
+    elseif _musicFadeToken > 0 && token <= _musicFadeToken
+        LogUI(IronSoulConfig.LOG_DBG(), "Music fade late event ignored after token completed: kind=" + kind \
+            + " token=" + token \
+            + " current=" + _musicFadeToken, True)
+        return False
+    else
+        LogUI(IronSoulConfig.LOG_DBG(), "Music fade unsolicited event ignored: kind=" + kind \
+            + " token=" + token, True)
+        return False
+    endif
+
+    LogUI(IronSoulConfig.LOG_DBG(), "Music fade token synchronized: kind=" + kind \
+        + " previous=" + _musicFadeToken \
+        + " next=" + token, True)
+    SetMusicFadeEventToken(token)
+    return True
+EndFunction
+
+Bool Function AcceptMusicFadeVolumeOrder(Int token, Int step, String kind)
+    if kind != "step" && kind != "final" && kind != "recovery"
+        return True
+    endif
+
+    if step <= 0
+        if kind == "step"
+            LogUI(IronSoulConfig.LOG_INFO(), "Music fade step event ignored without valid step: token=" + token \
+                + " step=" + step, True)
+            return False
+        endif
+        step = 999999
+    endif
+
+    if _musicFadeVolumeOrderToken == token && step <= _musicFadeVolumeOrderStep
+        LogUI(IronSoulConfig.LOG_DBG(), "Music fade out-of-order volume ignored: token=" + token \
+            + " kind=" + kind \
+            + " step=" + step \
+            + " currentStep=" + _musicFadeVolumeOrderStep, True)
+        return False
+    endif
+
+    _musicFadeVolumeOrderToken = token
+    _musicFadeVolumeOrderStep = step
+    return True
+EndFunction
+
+Float Function ClampMusicFadeVolume(Float volume)
+    if volume < 0.0
+        return 0.0
+    endif
+    if volume > 1.0
+        return 1.0
+    endif
+    return volume
+EndFunction
+
+Function MarkMusicFadeFinalVolumeApplied(Int token)
+    _musicFadeFinalVolumeToken = token
+    _musicFadeFinalVolumeApplied = True
+EndFunction
+
+Bool Function HasMusicFadeFinalVolumeApplied(Int token)
+    return _musicFadeFinalVolumeApplied && _musicFadeFinalVolumeToken == token
 EndFunction
 
 Function RegisterMusicVolumeCacheMenus()
@@ -308,6 +490,13 @@ Function HandleDelayedIronIntro(Actor player)
         ClearDelayedIronIntro()
         return
     endif
+
+    Float dueAt = _ironIntroAt
+    Float nowRT = Utility.GetCurrentRealTime()
+    LogUI(IronSoulConfig.LOG_INFO(), "HandleDelayedIronIntro: opening intro for GUID=" + guid \
+        + " due=" + dueAt \
+        + " now=" + nowRT \
+        + " late=" + (nowRT - dueAt) + "s")
 
     ClearDelayedIronIntro()
     ShowIronIntro(player, guid)
@@ -508,12 +697,15 @@ Float Function RefreshConfiguredMusicVolumeCache(String reason = "")
 
     Bool fromMenuClose = StringUtil.Find(refreshReason, "menu-close:") == 0
     Bool nativeFadeActive = IronSoulNative.MusicFadeIsActive()
-    if _musicFadeActive != nativeFadeActive
+    Bool bridgeFadeActive = nativeFadeActive || _musicFadeTokenValid || _musicFadeAwaitingNewToken
+    if _musicFadeActive != bridgeFadeActive
         Bool previousFadeActive = _musicFadeActive
-        _musicFadeActive = nativeFadeActive
+        _musicFadeActive = bridgeFadeActive
         LogUI(IronSoulConfig.LOG_INFO(), "Music volume cache synchronized fade state: reason=" + refreshReason \
             + " previous=" + previousFadeActive \
-            + " native=" + nativeFadeActive, True)
+            + " native=" + nativeFadeActive \
+            + " tokenValid=" + _musicFadeTokenValid \
+            + " awaitingToken=" + _musicFadeAwaitingNewToken, True)
     endif
 
     if _musicFadeActive
@@ -625,6 +817,7 @@ Function HandleMusicAfterPlayerLoad(String reason = "")
     endif
 
     Bool savedFadeActive = _musicFadeActive
+    PrepareMusicFadeTokenAdvance()
     Bool recoveryStarted = IronSoulNative.MusicFadeRecoverAfterLoad(AudioCategoryMUS, fallbackVolume, savedFadeActive)
     if recoveryStarted
         _musicFadeActive = True
@@ -636,6 +829,10 @@ Function HandleMusicAfterPlayerLoad(String reason = "")
     endif
 
     _musicFadeActive = False
+    _musicFadeTokenValid = False
+    _musicFadeAwaitingNewToken = False
+    ClearMusicFadeFinalVolumeState()
+    ClearMusicFadeVolumeOrderState()
     RefreshConfiguredMusicVolumeCache(loadReason)
 EndFunction
 
@@ -651,6 +848,7 @@ Function FadeMusicForTransitionSequence()
 
     Float menuMusicVol = ResolveConfiguredMusicVolume("fade-out")
     _musicFadeActive = True
+    PrepareMusicFadeTokenAdvance()
     IronSoulNative.MusicFadeOut(AudioCategoryMUS, 2.0, menuMusicVol)
 EndFunction
 
@@ -677,6 +875,7 @@ Function RestoreMusic(Float seconds = 2.0)
     endif
     Float menuMusicVol = ResolveConfiguredMusicVolume("fade-in")
     _musicFadeActive = True
+    PrepareMusicFadeTokenAdvance()
     IronSoulNative.MusicFadeIn(AudioCategoryMUS, seconds, menuMusicVol)
 EndFunction
 
@@ -725,21 +924,90 @@ Event OnMenuClose(String menuName)
     endif
 EndEvent
 
+Event OnMusicFadeSetVolume(String eventName, String strArg, Float numArg, Form sender)
+    SoundCategory cat = sender as SoundCategory
+    if !cat
+        return
+    endif
+
+    Int token = ParseMusicFadeEventToken(strArg)
+    if !AcceptMusicFadeEventToken(token, "set-volume")
+        return
+    endif
+
+    String phase = ExtractMusicFadeEventField(strArg, "phase")
+    String kind = ExtractMusicFadeEventField(strArg, "kind")
+    Int step = ParseMusicFadeEventStep(strArg)
+    if !AcceptMusicFadeVolumeOrder(token, step, kind)
+        return
+    endif
+
+    Float volume = ClampMusicFadeVolume(numArg)
+    _musicFadeActive = True
+
+    cat.SetVolume(volume)
+    if kind == "final" || kind == "recovery"
+        MarkMusicFadeFinalVolumeApplied(token)
+    endif
+
+    LogUI(IronSoulConfig.LOG_DBG(), "Music fade volume applied: token=" + token \
+        + " phase=" + phase \
+        + " kind=" + kind \
+        + " step=" + step \
+        + " volume=" + volume, True)
+EndEvent
+
 Event OnMusicFadeComplete(String eventName, String strArg, Float numArg, Form sender)
     SoundCategory cat = sender as SoundCategory
     if !cat
         return
     endif
 
-    _musicFadeActive = IronSoulNative.MusicFadeIsActive()
+    String phase = ExtractMusicFadeEventField(strArg, "phase")
+    if phase == ""
+        phase = strArg
+    endif
+    String kind = ExtractMusicFadeEventField(strArg, "kind")
+    Int token = ParseMusicFadeEventToken(strArg)
 
-    LogUI(IronSoulConfig.LOG_DBG(), "Music fade complete: phase=" + strArg \
+    if token <= 0
+        _musicFadeActive = IronSoulNative.MusicFadeIsActive()
+        LogUI(IronSoulConfig.LOG_INFO(), "Music fade untokened completion synchronized from native: phase=" + phase \
+            + " final=" + numArg \
+            + " active=" + _musicFadeActive, True)
+        return
+    endif
+
+    if !AcceptMusicFadeEventToken(token, "complete")
+        return
+    endif
+
+    Bool nativeFadeActive = IronSoulNative.MusicFadeIsActive()
+    _musicFadeActive = nativeFadeActive
+
+    LogUI(IronSoulConfig.LOG_DBG(), "Music fade complete: token=" + token \
+        + " phase=" + phase \
+        + " kind=" + kind \
         + " final=" + numArg \
         + " active=" + _musicFadeActive \
         + " pendingMenuRefresh=" + _menuMusicVolumeRefreshPending, True)
 
-    if strArg == "in" && !_musicFadeActive && _menuMusicVolumeRefreshPending
-        RefreshConfiguredMusicVolumeCache("pending-menu-close-after-fade")
+    if phase == "in" && !nativeFadeActive
+        if !HasMusicFadeFinalVolumeApplied(token)
+            Float finalVolume = ClampMusicFadeVolume(numArg)
+            cat.SetVolume(finalVolume)
+            MarkMusicFadeFinalVolumeApplied(token)
+            LogUI(IronSoulConfig.LOG_INFO(), "Music fade completion applied missing final volume: token=" + token \
+                + " final=" + finalVolume, True)
+        endif
+
+        _musicFadeTokenValid = False
+        _musicFadeAwaitingNewToken = False
+        ClearMusicFadeFinalVolumeState()
+        ClearMusicFadeVolumeOrderState()
+        if _menuMusicVolumeRefreshPending
+            RefreshConfiguredMusicVolumeCache("pending-menu-close-after-fade")
+        endif
     endif
 EndEvent
 
