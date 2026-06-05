@@ -141,7 +141,7 @@ Bool _requiemCompatibilityEnabled = True
 Bool _cosaveRecoveryBackupEnabled = True
 Bool _redTintOnDeathEnabled = True
 Bool _ironSoulIntroEnabled = True
-Int _ironSoulIntroDelaySeconds = 24
+Int _ironSoulIntroDelaySeconds = 27
 Bool _heartshardMessageEnabled = True
 Bool _heartshardNotificationEnabled = True
 Int _heartshardInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
