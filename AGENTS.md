@@ -52,6 +52,20 @@ Set-Location -LiteralPath $repo
 ```
 
 
+AutoHotkey / ExplorerFix Rules
+------------------------------
+
+- AutoHotkey v2 scripts must be run with `C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe`.
+- Use `/ErrorStdOut /Validate` before starting or testing background AHK scripts.
+- For helper-mode tests, use `/ErrorStdOut` so syntax and runtime failures appear in the terminal instead of GUI popups.
+- Do not use compact comma assignments before by-ref calls like `WinGetPos`; initialize each variable on its own line.
+- Avoid writing AHK backtick escape strings such as ``"`n"`` through PowerShell double-quoted content. Prefer AHK `Chr(10)` and `Chr(13)` where practical.
+- If an AHK script uses a Local AppData runtime/helper copy, refresh and validate that copy after source edits.
+- When stopping ExplorerFix, kill only AutoHotkey processes whose command line contains `ExplorerFix.ahk` or `ExplorerFixSnapshotRuntime.ahk`.
+- Never use `taskkill /t` when restarting Explorer; it can kill Explorer child processes such as `NEMESIS.exe`.
+- Background hotkey scripts that defend against Explorer hangs must not call `Shell.Application.Windows` in the resident hotkey path; use a short-lived helper process with a timeout.
+
+
 xEdit / ESP Inspection
 ----------------------
 
@@ -179,7 +193,7 @@ COMPILE  Compile all Papyrus source scripts and refresh only changed repo .pex f
 DIFF     Show changed files and propose intelligent commit splits.
 DLL      Build and refresh mod/SKSE/plugins/ironsoul.dll.
 IMPLEMENT Execute the latest SUGGEST implementation proposal.
-LOG      Build tools/ironsoul.log, summarize it, then open it in VS Code.
+LOG      Build logs\ironsoul.log, summarize it, then open it in VS Code.
 MSG      Generate a commit message for the currently staged files.
 OINI     Open the repo INI in VS Code.
 OINI2    Open the LoreRim+ Overwrite INI in VS Code for inspection.
@@ -201,7 +215,7 @@ Command behavior:
 - `DIFF`: Report current git status, diff stats, and important changed files without modifying the worktree. Then propose an intelligent commit plan with commit groups, file lists, and commit messages that follow `docs/commit-style.md`. Use multiple commits when changes are independently revertible. Write detailed bullet-list commit bodies for complex, cross-system, risky, or hard-to-infer changes, especially scripts, native source, public config, persistence, generated outputs, and user-facing text. Use discretion for simple commits: when the subject fully explains a narrow docs, asset, formatting, or housekeeping change, propose a subject-only message with no body. If the user has asked to ignore specific files for the current plan, leave those files out of the proposed commits and list them separately as intentionally unplanned. Group `mod/SKSE/plugins/ironsoul.dll` with the matching `dev/projects/ironsoul/src` source commit when native source changes exist; propose a standalone `build(native)` commit only for an explicit DLL-only refresh. State that `COMMIT` will execute this proposal if the worktree is unchanged.
 - `DLL`: Treat the `DLL` command itself as the explicit user request to refresh the repo DLL. State that `mod/SKSE/plugins/ironsoul.dll` will be refreshed on success, then run `tools/build-skse-plugin.ps1 -RefreshRepoDll` without asking for another chat confirmation.
 - `IMPLEMENT`: Treat the `IMPLEMENT` command as confirmation to execute the latest `SUGGEST` proposal or the latest explicit implementation plan proposed in chat. Before editing, verify the current request, repo context, and worktree still match that proposal; if no current proposal exists, or if the context has changed enough that the proposal may be stale, run `SUGGEST` behavior and stop instead of editing. When executing, make the narrow proposed code/file changes, run the relevant verification, refresh generated artifacts when project rules require it, and report changed files and checks. Do not stage or commit unless the user separately asks.
-- `LOG`: Run `tools/build-ironsoul-log.bat`, then summarize `tools/ironsoul.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\tools\ironsoul.log"`.
+- `LOG`: Run `tools/build-ironsoul-log.bat`, then summarize `logs\ironsoul.log`. Open the generated log in VS Code with `code --reuse-window "C:\Repositories\Iron Soul\logs\ironsoul.log"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\logs\ironsoul.log"`.
 - `MSG`: Read only the currently staged files and staged diff needed to understand them, then generate a commit message in chat that follows `docs/commit-style.md`. Do not edit files, stage, commit, inspect unstaged changes, refresh generated artifacts, build, compile, launch GUI tools, or open files in external editors. If no files are staged, say so and stop.
 - `OINI`: Open `C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini` in VS Code. Use `code --reuse-window "C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "C:\Repositories\Iron Soul\mod\SKSE\plugins\ironsoul.ini"`.
 - `OINI2`: Open `G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini` in VS Code for inspection only. Use `code --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. If `code` is unavailable, use `& "C:\Program Files\Microsoft VS Code\bin\code.cmd" --reuse-window "G:\Modding\LoreRim\Mod Organizer\mods\[NoDelete] LoreRim+ Overwrite\SKSE\Plugins\ironsoul.ini"`. Do not manually edit the overwrite INI.

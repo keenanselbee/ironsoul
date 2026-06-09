@@ -9,7 +9,7 @@ mod/SKSE/plugins/ironsoul-character-data.dat.tmp
 mod/SKSE/plugins/ironsoul-character-mirror-data.dat
 mod/SKSE/plugins/ironsoul-character-mirror-data.dat.tmp
 reference/
-tools/ironsoul.log
+logs/
 heartshard_vertex_color_notes.md
 
 # Local SKSE build environment. Keep only the Iron Soul plugin project slice.
