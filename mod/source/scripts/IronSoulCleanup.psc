@@ -121,6 +121,9 @@ Function RemoveGuidTrackedData(Actor player, String guid, Bool deleteMainData = 
     if Controller.Tiers
         Controller.Tiers.RemoveTrackedData(player, guid, deleteMainData, unsetCosave)
     endif
+    if Controller.Sunderhearts
+        Controller.Sunderhearts.RemoveTrackedData(player, guid, deleteMainData, unsetCosave)
+    endif
     if Controller.DragonSoulRevive
         Controller.DragonSoulRevive.RemoveTrackedData(player, guid, deleteMainData, unsetCosave)
     endif

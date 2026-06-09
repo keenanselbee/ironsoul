@@ -47,10 +47,10 @@ subs:
     alias: rt
     func: ResetTier
     help: Clears manual tier override and restores the current organic tier. Requires EnableDebug=1.
-  - name: ResetHeartshards
-    alias: rhs
-    func: ResetHeartshards
-    help: Resets account-wide Heartshards absorbed, unlocked, and unlock catalog for all characters. Requires EnableDebug=1 and a second identical command within 10 seconds.
+  - name: ResetSunderhearts
+    alias: rsh
+    func: ResetSunderhearts
+    help: Resets shared Sunderhearts absorbed, unlocked, and unlock catalog for all characters. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: SetLuck
     alias: sl
     func: SetLuck
@@ -84,22 +84,22 @@ subs:
   - name: ResetCharacterData
     alias: rcd
     func: ResetCharacterData
-    help: Resets Iron Soul tracked data for the current character only. Account-wide Heartshards are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
+    help: Resets Iron Soul tracked data for the current character only. Shared Sunderhearts are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: PurgeData
     alias: pd
     func: PurgeData
-    help: Purges Iron Soul tracked data for all characters except the current character. Account-wide Heartshards are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
+    help: Purges Iron Soul tracked data for all characters except the current character. Shared Sunderhearts are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: GetData
     alias: gdat
     func: GetData
-    help: "Gets current-character CharacterData values. Optional section: identity, account, core, luck, ui, soul, dsr, bosses, defiant, or journal. Requires EnableDebug=1."
+    help: "Gets current-character CharacterData values. Optional section: identity, shared, core, luck, ui, soul, dsr, bosses, defiant, or journal. Requires EnableDebug=1."
     args:
       - name: section
         alias: -s
         type: String
         default: ""
         required: false
-        help: "Optional section: identity, account, core, luck, ui, soul, dsr, bosses, defiant, or journal."
+        help: "Optional section: identity, shared, core, luck, ui, soul, dsr, bosses, defiant, or journal."
   - name: SetData
     alias: sdat
     func: SetData

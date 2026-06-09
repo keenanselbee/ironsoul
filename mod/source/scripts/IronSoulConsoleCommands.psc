@@ -25,8 +25,8 @@ Scriptname IronSoulConsoleCommands Hidden
 ;   Example: is st 4 f
 ; - ResetTier  (alias: rt)   -> ResetTier()
 ;   Example: is rt
-; - ResetHeartshards (alias: rhs) -> ResetHeartshards()
-;   Example: is rhs
+; - ResetSunderhearts (alias: rsh) -> ResetSunderhearts()
+;   Example: is rsh
 ; - SetLuck    (alias: sl)   -> SetLuck(Int luck)
 ;   Example: is sl 42
 ; - SetDeaths  (alias: sd)   -> SetDeaths(Int deaths)
@@ -88,6 +88,7 @@ Scriptname IronSoulConsoleCommands Hidden
 ; IsCosaveRecoveryBackupEnabled()
 ; MakeScopedKey()
 ; ResolveGuid()
+; IsCurrentCharacterTest()
 ; ReadScopedInt()
 ; WriteScopedInt()
 ; WriteScopedIntChecked()
@@ -99,9 +100,9 @@ Scriptname IronSoulConsoleCommands Hidden
 ; ResolveKnownDataBase()
 ; KnownDataValueType()
 ; IsAllowedRawDataBase()
-; IsHeartshardUsedDataKey()
-; IsAccountWideDataKey()
-; SyncAccountWideDataMirror()
+; IsSunderheartUsedDataKey()
+; IsSharedDataKey()
+; SyncSharedDataMirror()
 ; ResolveDataTargetKey()
 ; TierLabel()
 ; DifficultyLabel()
@@ -132,7 +133,7 @@ Scriptname IronSoulConsoleCommands Hidden
 ; SetDeaths()
 ; SetDragonSoulsState()
 ; ResetTier()
-; ResetHeartshards()
+; ResetSunderhearts()
 ; ResetCharacterData()
 ; PurgeData()
 ; GetData()
@@ -314,6 +315,19 @@ String Function ResolveGuid(Actor playerRef, IronSoulController controller = Non
     return StorageUtil.GetStringValue(playerRef, "IS_9975", "")
 EndFunction
 
+Bool Function IsCurrentCharacterTest(Actor playerRef, IronSoulController controller = None) Global
+    if !playerRef
+        return False
+    endif
+    if !controller
+        controller = ResolveControllerQuest()
+    endif
+    if controller && controller.Identity
+        return controller.Identity.IsCurrentCharacterTest(playerRef)
+    endif
+    return False
+EndFunction
+
 Int Function ReadScopedInt(Actor playerRef, String keyBase, Int fallback) Global
     String guid = ResolveGuid(playerRef)
     if guid == ""
@@ -466,8 +480,8 @@ String Function NormalizeDataRawKey(String keyText, String guid) Global
         endif
         return keyText
     endif
-    if StartsWithText(keyText, "hs.u.")
-        return "HS.U." + StringUtil.Substring(keyText, 5)
+    if StartsWithText(keyText, "sh.u.")
+        return "SH.U." + StringUtil.Substring(keyText, 5)
     endif
 
     if StartsWithText(keyText, "is_") && StringUtil.GetLength(keyText) == 7
@@ -535,11 +549,11 @@ String Function ResolveKnownDataBase(String keyText, String guid) Global
         return "IS_9646"
     elseif keyText == "DragonSoulsLastSeenLive" || keyText == "dragonsoulslastseenlive" || keyText == "IS_7440"
         return "IS_7440"
-    elseif keyText == "HeartshardsTotal" || keyText == "heartshardstotal" || keyText == "HeartshardsAbsorbed" || keyText == "heartshardsabsorbed" || keyText == "IS_2740"
-        return "IS_2740"
-    elseif keyText == "HeartshardsUnlocked" || keyText == "heartshardsunlocked" || keyText == "IS_2741"
-        return "IS_2741"
-    elseif IsHeartshardUsedDataKey(keyText)
+    elseif keyText == "SunderheartsTotal" || keyText == "sunderheartstotal" || keyText == "SunderheartsAbsorbed" || keyText == "sunderheartsabsorbed" || keyText == "SH.T"
+        return "SH.T"
+    elseif keyText == "SunderheartsUnlocked" || keyText == "sunderheartsunlocked" || keyText == "SH.U"
+        return "SH.U"
+    elseif IsSunderheartUsedDataKey(keyText)
         return keyText
     elseif keyText == "DragonSoulReviveLimitLastRealSecond" || keyText == "dragonsoulrevivelimitlastrealsecond" || keyText == "IS_8201"
         return "IS_8201"
@@ -587,13 +601,13 @@ Int Function KnownDataValueType(String keyBase) Global
         || keyBase == "IS_8597" || keyBase == "IS_9921" || keyBase == "IS_4797" || keyBase == "IS_4513" \
         || keyBase == "IS_1155" || keyBase == "IS_1156" || keyBase == "IS_2204" || keyBase == "IS_2719" \
         || keyBase == "IS_4520" || keyBase == "IS_4779" || keyBase == "IS_9646" || keyBase == "IS_7440" \
-        || keyBase == "IS_2740" || keyBase == "IS_2741" \
+        || keyBase == "SH.T" || keyBase == "SH.U" \
         || keyBase == "IS_8201" || keyBase == "IS_8202" || keyBase == "IS_8203" || keyBase == "IS_8204" \
         || keyBase == "IS_8205" || keyBase == "IS_4911" || keyBase == "IS_9897" || keyBase == "IS_9808" \
         || keyBase == "IS_1627" || keyBase == "IS_1989" || keyBase == "IS_9131" || keyBase == "IS_9136" \
         || keyBase == "IS_9137" || keyBase == "IS_5341" || keyBase == "IS_2270" || keyBase == "IS_1927"
         return 1
-    elseif IsHeartshardUsedDataKey(keyBase)
+    elseif IsSunderheartUsedDataKey(keyBase)
         return 1
     endif
 
@@ -610,8 +624,8 @@ Bool Function IsAllowedRawDataBase(String keyBase) Global
     return True
 EndFunction
 
-Bool Function IsHeartshardUsedDataKey(String keyBase) Global
-    if !StartsWithText(keyBase, "HS.U.")
+Bool Function IsSunderheartUsedDataKey(String keyBase) Global
+    if !StartsWithText(keyBase, "SH.U.")
         return False
     endif
 
@@ -635,18 +649,23 @@ Bool Function IsHeartshardUsedDataKey(String keyBase) Global
     return True
 EndFunction
 
-Bool Function IsAccountWideDataKey(String keyBase) Global
-    return keyBase == "IS_2740" || keyBase == "IS_2741" || IsHeartshardUsedDataKey(keyBase)
+Bool Function IsSharedDataKey(String keyBase) Global
+    return keyBase == "SH.T" || keyBase == "SH.U" || keyBase == "DS.T" || IsSunderheartUsedDataKey(keyBase)
 EndFunction
 
-Function SyncAccountWideDataMirror(Actor playerRef, String keyBase) Global
-    if keyBase != "IS_2740"
+Function SyncSharedDataMirror(Actor playerRef, String keyBase) Global
+    if keyBase != "SH.T" && keyBase != "DS.T"
         return
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if controller && controller.Globals
-        controller.Globals.SyncHeartshards(playerRef)
+        String guid = ResolveGuid(playerRef, controller)
+        if keyBase == "SH.T"
+            controller.Globals.SyncSunderhearts(playerRef, guid)
+        else
+            controller.Globals.SyncDragonSouls(playerRef, guid)
+        endif
     endif
 EndFunction
 
@@ -657,7 +676,7 @@ String Function ResolveDataTargetKey(String keyBase, String guid) Global
         return "G.U.INDEX"
     elseif keyBase == "CharacterGuid"
         return ""
-    elseif IsAccountWideDataKey(keyBase)
+    elseif IsSharedDataKey(keyBase)
         return keyBase
     endif
 
@@ -926,10 +945,10 @@ EndFunction
 String Function GetHelp(String helpTopic = "") Global
     if helpTopic == "h" || helpTopic == "H" || helpTopic == "hidden" || helpTopic == "Hidden" || helpTopic == "HIDDEN"
         return "Iron Soul hidden commands (EnableDebug required):\n" \
-            + "rcd: reset current character data; preserves account Heartshards; double-confirm.\n" \
-            + "pd: purge non-current character data; preserves account Heartshards; double-confirm.\n" \
-            + "rhs: reset account-wide Heartshards absorbed, unlocked, and unlock catalog; double-confirm.\n" \
-            + "gdat [section]: get current character data; sections: identity, account, core, luck, ui, soul, dsr, bosses, defiant, journal.\n" \
+            + "rcd: reset current character data; preserves shared Sunderhearts; double-confirm.\n" \
+            + "pd: purge non-current character data; preserves shared Sunderhearts; double-confirm.\n" \
+            + "rsh: reset shared Sunderhearts absorbed, unlocked, and unlock catalog; double-confirm.\n" \
+            + "gdat [section]: get current character data; sections: identity, shared, core, luck, ui, soul, dsr, bosses, defiant, journal.\n" \
             + "sdat <key> <value>: set current character data."
     endif
 
@@ -977,8 +996,8 @@ String Function GetIronSoulState() Global
     if !controller.Effects
         return "Error: IronSoulEffects is not wired."
     endif
-    if !controller.Heartshards
-        return "Error: IronSoulHeartshards is not wired."
+    if !controller.Sunderhearts
+        return "Error: IronSoulSunderhearts is not wired."
     endif
     if !controller.Luck
         return "Error: IronSoulLuck is not wired."
@@ -990,8 +1009,8 @@ String Function GetIronSoulState() Global
     Int deathValue = ClampDeaths(controller.Death.GetCurrentDeathCount(playerRef, guid))
     Int totalDeathValue = ClampDeaths(controller.Death.GetTotalDeaths(playerRef, guid))
     Int soulsTotal = ClampDeaths(controller.Tiers.GetDragonSoulsTotal(playerRef, guid))
-    Int heartshardsAbsorbed = ClampDeaths(controller.Heartshards.GetHeartshardsTotal(playerRef))
-    Int heartshardsUnlocked = ClampDeaths(controller.Heartshards.GetHeartshardsUnlocked(playerRef))
+    Int sunderheartsAbsorbed = ClampDeaths(controller.Sunderhearts.GetSunderheartsTotal(playerRef))
+    Int sunderheartsUnlocked = ClampDeaths(controller.Sunderhearts.GetSunderheartsUnlocked(playerRef))
     Int nowSec = Utility.GetCurrentRealTime() as Int
     controller.Luck.EnsureLoaded(playerRef, guid, nowSec)
     Int maxLuck = controller.Luck.GetCurrentMax(playerRef, guid)
@@ -1011,8 +1030,8 @@ String Function GetIronSoulState() Global
         + " | Luck=" + luck + "/" + maxLuck \
         + "\n" \
         + "TotalDragonSouls=" + soulsTotal \
-        + " | HeartshardsAbsorbed=" + heartshardsAbsorbed \
-        + " | HeartshardsUnlocked=" + heartshardsUnlocked \
+        + " | SunderheartsAbsorbed=" + sunderheartsAbsorbed \
+        + " | SunderheartsUnlocked=" + sunderheartsUnlocked \
         + " | SoulBonus=" + soulBonusState \
         + " | SoulFatigue=" + soulFatigueState
 EndFunction
@@ -1182,7 +1201,7 @@ String Function ResetTier() Global
     return controller.Tiers.ResetTierFromConsole(playerRef, guid)
 EndFunction
 
-String Function ResetHeartshards() Global
+String Function ResetSunderhearts() Global
     if !IsDebugEnabled()
         return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
     endif
@@ -1203,21 +1222,24 @@ String Function ResetHeartshards() Global
     if !controller.Cleanup
         return "Error: IronSoulCleanup component is not available."
     endif
-    if !controller.Heartshards
-        return "Error: IronSoulHeartshards is not wired."
+    if !controller.Sunderhearts
+        return "Error: IronSoulSunderhearts is not wired."
+    endif
+    if IsCurrentCharacterTest(playerRef, controller)
+        return "Test character: shared Sunderhearts are not used and were not reset."
     endif
 
-    if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("resetheartshards", guid)
-        controller.Cleanup.ArmDestructiveCommandConfirmation("resetheartshards", guid, 10.0)
-        return "This will reset account-wide Heartshards absorbed, unlocked, and unlock catalog for all characters. Enter is resetheartshards or is rhs again within 10 seconds to confirm."
+    if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("resetsunderhearts", guid)
+        controller.Cleanup.ArmDestructiveCommandConfirmation("resetsunderhearts", guid, 10.0)
+        return "This will reset shared Sunderhearts absorbed, unlocked, and unlock catalog for all characters. Enter is resetsunderhearts or is rsh again within 10 seconds to confirm."
     endif
 
-    Int deletedCatalogKeys = controller.Heartshards.ResetAccountHeartshardData(playerRef)
+    Int deletedCatalogKeys = controller.Sunderhearts.ResetSharedSunderheartData(playerRef)
     if deletedCatalogKeys < 0
-        return "Error: failed to reset account-wide Heartshards."
+        return "Error: failed to reset shared Sunderhearts."
     endif
 
-    return "Account-wide Heartshards reset. Deleted " + deletedCatalogKeys + " unlock catalog key(s)."
+    return "Shared Sunderhearts reset. Deleted " + deletedCatalogKeys + " unlock catalog key(s)."
 EndFunction
 
 String Function ResetCharacterData() Global
@@ -1244,14 +1266,14 @@ String Function ResetCharacterData() Global
 
     if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("resetcharacterdata", guid)
         controller.Cleanup.ArmDestructiveCommandConfirmation("resetcharacterdata", guid, 10.0)
-        return "This will reset Iron Soul tracked data for the current character only. Account-wide Heartshards are preserved. Enter is resetcharacterdata or is rcd again within 10 seconds to confirm."
+        return "This will reset Iron Soul tracked data for the current character only. Shared Sunderhearts are preserved. Enter is resetcharacterdata or is rcd again within 10 seconds to confirm."
     endif
 
     if !controller.Cleanup.ResetCurrentCharacterData(playerRef, guid)
         return "Error: failed to reset Iron Soul tracked data for the current character."
     endif
 
-    return "Current character Iron Soul data reset to fresh state. Account-wide Heartshards were preserved. Boss completion flags may reapply later if this save already reports those quests complete."
+    return "Current character Iron Soul data reset to fresh state. Shared Sunderhearts were preserved. Boss completion flags may reapply later if this save already reports those quests complete."
 EndFunction
 
 String Function PurgeData() Global
@@ -1278,7 +1300,7 @@ String Function PurgeData() Global
 
     if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("purgedata", guid)
         controller.Cleanup.ArmDestructiveCommandConfirmation("purgedata", guid, 10.0)
-        return "This will purge Iron Soul tracked data for all characters except the current character. Account-wide Heartshards are preserved. Enter is purgedata or is pd again within 10 seconds to confirm."
+        return "This will purge Iron Soul tracked data for all characters except the current character. Shared Sunderhearts are preserved. Enter is purgedata or is pd again within 10 seconds to confirm."
     endif
 
     Int purgedCount = controller.Cleanup.PurgeHistoricalCharacterData(guid)
@@ -1286,7 +1308,7 @@ String Function PurgeData() Global
     if purgedCount == 1
         suffix = ""
     endif
-    return "Purged Iron Soul data for " + purgedCount + " non-current character" + suffix + ". Current character data and account-wide Heartshards were not changed."
+    return "Purged Iron Soul data for " + purgedCount + " non-current character" + suffix + ". Current character data and shared Sunderhearts were not changed."
 EndFunction
 
 String Function GetData(String section = "") Global
@@ -1349,6 +1371,9 @@ String Function SetData(String k, String value) Global
     if valueType == 0 && !IsAllowedRawDataBase(keyBase)
         return "Error: unknown global data key '" + k + "'. Use a friendly key, current-character raw key, G.U.INDEX, or G.U.<currentGuid>."
     endif
+    if IsSharedDataKey(keyBase) && IsCurrentCharacterTest(playerRef)
+        return "Test character: shared progress key '" + keyBase + "' was not changed."
+    endif
 
     String targetKey = ResolveDataTargetKey(keyBase, guid)
     if targetKey == ""
@@ -1362,7 +1387,7 @@ String Function SetData(String k, String value) Global
 
         Int intValue = value as Int
         Bool intWriteOk = False
-        if IsAccountWideDataKey(keyBase)
+        if IsSharedDataKey(keyBase)
             intWriteOk = IronSoulNative.DataSetIntChecked(targetKey, intValue)
         elseif StartsWithText(keyBase, "IS_")
             intWriteOk = WriteScopedIntChecked(playerRef, keyBase, intValue)
@@ -1372,7 +1397,7 @@ String Function SetData(String k, String value) Global
         if !intWriteOk
             return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
         endif
-        SyncAccountWideDataMirror(playerRef, keyBase)
+        SyncSharedDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
         return "Set " + targetKey + "=" + intValue + "."
     elseif valueType == 2
@@ -1386,7 +1411,7 @@ String Function SetData(String k, String value) Global
     if IsStrictIntText(value)
         Int inferredIntValue = value as Int
         Bool inferredIntWriteOk = False
-        if IsAccountWideDataKey(keyBase)
+        if IsSharedDataKey(keyBase)
             inferredIntWriteOk = IronSoulNative.DataSetIntChecked(targetKey, inferredIntValue)
         elseif StartsWithText(keyBase, "IS_")
             inferredIntWriteOk = WriteScopedIntChecked(playerRef, keyBase, inferredIntValue)
@@ -1396,7 +1421,7 @@ String Function SetData(String k, String value) Global
         if !inferredIntWriteOk
             return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
         endif
-        SyncAccountWideDataMirror(playerRef, keyBase)
+        SyncSharedDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
         return "Set " + targetKey + "=" + inferredIntValue + "."
     endif

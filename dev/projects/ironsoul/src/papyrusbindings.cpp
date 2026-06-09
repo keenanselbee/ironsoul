@@ -7,7 +7,7 @@
 #include "papyrus_data.h"
 #include "papyrus_dynamicassets.h"
 #include "papyrus_healthmonitor.h"
-#include "papyrus_heartshards.h"
+#include "papyrus_sunderhearts.h"
 #include "papyrus_itemselect.h"
 #include "papyrus_journal.h"
 #include "papyrus_menublocker.h"
@@ -40,7 +40,7 @@ namespace IronSoul::Papyrus
             Cursor::Register(a_vm);
             MenuBlocker::Register(a_vm);
             Data::Register(a_vm);
-            Heartshards::Register(a_vm);
+            Sunderhearts::Register(a_vm);
             return true;
         });
 

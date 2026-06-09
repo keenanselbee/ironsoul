@@ -8,6 +8,7 @@ Scriptname IronSoulTiers extends Quest
 ; -------------------------
 ; HasCoreRuntime()
 ; HasPersistenceRuntime()
+; CanWriteSharedProgression()
 ; LogTiers()
 ; LogTiersSnapshot()
 
@@ -30,6 +31,7 @@ Scriptname IronSoulTiers extends Quest
 ; SyncTierDynamicAssets()
 ; SyncTierGlobalMirrors()
 ; GetDragonSoulsTotal()
+; GetDragonSoulsTotalShared()
 ; SetDragonSoulsTotalFromConsole()
 ; IsManualTierOverrideActive()
 ; SetManualTierOverrideActive()
@@ -55,6 +57,9 @@ Scriptname IronSoulTiers extends Quest
 ; ClearDefiantState()
 ; IsDefiantSoulFatigueTerminal()
 ; TryRestoreFromDefiant()
+; CommitDefiantTransitionStateForDeath()
+; CommitCHIMTransitionStateForDeath()
+; SyncCommittedTierStateAfterDeath()
 ; PromoteToDefiantTier()
 ; PromoteToCHIMTier()
 
@@ -128,7 +133,7 @@ Quest Property DLC2MQ06 Auto
 Sound Property SFXCHIMTransition Auto
 Sound Property SFXDefiantRestore Auto
 Sound Property SFXDefiantTransition Auto
-Sound Property SFXHeartshardAbsorb Auto
+Sound Property SFXSunderheartAbsorb Auto
 Sound Property SFXFeatUnlock Auto
 
 ; Soul / feats
@@ -137,6 +142,7 @@ String Property manualTierOverrideActive   = "IS_2719" AutoReadOnly
 String Property ebonFeatVariant            = "IS_4520" AutoReadOnly
 String Property platinumFeatVariant        = "IS_4779" AutoReadOnly
 String Property dragonSoulsTotal           = "IS_9646" AutoReadOnly
+String Property dragonSoulsTotalShared     = "DS.T" AutoReadOnly ; Shared accepted Dragon Soul counter.
 String Property dragonSoulsLastSeen        = "IS_7440" AutoReadOnly
 
 ; Narrative / UI one-shots
@@ -215,6 +221,13 @@ Bool Function HasPersistenceRuntime()
     endif
     if !Controller.Persistence
         return False
+    endif
+    return True
+EndFunction
+
+Bool Function CanWriteSharedProgression(Actor player)
+    if player && Controller && Controller.Identity
+        return !Controller.Identity.IsCurrentCharacterTest(player)
     endif
     return True
 EndFunction
@@ -331,9 +344,14 @@ Function Heartbeat(Actor player, String guid)
 
         if accepted > 0
             Int soulsTotal = GetDragonSoulsTotal(player, guid)
+            Bool writeSharedProgression = CanWriteSharedProgression(player)
+            Int sharedSoulsTotal = GetDragonSoulsTotalShared(player)
             Int j = 0
             while j < accepted
                 soulsTotal += 1
+                if writeSharedProgression
+                    sharedSoulsTotal += 1
+                endif
                 Controller.Persistence.SetGuidInt(player, guid, dragonSoulsTotal, soulsTotal, True)
 
                 Int liveTierNow = GetCurrentTier(player, guid)
@@ -344,6 +362,9 @@ Function Heartbeat(Actor player, String guid)
 
                 j += 1
             endwhile
+            if writeSharedProgression
+                Controller.Persistence.SetSharedInt(dragonSoulsTotalShared, sharedSoulsTotal, True)
+            endif
             if Controller.Globals
                 Controller.Globals.SyncDragonSouls(player, guid)
             endif
@@ -450,6 +471,16 @@ Int Function GetDragonSoulsTotal(Actor player, String guid)
         return 0
     endif
     return Controller.Persistence.GetGuidInt(player, guid, dragonSoulsTotal, 0)
+EndFunction
+
+Int Function GetDragonSoulsTotalShared(Actor player = None)
+    if !Controller || !Controller.Persistence
+        return 0
+    endif
+    if player && Controller.Identity && Controller.Identity.IsCurrentCharacterTest(player)
+        return 0
+    endif
+    return Controller.Persistence.GetSharedInt(dragonSoulsTotalShared, 0)
 EndFunction
 
 String Function SetDragonSoulsTotalFromConsole(Actor player, String guid, Int totalValue)
@@ -707,6 +738,45 @@ Bool Function TryRestoreFromDefiant(Actor player, String guid)
 
     PlayDefiantRestoreSWF(player, restoreMenu, True)
     return True
+EndFunction
+
+Function CommitCHIMTransitionStateForDeath(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
+    endif
+
+    ClearDefiantState(player, guid)
+    SetCHIMEnteredByConsole(player, guid, False)
+    SetManualTierOverrideActive(player, guid, False)
+    Controller.Persistence.SetGuidInt(player, guid, soulTierIndex, TIER_CHIM, True)
+    IronSoulNative.DataFlushIfDirty()
+EndFunction
+
+Function CommitDefiantTransitionStateForDeath(Actor player, String guid, Int storedTier = -1)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
+    endif
+
+    if Controller.Persistence.GetGuidInt(player, guid, defiantFeatUnlocked, 0) != 1
+        Controller.Persistence.SetGuidInt(player, guid, defiantFeatUnlocked, 1, True)
+    endif
+
+    InitializeDefiantState(player, guid, storedTier)
+    SetDefiantEnteredByConsole(player, guid, False)
+    SetManualTierOverrideActive(player, guid, False)
+    Controller.Persistence.SetGuidInt(player, guid, soulTierIndex, TIER_DEFIANT, True)
+    IronSoulNative.DataFlushIfDirty()
+EndFunction
+
+Function SyncCommittedTierStateAfterDeath(Actor player, String guid, Int tier)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
+    endif
+
+    SyncTierLuckState(player, guid)
+    SyncTierPresentationState(player, guid)
+    SyncTierDynamicAssets(tier)
+    SyncTierGlobalMirrors(player, guid)
 EndFunction
 
 Function PromoteToCHIMTier(Actor player, String guid)
@@ -1339,8 +1409,8 @@ Bool Function CanPlayTierSFX(Sound sfx)
         return Controller.Config.IsCHIMTransitionSFXEnabled()
     elseif sfx == SFXDefiantRestore
         return Controller.Config.IsDefiantRestoreSFXEnabled()
-    elseif sfx == SFXHeartshardAbsorb
-        return Controller.Config.IsHeartshardAbsorbSFXEnabled()
+    elseif sfx == SFXSunderheartAbsorb
+        return Controller.Config.IsSunderheartAbsorbSFXEnabled()
     elseif sfx == SFXFeatUnlock
         return Controller.Config.IsFeatUnlockSFXEnabled()
     endif

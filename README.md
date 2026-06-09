@@ -7,7 +7,7 @@ Iron Soul: Dead God's Dream
 ===========================
 
 Iron Soul is a permadeath roguelite system for Skyrim with configurable death rules, Dragon Soul Revive,
-and persistent progression, expanding into a multi-character saga built around Heartshards, escalating undead pressure,
+and persistent progression, expanding into a multi-character saga built around Sunderhearts, escalating undead pressure,
 and the dreams of a dead god.
 
 Version
@@ -44,7 +44,7 @@ Systems
 Anima
 
 Anima replaces dragon souls as the primary soul-tier progression currency. Anima and unlocked Soul Tiers are
-account-wide, making Iron Soul progression persist across characters for a stronger roguelite loop.
+shared progress, making Iron Soul progression persist across characters for a stronger roguelite loop.
 
 Soul Tier unlock targets:
 
@@ -58,11 +58,11 @@ Soul Tier unlock targets:
 | Devour Soul   | 5,000 Anima + 50 dragon souls |
 ```
 
-- Add account-wide Anima storage and account-wide Soul Tier unlock persistence.
+- Add shared Anima storage and shared Soul Tier unlock persistence.
 - Convert Soul Tier unlocking from dragon-soul thresholds to Anima thresholds, keeping dragon souls as an additional Devour Soul requirement.
 - Add Anima death rewards from tiered sources: draugr and other undead, dragon priests, dragons, and major bosses.
 - Add major Anima payouts for saga bosses such as Alduin, Harkon, and Miraak.
-- Add Heartshard use option `Absorb Anima`; when selected, the consumed Heartshard grants Anima based on its Heartshard tier.
+- Add Sunderheart use option `Absorb Anima`; when selected, the consumed Sunderheart grants Anima based on its Sunderheart tier.
 - Block Anima gain while the character is in Defiant Soul, preventing new Soul Tier unlocks during Defiant runs.
 - Assign Anima-bearing enemies a Soul Level that drives both their Anima reward and Soul Vigor behavior.
 - Draft Soul Levels: draugr/undead = 1, dragon priests = 2, dragons = 3, Alduin = 4, Miraak = 5; assign Harkon and other major bosses during tuning.
@@ -111,28 +111,28 @@ Dragon reward draft:
 
 - Keep common undead rewards low so Nordic ruins remain steady progress instead of tier skips.
 - Make dragon priests and named undead boss kills feel like real Anima milestones without replacing dragons.
-- Make major quest bosses large account-wide progression spikes, especially Alduin, Harkon, and Miraak.
+- Make major quest bosses large shared progress spikes, especially Alduin, Harkon, and Miraak.
 - Use Soul Vigor sparingly on low-tier enemies so regeneration feels like supernatural pressure rather than a universal combat tax.
 - Add INI tuning later for reward multipliers, Soul Vigor strength, and whether non-draugr undead count as Anima sources.
 
 
-Heartshards
+Sunderhearts
 
 Sunderhearts have begun manifesting throughout Tamriel, radiant remnants of Lorkhan’s Heart, alive with divine anima and forgotten tonal power.
 They can purge a death, enhance an item, or be harvested for anima.
 
 ```text
-| Anima / Soul Tier | Unlocked Tier           | Quest Milestone                 | Starting Found Heartshards |
-| 0 - Iron          | Dormant Heartshard      | Dormant Heartshards can spawn   | 0                          |
-| 250 - Silver      | Kindled Heartshard      | First major dream               | 1                          |
-| 500 - Gold        | Resonant Heartshard     | Strong dream escalation         | 2                          |
-| 1000 - Ebon       | Sublime Heartshard      | Heart influence becomes obvious | 3                          |
-| 2000 - Platinum   | Transcendent Heartshard | Late-game metaphysical pressure | 4                          |
+| Anima / Soul Tier | Unlocked Tier           | Quest Milestone                 | Starting Found Sunderhearts |
+| 0 - Iron          | Dormant Sunderheart      | Dormant Sunderhearts can spawn   | 0                          |
+| 250 - Silver      | Kindled Sunderheart      | First major dream               | 1                          |
+| 500 - Gold        | Resonant Sunderheart     | Strong dream escalation         | 2                          |
+| 1000 - Ebon       | Sublime Sunderheart      | Heart influence becomes obvious | 3                          |
+| 2000 - Platinum   | Transcendent Sunderheart | Late-game metaphysical pressure | 4                          |
 | 5000 - Devour     | Heart complete          | Manifest the Heart              | 5                          |
 | 10000 - ???       | Whole Heart             | Amaranth???                     | 10                         |
 ```
 
-Proposed Heartshards:
+Proposed Sunderhearts:
 
 ```text
 | Type     | Weapon Effect                      | Armor/Apparel Effect               | Implementation               | Colour Scheme                 |
@@ -168,20 +168,20 @@ Proposed Heartshards:
 | Doom     | Fear on hit                        | Shout recovery bonus               | Standard fear + AV           | Doomwine (#8b0018)            |
 ```
 
-- Create Heartshard item records and assets as Sigil Stone-adjacent MiscObjects using the spherical soul gem mesh as the visual base.
-- Build Heartshards as tiered account-wide unlocks with varied effects; new characters can choose a small set of unlocked Heartshards, likely three.
-- Make Heartshards visually scale with power so their red glow intensifies as the character levels or as the chosen Heartshard tier improves.
-- Define Heartshard Spawns as the target number of active Heartshards present in the world at one time, calculated from difficulty preset plus override setting; for example, A++ can keep 9 Heartshards active.
-- Add a curated Heartshard spawn-location pool, weighted toward dungeons and hard-to-reach places rather than the general game world.
-- Re-roll active Heartshard locations on each player load so the world hunt changes between characters and reloads.
-- Add a Heartshard proximity heartbeat that only pulses when the nearest active Heartshard is in the player's current cell, with sound intensity/frequency scaling by distance.
-- Prototype Heartshard inventory use with a MiscObject `OnEquipped` detector; verify SkyUI behavior, the cannot-equip message, stacked copies, leveled-list/container acquisition, and save/load reliability.
-- Keep Heartshard item scripts minimal: use the item only as an activation detector, then hand real logic to an Iron Soul quest/controller path.
-- Add Heartshard activation flow that opens a choice menu, consumes one Heartshard only after confirmed use, and supports cancel without removing the item.
-- When recorded deaths are above 0, Heartshard activation offers Enhance Item or Purge Death; with 0 deaths, only Enhance Item is shown.
-- Add a restore-death Heartshard action that purges one recorded death, plays the Heartshard absorb presentation, and drains the orb's red colour as its essence is absorbed.
-- Explore Heartshard item empowerment through Iron Soul native filtered selection sessions displayed with an injected SkyUI InventoryMenu item selector, starting with weapon and armor temper quality.
-- Add persistence for unlocked Heartshard tiers, selected new-game Heartshards, absorbed Heartshard progress, active world spawn locations, and relocation timing.
+- Create Sunderheart item records and assets as Sigil Stone-adjacent MiscObjects using the spherical soul gem mesh as the visual base.
+- Build Sunderhearts as tiered shared unlocks with varied effects; new characters can choose a small set of unlocked Sunderhearts, likely three.
+- Make Sunderhearts visually scale with power so their red glow intensifies as the character levels or as the chosen Sunderheart tier improves.
+- Define Sunderheart Spawns as the target number of active Sunderhearts present in the world at one time, calculated from difficulty preset plus override setting; for example, A++ can keep 9 Sunderhearts active.
+- Add a curated Sunderheart spawn-location pool, weighted toward dungeons and hard-to-reach places rather than the general game world.
+- Re-roll active Sunderheart locations on each player load so the world hunt changes between characters and reloads.
+- Add a Sunderheart proximity heartbeat that only pulses when the nearest active Sunderheart is in the player's current cell, with sound intensity/frequency scaling by distance.
+- Prototype Sunderheart inventory use with a MiscObject `OnEquipped` detector; verify SkyUI behavior, the cannot-equip message, stacked copies, leveled-list/container acquisition, and save/load reliability.
+- Keep Sunderheart item scripts minimal: use the item only as an activation detector, then hand real logic to an Iron Soul quest/controller path.
+- Add Sunderheart activation flow that opens a choice menu, consumes one Sunderheart only after confirmed use, and supports cancel without removing the item.
+- When recorded deaths are above 0, Sunderheart activation offers Enhance Item or Purge Death; with 0 deaths, only Enhance Item is shown.
+- Add a restore-death Sunderheart action that purges one recorded death, plays the Sunderheart absorb presentation, and drains the orb's red colour as its essence is absorbed.
+- Explore Sunderheart item empowerment through Iron Soul native filtered selection sessions displayed with an injected SkyUI InventoryMenu item selector, starting with weapon and armor temper quality.
+- Add persistence for unlocked Sunderheart tiers, selected new-game Sunderhearts, absorbed Sunderheart progress, active world spawn locations, and relocation timing.
 
 General
 
@@ -193,13 +193,13 @@ Roadmap
 -------
 
 V2: Echoes of Lorkhan
-- Add a dream system. After the first Heartshard is absorbed, the player has a chance to receive dreams while sleeping.
-- More Heartshards absorbed increase dream chance, expand the dream pool, and cause more metaphysical Heartshards to appear in Skyrim. "The Heart wants to be whole again..."
-- Dreams focus mostly on historical echoes tied to Lorkhan, the Heart, Kagrenac, the Dwemer, the Tribunal, Red Mountain, and the player's growing connection to the Heartshards.
+- Add a dream system. After the first Sunderheart is absorbed, the player has a chance to receive dreams while sleeping.
+- More Sunderhearts absorbed increase dream chance, expand the dream pool, and cause more metaphysical Sunderhearts to appear in Skyrim. "The Heart wants to be whole again..."
+- Dreams focus mostly on historical echoes tied to Lorkhan, the Heart, Kagrenac, the Dwemer, the Tribunal, Red Mountain, and the player's growing connection to the Sunderhearts.
 - Dreams include quick scenes and distorted echoes involving Kagrenac's use of the Tools, the disappearance of the Dwemer, Dagoth Ur's fall, and the Tribunal's later use of the Heart.
 - Early dreams are fragmented and ambiguous, making it unclear whether the voice guiding the player is Lorkhan, the Heart itself, or something else speaking through it.
-- Flesh out the history around Lorkhan, the Heart, and the player's connection to the Heartshards.
-- Expand the Heart mystery into a stronger story layer that recontextualizes the V1 Heartshard hunt.
+- Flesh out the history around Lorkhan, the Heart, and the player's connection to the Sunderhearts.
+- Expand the Heart mystery into a stronger story layer that recontextualizes the V1 Sunderheart hunt.
 
 V3: The Dragon Cult Rises
 - Rework Draugnarok raid pressure so the endgame source is Labyrinthian and the active pressure network flows from dragon priest barrows.
@@ -220,10 +220,10 @@ V3: The Dragon Cult Rises
 
 V4: Return of the Dead God
 - Add a full quest powered by the dream system, building on the historical Heart dreams introduced in V2.
-- As more Heartshards are absorbed, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
+- As more Sunderhearts are absorbed, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
 - Dreams reveal that only the Heart's power can make Alduin truly vulnerable.
-- Require 50 total account-wide Heartshards absorbed to complete the saga-long Heart collection and unlock the Heart's manifestation path.
-- Once all Heartshards have been absorbed, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
+- Require 50 total shared Sunderhearts absorbed to complete the saga-long Heart collection and unlock the Heart's manifestation path.
+- Once all Sunderhearts have been absorbed, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
 - If the player uses the Tools on the Heart before the correct ritual is known, the game quits outright.
 - A final dream falsely instructs the player to strike the Heart with Sunder once, then Keening once. Following this instruction triggers Dagoth Ur's reveal and awakens Dagoth Soul.
 - Reveal that the apparent voice of Lorkhan is actually Dagoth Ur's dream-shadow manipulating the player.
@@ -237,7 +237,7 @@ V4: Return of the Dead God
 
 V5: Discord Integration
 - Add Discord channel integration for the journal system so journal entries and major milestones can be logged to configured Discord channels.
-- Add daily challenges that can reward Heartshards for accomplishments, such as completing an objective and receiving 3 Heartshards.
+- Add daily challenges that can reward Sunderhearts for accomplishments, such as completing an objective and receiving 3 Sunderhearts.
 - Build opt-in network communication into the mod stack, including configuration, failure handling, and safeguards around external Discord posting.
 
 V6: City Recovery
@@ -255,7 +255,7 @@ Credits
 - [Draugnarok SE](https://www.nexusmods.com/skyrimspecialedition/mods/12849), by unuroboros: credit for original Draugnarok systems/content adapted into Iron Soul.
 - [Draugrs - My patches SE by Xtudo](https://www.nexusmods.com/skyrimspecialedition/mods/123225), by Xtudo: credit for draugr eye asset basis used by dynamic draugr eye visuals.
 - [High Quality Dice Skins](https://www.nexusmods.com/baldursgate3/mods/1220), by Sir William Snugglepuff: credit for dice visual source material used by Luck roll presentation.
-- [Spherical Soulgems SSE](https://www.nexusmods.com/skyrimspecialedition/mods/66634), by Fishbiter: credit for sigil stone mesh source material used as the Heartshard visual base.
+- [Spherical Soulgems SSE](https://www.nexusmods.com/skyrimspecialedition/mods/66634), by Fishbiter: credit for sigil stone mesh source material used as the Sunderheart visual base.
 - [Spherical Soulgems SSE - Particle Lights for ENB](https://www.nexusmods.com/skyrimspecialedition/mods/66668), by DeterministicFreeWill: credit for ENB particle light/glow source.
 
 

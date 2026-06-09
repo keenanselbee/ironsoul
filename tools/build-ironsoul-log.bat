@@ -7,10 +7,20 @@ REM Writes the full SKSE Iron Soul plugin log first, then appends filtered Papyr
 set "SKSE_LOG_DIR=%USERPROFILE%\Documents\My Games\Skyrim Special Edition\SKSE"
 set "SKSE_LOG=%SKSE_LOG_DIR%\IronSoulSKSE.log"
 set "PAPYRUS_LOG=%USERPROFILE%\Documents\My Games\Skyrim Special Edition\Logs\Script\Papyrus.0.log"
-set "OUT=%~dp0ironsoul.log"
+for %%I in ("%~dp0..") do set "REPO_ROOT=%%~fI"
+set "LOG_DIR=%REPO_ROOT%\logs"
+set "OUT=%LOG_DIR%\ironsoul.log"
+set "OUT_1=%LOG_DIR%\ironsoul.1.log"
+set "OUT_2=%LOG_DIR%\ironsoul.2.log"
+set "OUT_3=%LOG_DIR%\ironsoul.3.log"
 
-REM Start fresh.
-if exist "%OUT%" del "%OUT%"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
+
+REM Keep the current log plus three previous logs.
+if exist "%OUT_3%" del "%OUT_3%"
+if exist "%OUT_2%" ren "%OUT_2%" "ironsoul.3.log"
+if exist "%OUT_1%" ren "%OUT_1%" "ironsoul.2.log"
+if exist "%OUT%" ren "%OUT%" "ironsoul.1.log"
 
 REM Add every line from SKSE\ironsoul.log before Papyrus filtering.
 >> "%OUT%" echo ===============================

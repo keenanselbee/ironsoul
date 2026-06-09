@@ -65,6 +65,8 @@ Scriptname IronSoulNative Hidden
 ; ApplyDynamicDraugrEyes()
 ; OpenMenu()
 ; CloseMenu()
+; InventorySelectedItemHasEditorIDPrefix()
+; InventorySelectedItemHasEditorID()
 
 ; --- Cursor Control ---
 ; ----------------------
@@ -99,17 +101,17 @@ Scriptname IronSoulNative Hidden
 ; ClearTimeMultiplierRamp()
 ; KillPlayerImmediate()
 
-; --- Heartshard Enhancement ---
+; --- Sunderheart Enhancement ---
 ; ------------------------------
-; HeartshardBuildEnhanceSession()
-; HeartshardGetEnhanceSessionOptionCount()
-; HeartshardGetEnhanceSessionOptionLabel()
-; HeartshardRefreshEnhanceSessionInventoryRows()
-; HeartshardApplyEnhanceSessionOption()
-; HeartshardApplyEnhanceSessionInventoryRow()
-; HeartshardReleaseEnhanceSession()
-; HeartshardGetEnhanceResult()
-; HeartshardGetEnhanceResultText()
+; SunderheartBuildEnhanceSession()
+; SunderheartGetEnhanceSessionOptionCount()
+; SunderheartGetEnhanceSessionOptionLabel()
+; SunderheartRefreshEnhanceSessionInventoryRows()
+; SunderheartApplyEnhanceSessionOption()
+; SunderheartApplyEnhanceSessionInventoryRow()
+; SunderheartReleaseEnhanceSession()
+; SunderheartGetEnhanceResult()
+; SunderheartGetEnhanceResultText()
 
 ; --- DataStore Read Access ---
 ; -----------------------------
@@ -203,6 +205,12 @@ Function ApplyDynamicDraugrEyes(Int presetId) Global Native
 Bool Function OpenMenu(String menuName) Global Native
 Bool Function CloseMenu(String menuName) Global Native
 
+; Returns true when InventoryMenu's highlighted row has a base item EditorID with the given prefix.
+Bool Function InventorySelectedItemHasEditorIDPrefix(String editorIDPrefix) Global Native
+
+; Returns true when InventoryMenu's highlighted row has a base item with the exact EditorID.
+Bool Function InventorySelectedItemHasEditorID(String editorID) Global Native
+
 
 ; --- CURSOR CONTROL ---
 ; =====================
@@ -252,34 +260,34 @@ Function ClearTimeMultiplierRamp(String reason = "") Global Native
 Bool Function KillPlayerImmediate(Bool ragdollInstant = True, String reason = "") Global Native
 
 
-; --- HEARTSHARD ENHANCEMENT ---
+; --- SUNDERHEART ENHANCEMENT ---
 ; ==============================
 
 ; Builds an Iron Soul-owned filtered enhancement session.
 ; effectId 1 is Tonal tempering. Returns 0 when no valid session can be built.
-Int Function HeartshardBuildEnhanceSession(Int effectId, Int power, Int cap) Global Native
+Int Function SunderheartBuildEnhanceSession(Int effectId, Int power, Int cap) Global Native
 
 ; Returns the number of displayable options in a session.
-Int Function HeartshardGetEnhanceSessionOptionCount(Int sessionToken) Global Native
+Int Function SunderheartGetEnhanceSessionOptionCount(Int sessionToken) Global Native
 
 ; Returns one display label for an option index.
-String Function HeartshardGetEnhanceSessionOptionLabel(Int sessionToken, Int optionIndex) Global Native
+String Function SunderheartGetEnhanceSessionOptionLabel(Int sessionToken, Int optionIndex) Global Native
 
 ; Rebuilds the InventoryMenu row whitelist for a session and returns rowIndex_:_label entries.
-String Function HeartshardRefreshEnhanceSessionInventoryRows(Int sessionToken) Global Native
+String Function SunderheartRefreshEnhanceSessionInventoryRows(Int sessionToken) Global Native
 
-; Applies and consumes one session option. False means HeartshardGetEnhanceResult* explains the failure.
-Bool Function HeartshardApplyEnhanceSessionOption(Int sessionToken, Int optionIndex) Global Native
+; Applies and consumes one session option. False means SunderheartGetEnhanceResult* explains the failure.
+Bool Function SunderheartApplyEnhanceSessionOption(Int sessionToken, Int optionIndex) Global Native
 
 ; Applies and consumes one visible InventoryMenu row from the latest row refresh.
-Bool Function HeartshardApplyEnhanceSessionInventoryRow(Int sessionToken, Int rowIndex) Global Native
+Bool Function SunderheartApplyEnhanceSessionInventoryRow(Int sessionToken, Int rowIndex) Global Native
 
 ; Releases a session after cancel/failure. Safe to call for already-consumed tokens.
-Function HeartshardReleaseEnhanceSession(Int sessionToken) Global Native
+Function SunderheartReleaseEnhanceSession(Int sessionToken) Global Native
 
-; Result code/text for the most recent Heartshard enhancement native operation.
-Int Function HeartshardGetEnhanceResult() Global Native
-String Function HeartshardGetEnhanceResultText() Global Native
+; Result code/text for the most recent Sunderheart enhancement native operation.
+Int Function SunderheartGetEnhanceResult() Global Native
+String Function SunderheartGetEnhanceResultText() Global Native
 
 ; --- DATASTORE - READ ACCESS ---
 ; ===============================
@@ -294,7 +302,7 @@ String Function DataGetString(String key, String fallback = "") Global Native
 Bool Function DataHasKey(String key) Global Native
 
 ; Friendly current-character dump for console/debug output.
-; section="" dumps all; known sections include identity, account, core, luck,
+; section="" dumps all; known sections include identity, shared, core, luck,
 ; ui, soul, dsr, bosses, defiant, and journal.
 String Function DataGetCharacterData(String guid, String section = "") Global Native
 

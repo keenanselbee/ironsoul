@@ -15,10 +15,10 @@ Scriptname IronSoulConfig extends Quest
 ; DragonSoulReviveCastSFX = 1
 ; DragonSoulReviveSFX = 1
 ; FeatUnlockSFX = 1
-; HeartshardAbsorbSFX = 1
+; SunderheartAbsorbSFX = 1
+; SunderheartFocusSFX = 1
 ; IronIntroSFX = 1
 ; LuckOutcomeSFX = 1
-; LuckRollSFX = 1
 ; PermadeathSFX = 1
 ; RespawnSFX = 1
 ; RespawnHeavyBreathingSFX = 1
@@ -50,17 +50,17 @@ Scriptname IronSoulConfig extends Quest
 ; IsDragonSoulNotificationEnabled()
 ; IsCharacterJournalEnabled()
 ; GetLuckLevel()
-; GetLuckRollMessageMode()
+; IsLuckRollMessageEnabled()
 ; IsCharacterSheetCompatibilityEnabled()
 ; IsRequiemCompatibilityEnabled()
 ; IsCosaveRecoveryBackupEnabled()
 ; IsRedTintOnDeathEnabled()
 ; IsIronSoulIntroEnabled()
 ; GetIronSoulIntroDelaySeconds()
-; IsHeartshardMessageEnabled()
-; IsHeartshardNotificationEnabled()
-; GetHeartshardInventoryMode()
-; GetHeartshardTonalMaxTemper()
+; IsSunderheartMessageEnabled()
+; IsSunderheartNotificationEnabled()
+; GetSunderheartInventoryMode()
+; GetSunderheartTonalMaxTemper()
 ; IsSFXEnabled()
 ; IsMusicFadeEnabled()
 ; IsIronIntroSFXEnabled()
@@ -70,11 +70,11 @@ Scriptname IronSoulConfig extends Quest
 ; IsDefiantTransitionSFXEnabled()
 ; IsCHIMTransitionSFXEnabled()
 ; IsDefiantRestoreSFXEnabled()
-; IsHeartshardAbsorbSFXEnabled()
+; IsSunderheartAbsorbSFXEnabled()
+; IsSunderheartFocusSFXEnabled()
 ; IsDragonSoulReviveCastSFXEnabled()
 ; IsDragonSoulReviveSFXEnabled()
 ; IsFeatUnlockSFXEnabled()
-; IsLuckRollSFXEnabled()
 ; IsLuckOutcomeSFXEnabled()
 ; IsRespawnHeavyBreathingSFXEnabled()
 ; IsDefiantSoulEnabled()
@@ -135,17 +135,17 @@ Bool _dragonSoulReviveMessageEnabled = True
 Bool _dragonSoulNotificationEnabled = True
 Bool _characterJournalLogEnabled = True
 Int _luckLevel = 5
-Int _luckRollMessageMode = 1
+Bool _luckRollMessageEnabled = True
 Bool _enableCharacterSheetCompatibility = False
 Bool _requiemCompatibilityEnabled = True
 Bool _cosaveRecoveryBackupEnabled = True
 Bool _redTintOnDeathEnabled = True
 Bool _ironSoulIntroEnabled = True
 Int _ironSoulIntroDelaySeconds = 27
-Bool _heartshardMessageEnabled = True
-Bool _heartshardNotificationEnabled = True
-Int _heartshardInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
-Int _heartshardTonalMaxTemper = 10
+Bool _sunderheartMessageEnabled = True
+Bool _sunderheartNotificationEnabled = True
+Int _sunderheartInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
+Int _sunderheartTonalMaxTemper = 10
 Bool _sfxEnabled = True
 Bool _musicFadeEnabled = True
 Bool _ironIntroSFXEnabled = True
@@ -155,11 +155,11 @@ Bool _respawnSFXEnabled = True
 Bool _defiantTransitionSFXEnabled = True
 Bool _chimTransitionSFXEnabled = True
 Bool _defiantRestoreSFXEnabled = True
-Bool _heartshardAbsorbSFXEnabled = True
+Bool _sunderheartAbsorbSFXEnabled = True
+Bool _sunderheartFocusSFXEnabled = True
 Bool _dragonSoulReviveCastSFXEnabled = True
 Bool _dragonSoulReviveSFXEnabled = True
 Bool _featUnlockSFXEnabled = True
-Bool _luckRollSFXEnabled = True
 Bool _luckOutcomeSFXEnabled = True
 Bool _respawnHeavyBreathingSFXEnabled = True
 
@@ -191,10 +191,10 @@ Function ResetDefaults()
     _dragonSoulNotificationEnabled = True
     _ironSoulIntroEnabled = True
     _ironSoulIntroDelaySeconds = 23
-    _heartshardMessageEnabled = True
-    _heartshardNotificationEnabled = True
-    _heartshardInventoryMode = 1
-    _heartshardTonalMaxTemper = 10
+    _sunderheartMessageEnabled = True
+    _sunderheartNotificationEnabled = True
+    _sunderheartInventoryMode = 1
+    _sunderheartTonalMaxTemper = 10
 
     ; Gameplay / integration
     _respawnEnabled = True
@@ -216,7 +216,7 @@ Function ResetDefaults()
     _luckReminderNotificationEnabled = True
     _luckLevel = 5
     _loadNotificationEnabled = True
-    _luckRollMessageMode = 1
+    _luckRollMessageEnabled = True
 
     ; Feats
     _defiantSoulEnabled = True
@@ -234,11 +234,11 @@ Function ResetDefaults()
     _defiantTransitionSFXEnabled = True
     _chimTransitionSFXEnabled = True
     _defiantRestoreSFXEnabled = True
-    _heartshardAbsorbSFXEnabled = True
+    _sunderheartAbsorbSFXEnabled = True
+    _sunderheartFocusSFXEnabled = True
     _dragonSoulReviveCastSFXEnabled = True
     _dragonSoulReviveSFXEnabled = True
     _featUnlockSFXEnabled = True
-    _luckRollSFXEnabled = True
     _luckOutcomeSFXEnabled = True
     _respawnHeavyBreathingSFXEnabled = True
 EndFunction
@@ -279,10 +279,10 @@ Function LoadFromIni()
     _respawnMessageEnabled = ReadFeatureEnabled("RespawnMessage", True)
     _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
     _ironSoulIntroDelaySeconds = ReadIntRange("IronSoulIntroDelaySeconds", _ironSoulIntroDelaySeconds, 0, 120)
-    _heartshardMessageEnabled = ReadFeatureEnabled("HeartshardMessage", True)
-    _heartshardNotificationEnabled = ReadFeatureEnabled("HeartshardNotification", True)
-    _heartshardInventoryMode = ReadIntRange("HeartshardInventoryMode", _heartshardInventoryMode, 0, 3)
-    _heartshardTonalMaxTemper = ReadIntRange("HeartshardTonalMaxTemper", _heartshardTonalMaxTemper, 1, 100)
+    _sunderheartMessageEnabled = ReadFeatureEnabled("SunderheartMessage", True)
+    _sunderheartNotificationEnabled = ReadFeatureEnabled("SunderheartNotification", True)
+    _sunderheartInventoryMode = ReadIntRange("SunderheartInventoryMode", _sunderheartInventoryMode, 0, 3)
+    _sunderheartTonalMaxTemper = ReadIntRange("SunderheartTonalMaxTemper", _sunderheartTonalMaxTemper, 1, 100)
 
     _soulBonusEnabled = ReadFeatureEnabled("SoulBonus", True)
     _characterJournalLogEnabled = ReadFeatureEnabled("CharacterJournal", True)
@@ -296,7 +296,7 @@ Function LoadFromIni()
 
     _luckReminderNotificationEnabled = ReadFeatureEnabled("LuckReminderNotification", True)
     _loadNotificationEnabled = ReadFeatureEnabled("LoadNotification", True)
-    _luckRollMessageMode = ReadIntRange("LuckRollMessageMode", _luckRollMessageMode, 0, 2)
+    _luckRollMessageEnabled = ReadFeatureEnabled("LuckRollMessage", True)
 
     Bool iniDefiantSoul = ReadFeatureEnabled("DefiantSoul", True)
     ApplyPresetCoreSettings(iniPermadeath, iniDefiantSoul)
@@ -314,11 +314,11 @@ Function LoadFromIni()
     _defiantTransitionSFXEnabled = ReadFeatureEnabled("DefiantTransitionSFX", True)
     _chimTransitionSFXEnabled = ReadFeatureEnabled("CHIMTransitionSFX", True)
     _defiantRestoreSFXEnabled = ReadFeatureEnabled("DefiantRestoreSFX", True)
-    _heartshardAbsorbSFXEnabled = ReadFeatureEnabled("HeartshardAbsorbSFX", True)
+    _sunderheartAbsorbSFXEnabled = ReadFeatureEnabled("SunderheartAbsorbSFX", True)
+    _sunderheartFocusSFXEnabled = ReadFeatureEnabled("SunderheartFocusSFX", True)
     _dragonSoulReviveCastSFXEnabled = ReadFeatureEnabled("DragonSoulReviveCastSFX", True)
     _dragonSoulReviveSFXEnabled = ReadFeatureEnabled("DragonSoulReviveSFX", True)
     _featUnlockSFXEnabled = ReadFeatureEnabled("FeatUnlockSFX", True)
-    _luckRollSFXEnabled = ReadFeatureEnabled("LuckRollSFX", True)
     _luckOutcomeSFXEnabled = ReadFeatureEnabled("LuckOutcomeSFX", True)
     _respawnHeavyBreathingSFXEnabled = ReadFeatureEnabled("RespawnHeavyBreathingSFX", True)
 EndFunction
@@ -385,8 +385,8 @@ Int Function GetLuckLevel()
     return _luckLevel
 EndFunction
 
-Int Function GetLuckRollMessageMode()
-    return _luckRollMessageMode
+Bool Function IsLuckRollMessageEnabled()
+    return _luckRollMessageEnabled
 EndFunction
 
 Bool Function IsCharacterSheetCompatibilityEnabled()
@@ -413,20 +413,20 @@ Int Function GetIronSoulIntroDelaySeconds()
     return _ironSoulIntroDelaySeconds
 EndFunction
 
-Bool Function IsHeartshardMessageEnabled()
-    return _heartshardMessageEnabled
+Bool Function IsSunderheartMessageEnabled()
+    return _sunderheartMessageEnabled
 EndFunction
 
-Bool Function IsHeartshardNotificationEnabled()
-    return _heartshardNotificationEnabled
+Bool Function IsSunderheartNotificationEnabled()
+    return _sunderheartNotificationEnabled
 EndFunction
 
-Int Function GetHeartshardInventoryMode()
-    return _heartshardInventoryMode
+Int Function GetSunderheartInventoryMode()
+    return _sunderheartInventoryMode
 EndFunction
 
-Int Function GetHeartshardTonalMaxTemper()
-    return _heartshardTonalMaxTemper
+Int Function GetSunderheartTonalMaxTemper()
+    return _sunderheartTonalMaxTemper
 EndFunction
 
 Bool Function IsSFXEnabled()
@@ -465,8 +465,12 @@ Bool Function IsDefiantRestoreSFXEnabled()
     return _defiantRestoreSFXEnabled
 EndFunction
 
-Bool Function IsHeartshardAbsorbSFXEnabled()
-    return _heartshardAbsorbSFXEnabled
+Bool Function IsSunderheartAbsorbSFXEnabled()
+    return _sunderheartAbsorbSFXEnabled
+EndFunction
+
+Bool Function IsSunderheartFocusSFXEnabled()
+    return _sunderheartFocusSFXEnabled
 EndFunction
 
 Bool Function IsDragonSoulReviveCastSFXEnabled()
@@ -479,10 +483,6 @@ EndFunction
 
 Bool Function IsFeatUnlockSFXEnabled()
     return _featUnlockSFXEnabled
-EndFunction
-
-Bool Function IsLuckRollSFXEnabled()
-    return _luckRollSFXEnabled
 EndFunction
 
 Bool Function IsLuckOutcomeSFXEnabled()
@@ -617,12 +617,13 @@ Function LogSnapshot()
         + " Permadeath=" + _permadeathEnabled \
         + " UninstallMode=" + _uninstallMode)
 
-    LogComponentSnapshot("Config", LOG_INFO(), "Config Heartshards: HeartshardMessage=" + _heartshardMessageEnabled \
-        + " HeartshardNotification=" + _heartshardNotificationEnabled \
-        + " HeartshardInventoryMode=" + _heartshardInventoryMode \
-        + " HeartshardTonalMaxTemper=" + _heartshardTonalMaxTemper)
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Sunderhearts: SunderheartMessage=" + _sunderheartMessageEnabled \
+        + " SunderheartNotification=" + _sunderheartNotificationEnabled \
+        + " SunderheartInventoryMode=" + _sunderheartInventoryMode \
+        + " SunderheartTonalMaxTemper=" + _sunderheartTonalMaxTemper)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Systems: LuckLevel=" + _luckLevel \
+        + " LuckRollMessage=" + _luckRollMessageEnabled \
         + " SoulBonus=" + _soulBonusEnabled \
         + " SoulFeats=" + _soulFeatsEnabled \
         + " DefiantSoul=" + _defiantSoulEnabled)
@@ -643,11 +644,11 @@ Function LogSnapshot()
         + " CHIMTransitionSFX=" + _chimTransitionSFXEnabled \
         + " DefiantRestoreSFX=" + _defiantRestoreSFXEnabled)
 
-    LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Events: HeartshardAbsorbSFX=" + _heartshardAbsorbSFXEnabled \
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Sound Events: SunderheartAbsorbSFX=" + _sunderheartAbsorbSFXEnabled \
+        + " SunderheartFocusSFX=" + _sunderheartFocusSFXEnabled \
         + " DragonSoulReviveCastSFX=" + _dragonSoulReviveCastSFXEnabled \
         + " DragonSoulReviveSFX=" + _dragonSoulReviveSFXEnabled \
         + " FeatUnlockSFX=" + _featUnlockSFXEnabled \
-        + " LuckRollSFX=" + _luckRollSFXEnabled \
         + " LuckOutcomeSFX=" + _luckOutcomeSFXEnabled \
         + " RespawnHeavyBreathingSFX=" + _respawnHeavyBreathingSFXEnabled)
 EndFunction
@@ -678,7 +679,7 @@ String Function LogSourceTag(String source) Global
         return "D" + "raugnarok"
     elseif source == "effects"
         return "E" + "ffects"
-    elseif source == "heartshards"
+    elseif source == "sunderhearts"
         return "H" + "eartshards"
     elseif source == "identity"
         return "I" + "dentity"

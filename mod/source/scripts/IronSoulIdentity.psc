@@ -9,6 +9,10 @@ Scriptname IronSoulIdentity extends Quest
 ; HasCoreRuntime()
 ; LogIdentity()
 ; IsPlaceholderName()
+; IsTestCharacterName()
+; IsCurrentCharacterTest()
+; IsPrisonerNameAt()
+; IsCharEither()
 
 ; --- Identity Runtime ---
 ; ------------------------
@@ -92,6 +96,46 @@ EndFunction
 
 Bool Function IsPlaceholderName(String playerName)
     return playerName == "Prisoner" || playerName == "Player"
+EndFunction
+
+Bool Function IsTestCharacterName(String playerName)
+    Int nameLen = StringUtil.GetLength(playerName)
+    if nameLen < 8
+        return False
+    endif
+
+    Int i = 0
+    while i <= nameLen - 8
+        if IsPrisonerNameAt(playerName, i)
+            return True
+        endif
+        i += 1
+    endwhile
+
+    return False
+EndFunction
+
+Bool Function IsCurrentCharacterTest(Actor player)
+    if !player
+        return False
+    endif
+
+    return IsTestCharacterName(IronSoulNative.GetPlayerName())
+EndFunction
+
+Bool Function IsPrisonerNameAt(String playerName, Int offset)
+    return IsCharEither(StringUtil.GetNthChar(playerName, offset), "p", "P") \
+        && IsCharEither(StringUtil.GetNthChar(playerName, offset + 1), "r", "R") \
+        && IsCharEither(StringUtil.GetNthChar(playerName, offset + 2), "i", "I") \
+        && IsCharEither(StringUtil.GetNthChar(playerName, offset + 3), "s", "S") \
+        && IsCharEither(StringUtil.GetNthChar(playerName, offset + 4), "o", "O") \
+        && IsCharEither(StringUtil.GetNthChar(playerName, offset + 5), "n", "N") \
+        && IsCharEither(StringUtil.GetNthChar(playerName, offset + 6), "e", "E") \
+        && IsCharEither(StringUtil.GetNthChar(playerName, offset + 7), "r", "R")
+EndFunction
+
+Bool Function IsCharEither(String value, String lowerValue, String upperValue)
+    return value == lowerValue || value == upperValue
 EndFunction
 
 

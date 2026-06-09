@@ -18,9 +18,9 @@ Scriptname IronSoulPersistence extends Quest
 ; IsCosaveRecoveryBackupEnabled()
 ; GetInt()
 ; SetInt()
-; GetAccountInt()
-; SetAccountInt()
-; DeleteAccountKeysWithPrefix()
+; GetSharedInt()
+; SetSharedInt()
+; DeleteSharedKeysWithPrefix()
 
 ; --- GUID-Scoped Storage Helpers ---
 ; -----------------------------------
@@ -134,7 +134,7 @@ Function SetInt(Actor player, String dataKey, Int value, Bool useIfChanged = Tru
     endif
 EndFunction
 
-Int Function GetAccountInt(String dataKey, Int fallback)
+Int Function GetSharedInt(String dataKey, Int fallback)
     if dataKey == ""
         return fallback
     endif
@@ -142,7 +142,7 @@ Int Function GetAccountInt(String dataKey, Int fallback)
     return IronSoulNative.DataGetInt(dataKey, fallback)
 EndFunction
 
-Function SetAccountInt(String dataKey, Int value, Bool useIfChanged = True)
+Function SetSharedInt(String dataKey, Int value, Bool useIfChanged = True)
     if dataKey == ""
         return
     endif
@@ -154,7 +154,7 @@ Function SetAccountInt(String dataKey, Int value, Bool useIfChanged = True)
     endif
 EndFunction
 
-Int Function DeleteAccountKeysWithPrefix(String prefix)
+Int Function DeleteSharedKeysWithPrefix(String prefix)
     if prefix == ""
         return 0
     endif

@@ -18,5 +18,6 @@ namespace IronSoul::Papyrus::ItemSelect
     RE::ItemList* GetOpenInventoryItemList();
     std::uint32_t GetInventoryRowCount(RE::ItemList* a_itemList);
     RE::InventoryEntryData* GetInventoryRowEntry(RE::ItemList* a_itemList, std::uint32_t a_rowIndex);
+    RE::InventoryEntryData* GetInventorySelectedEntry();
     void Register(RE::BSScript::IVirtualMachine* a_vm);
 }

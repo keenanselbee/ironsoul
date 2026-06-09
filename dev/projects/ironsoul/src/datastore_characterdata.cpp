@@ -37,7 +37,7 @@ namespace IronSoul
 
     static constexpr const char* kCharacterDataSections[] = {
         "identity",
-        "account",
+        "shared",
         "core",
         "luck",
         "ui",
@@ -97,9 +97,9 @@ namespace IronSoul
         { "journal", "IS_1927", "JournalCHIMLogged", CharacterDataValueFormat::Bool }
     };
 
-    static constexpr const char* kHeartshardsAbsorbedKey = "IS_2740";
-    static constexpr const char* kHeartshardsUnlockedKey = "IS_2741";
-    static constexpr const char* kHeartshardUsedPrefix = "HS.U.";
+    static constexpr const char* kSunderheartsAbsorbedKey = "SH.T";
+    static constexpr const char* kSunderheartsUnlockedKey = "SH.U";
+    static constexpr const char* kSunderheartUsedPrefix = "SH.U.";
 
     // --- Formatting Helpers ---
     // ==========================
@@ -142,8 +142,8 @@ namespace IronSoul
         if (section == "identity") {
             return "Identity";
         }
-        if (section == "account") {
-            return "Account";
+        if (section == "shared") {
+            return "Shared";
         }
         if (section == "core") {
             return "Core";
@@ -425,7 +425,7 @@ namespace IronSoul
 
         const std::string sectionLower = ToLowerAscii(TrimAscii(section));
         if (!IsCharacterDataSection(sectionLower)) {
-            return "Error: unknown CharacterData section '" + section + "'. Expected identity, account, core, luck, ui, soul, dsr, bosses, defiant, or journal.";
+            return "Error: unknown CharacterData section '" + section + "'. Expected identity, shared, core, luck, ui, soul, dsr, bosses, defiant, or journal.";
         }
 
         std::unordered_map<std::string, Value> snapshot;
@@ -471,30 +471,30 @@ namespace IronSoul
             }
         }
 
-        if (wantsSection("account")) {
-            const auto heartshardsAbsorbedIt = snapshot.find(kHeartshardsAbsorbedKey);
-            if (heartshardsAbsorbedIt != snapshot.end()) {
-                appendValue("account", "HeartshardsAbsorbed", heartshardsAbsorbedIt->second, CharacterDataValueFormat::Plain);
+        if (wantsSection("shared")) {
+            const auto sunderheartsAbsorbedIt = snapshot.find(kSunderheartsAbsorbedKey);
+            if (sunderheartsAbsorbedIt != snapshot.end()) {
+                appendValue("shared", "SunderheartsAbsorbed", sunderheartsAbsorbedIt->second, CharacterDataValueFormat::Plain);
             }
 
-            const auto heartshardsUnlockedIt = snapshot.find(kHeartshardsUnlockedKey);
-            if (heartshardsUnlockedIt != snapshot.end()) {
-                appendValue("account", "HeartshardsUnlocked", heartshardsUnlockedIt->second, CharacterDataValueFormat::Plain);
+            const auto sunderheartsUnlockedIt = snapshot.find(kSunderheartsUnlockedKey);
+            if (sunderheartsUnlockedIt != snapshot.end()) {
+                appendValue("shared", "SunderheartsUnlocked", sunderheartsUnlockedIt->second, CharacterDataValueFormat::Plain);
             }
 
-            std::vector<std::string> usedHeartshardEntries;
+            std::vector<std::string> usedSunderheartEntries;
             for (const auto& [key, value] : snapshot) {
-                if (!StartsWith(key, kHeartshardUsedPrefix)) {
+                if (!StartsWith(key, kSunderheartUsedPrefix)) {
                     continue;
                 }
 
-                const std::string suffix = key.substr(std::string(kHeartshardUsedPrefix).size());
-                usedHeartshardEntries.push_back("HeartshardUnlocked(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
+                const std::string suffix = key.substr(std::string(kSunderheartUsedPrefix).size());
+                usedSunderheartEntries.push_back("SunderheartUnlocked(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
             }
-            std::sort(usedHeartshardEntries.begin(), usedHeartshardEntries.end());
+            std::sort(usedSunderheartEntries.begin(), usedSunderheartEntries.end());
 
-            auto& accountEntries = entries["account"];
-            accountEntries.insert(accountEntries.end(), usedHeartshardEntries.begin(), usedHeartshardEntries.end());
+            auto& sharedEntries = entries["shared"];
+            sharedEntries.insert(sharedEntries.end(), usedSunderheartEntries.begin(), usedSunderheartEntries.end());
         }
 
         for (const auto& spec : kCharacterDataKeySpecs) {

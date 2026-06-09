@@ -95,27 +95,27 @@ namespace
         }
     }
 
-    static DynamicAssetVariants GetDynamicSplashVariants(const std::filesystem::path& a_ifaceDir)
+    static DynamicAssetVariants GetDynamicSplashVariants(const std::filesystem::path& a_variantDir)
     {
         DynamicAssetVariants variants;
         for (std::int32_t preset = 0; preset <= 3; ++preset) {
             for (const auto tier : kDynamicAssetTiers) {
                 const auto file = ResolveDynamicSplashFile(tier, preset);
                 if (file) {
-                    variants.push_back(a_ifaceDir / std::filesystem::path(*file));
+                    variants.push_back(a_variantDir / std::filesystem::path(*file));
                 }
             }
         }
         return variants;
     }
 
-    static DynamicAssetVariants GetDynamicLevelWidgetVariants(const std::filesystem::path& a_ifaceDir)
+    static DynamicAssetVariants GetDynamicLevelWidgetVariants(const std::filesystem::path& a_variantDir)
     {
         DynamicAssetVariants variants;
         for (const auto tier : kDynamicAssetTiers) {
             const auto file = ResolveDynamicLevelWidgetFile(tier);
             if (file) {
-                variants.push_back(a_ifaceDir / *file);
+                variants.push_back(a_variantDir / *file);
             }
         }
         return variants;
@@ -510,9 +510,10 @@ namespace
             }
 
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
-            const fs::path src = ifaceDir / fs::path(file);
+            const fs::path splashDir = ifaceDir / L"splash";
+            const fs::path src = splashDir / fs::path(file);
             const fs::path dst = ifaceDir / L"splash.png";
-            const auto knownVariants = GetDynamicSplashVariants(ifaceDir);
+            const auto knownVariants = GetDynamicSplashVariants(splashDir);
 
             if (mode == 0) {
                 RestoreBackupIfPresent(dst, "ApplyDynamicSplash");
@@ -536,13 +537,14 @@ namespace
     {
         namespace fs = std::filesystem;
         const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
+        const fs::path widgetDir = ifaceDir / L"lvlWidget";
 
         // Require the base destination to exist to confirm the user has the widget mod installed.
         // We still overwrite it, but its presence is used as the install signal.
         if (!fs::exists(ifaceDir / L"lvlWidget.swf")) {
             return false;
         }
-        const auto variants = GetDynamicLevelWidgetVariants(ifaceDir);
+        const auto variants = GetDynamicLevelWidgetVariants(widgetDir);
         for (const auto& variant : variants) {
             if (!fs::exists(variant)) {
                 return false;
@@ -556,6 +558,7 @@ namespace
         try {
             namespace fs = std::filesystem;
             const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
+            const fs::path widgetDir = ifaceDir / L"lvlWidget";
 
             const wchar_t* file = L"lvlWidget_1_iron.swf";
             const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicLevelWidget", 1));
@@ -572,9 +575,9 @@ namespace
                 file = *resolved;
             }
 
-            const fs::path src = ifaceDir / file;
+            const fs::path src = widgetDir / file;
             const fs::path dst = ifaceDir / L"lvlWidget.swf";
-            const auto knownVariants = GetDynamicLevelWidgetVariants(ifaceDir);
+            const auto knownVariants = GetDynamicLevelWidgetVariants(widgetDir);
 
             if (mode == 0) {
                 RestoreBackupIfPresent(dst, "ApplyDynamicLevelWidget");

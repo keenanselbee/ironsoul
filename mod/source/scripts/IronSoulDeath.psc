@@ -273,7 +273,10 @@ Function HandlePlayerDying(Actor player, Actor caster)
             respawnReady = respawn && respawn.ArmRespawnWindow(player, guid)
         endif
 
+        Float luckPresentationStartedAt = Utility.GetCurrentRealTime()
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Luck presentation start success=" + luckSaved + " t=" + luckPresentationStartedAt, True)
         luck.PlayRollPresentation(player, luckSaved)
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Luck presentation returned success=" + luckSaved + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - luckPresentationStartedAt), True)
 
         if luckSaved
             ; Journal: luck-based survival line (tiered by luck value used for the roll).
@@ -292,7 +295,7 @@ Function HandlePlayerDying(Actor player, Actor caster)
         else
             ; Journal: luck-based death line includes roll + luck (and predicted death count).
             luck.JournalLogOutcome(False, player, guid)
-            LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Luck FAIL -> Death")
+            LogDeath(IronSoulConfig.LOG_INFO(), "HandlePlayerDying: Luck FAIL -> Death; entering HandleDeathAndQuit t=" + Utility.GetCurrentRealTime(), True)
             HandleDeathAndQuit(player)
         endif
 
@@ -312,6 +315,8 @@ Function HandleDeathAndQuit(Actor player)
         return
     endif
 
+    Float deathQuitStartedAt = Utility.GetCurrentRealTime()
+
     IronSoulConfig config = Controller.Config
     IronSoulIdentity identity = Controller.Identity
     IronSoulTiers tiers = Controller.Tiers
@@ -321,6 +326,7 @@ Function HandleDeathAndQuit(Actor player)
     IronSoulSFX sfx = Controller.SFX
     IronSoulEffects effects = Controller.Effects
 
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Enter t=" + deathQuitStartedAt, True)
     IronSoulNative.HoldDeathSlowMo("death-failure")
     IronSoulNative.BeginMenuBlock("death", True)
 
@@ -340,9 +346,20 @@ Function HandleDeathAndQuit(Actor player)
     ; Read deaths AFTER increment so first recorded death is deathsNow == 1.
     Int deathsNow = GetCurrentDeathCount(player, guid)
 
-    ; Recompute Soul Bonus / Soul Fatigue after the authoritative death count changes.
-    effects.SyncSoulPresentationAndStats(player, guid)
-    Bool defiantFatigueTerminal = tiers.IsDefiantSoulFatigueTerminal(player, guid)
+    ; Cached state for tier-aware menus.
+    ; Soul tier/state: 0=Defiant, 1=Iron, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour, 9=CHIM.
+    Int soulTierTD = tiers.GetCurrentTier(player, guid)
+    Bool chimActive = soulTierTD == tiers.TIER_CHIM
+    Bool defiantActive = soulTierTD == tiers.TIER_DEFIANT
+
+    ; Defiant fatigue terminal detection needs post-death fatigue synced before the kill.
+    Bool syncedEffectsBeforeKill = False
+    Bool defiantFatigueTerminal = False
+    if defiantActive && config.IsSoulFatigueEnabled()
+        effects.SyncSoulPresentationAndStats(player, guid)
+        syncedEffectsBeforeKill = True
+        defiantFatigueTerminal = tiers.IsDefiantSoulFatigueTerminal(player, guid)
+    endif
 
     ; Luck reset: death milestone should consume the current cycle.
     if luck.IsRuntimeAvailable()
@@ -350,39 +367,49 @@ Function HandleDeathAndQuit(Actor player)
         luck.ForcePersistNow(player, guid)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: ResetLuck()")
     endif
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Pre-kill state committed deathsNow=" + deathsNow + " tier=" + soulTierTD + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
-    ; Queue the presentation after committing every outcome state mutation.
+    ; Resolve the death outcome before the kill; defer journals and presentation.
     ; presentationMode: 0 none, 1 Defiant transition, 2 CHIM transition, 3 death, 4 permadeath.
     Int presentationMode = 0
     String presentationMenu = ""
     Bool quitToMainMenu = False
 
-    ; Cached state for tier-aware menus.
-    ; Soul tier/state: 0=Defiant, 1=Iron, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour, 9=CHIM.
-    Int soulTierTD = tiers.GetCurrentTier(player, guid)
+    Bool tierStateCommittedBeforeKill = False
+    Int committedTier = soulTierTD
+    Bool logDefiantActivationJournal = False
+    Bool logCHIMRealizedJournal = False
+    Bool logDefiantFatigueJournal = False
+    String defiantFatigueJournalText = ""
+    Bool maybeLogDefeatJournal = False
+    String defeatJournalText = ""
+    Bool logTrueDeathJournal = False
+    String trueDeathJournalText = ""
 
-    ; Transition gating + CHIM/Defiant state.
-    Bool chimActive = soulTierTD == tiers.TIER_CHIM
-    Bool defiantActive = soulTierTD == tiers.TIER_DEFIANT
     Int transitionTier = tiers.ResolveDeathTransitionTier(player, guid, deathsNow, soulTierTD)
 
     ; Defiant transition sequence (10th death, feat earned, not yet activated).
     if !defiantActive && transitionTier == tiers.TIER_DEFIANT
         ; Commit Defiant activation before native kill so quitting/crashing during the UI sequence cannot lose it.
-        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Defiant Soul ACTIVATED (one-shot latch)")
-        tiers.PromoteToDefiantTier(player, guid, soulTierTD)
-
-        ; Journal: Defiant activation milestone.
-        journal.LogEventForGuid(player, guid, "You refuse Sovngarde and rise again. Defiant Soul awakened. Death limit is now 20.")
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Defiant Soul state commit before kill")
+        tiers.CommitDefiantTransitionStateForDeath(player, guid, soulTierTD)
+        tierStateCommittedBeforeKill = True
+        committedTier = tiers.TIER_DEFIANT
+        logDefiantActivationJournal = True
         presentationMode = 1
     elseif defiantActive && defiantFatigueTerminal
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Defiant Soul FATIGUE terminal state reached")
         if config.IsCharacterJournalEnabled()
             Bool terminalFatigue = config.IsPermadeathEnabled() || chimActive
-            journal.LogEventForGuid(player, guid, IronSoulJournal.DefiantFatigueOutcomeText(deathsNow, tiers.DEFIANT_SOUL_MAX_LIVES, terminalFatigue))
+            logDefiantFatigueJournal = True
+            defiantFatigueJournalText = IronSoulJournal.DefiantFatigueOutcomeText(deathsNow, tiers.DEFIANT_SOUL_MAX_LIVES, terminalFatigue)
         endif
         if !config.IsPermadeathEnabled() && !chimActive
-            tiers.PromoteToCHIMTier(player, guid)
+            LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: CHIM Soul state commit before kill")
+            tiers.CommitCHIMTransitionStateForDeath(player, guid)
+            tierStateCommittedBeforeKill = True
+            committedTier = tiers.TIER_CHIM
+            logCHIMRealizedJournal = True
             presentationMode = 2
         else
             presentationMode = 4
@@ -391,16 +418,17 @@ Function HandleDeathAndQuit(Actor player)
         endif
     elseif !chimActive && transitionTier == tiers.TIER_CHIM
         ; CHIM transition sequence (10th death without Defiant transition, 10th Devour death with Permadeath off, or 20th death in Defiant).
-        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: CHIM Soul ACTIVATED (one-shot latch)")
-        tiers.PromoteToCHIMTier(player, guid)
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: CHIM Soul state commit before kill")
+        tiers.CommitCHIMTransitionStateForDeath(player, guid)
+        tierStateCommittedBeforeKill = True
+        committedTier = tiers.TIER_CHIM
+        logCHIMRealizedJournal = True
         presentationMode = 2
     elseif chimActive
         ; CHIM tier: every death uses a random dedicated CHIM death menu and exits.
         if config.IsCharacterJournalEnabled()
-            if luck.ConsumeNextDeathJournalSuppression()
-            else
-                journal.LogEventForGuid(player, guid, IronSoulJournal.DefeatOutcomeText(deathsNow, tiers.GetEffectiveMaxLives(player, guid)))
-            endif
+            maybeLogDefeatJournal = True
+            defeatJournalText = IronSoulJournal.DefeatOutcomeText(deathsNow, tiers.GetEffectiveMaxLives(player, guid))
         endif
         if config.IsDeathMessageEnabled()
             presentationMode = 3
@@ -415,9 +443,9 @@ Function HandleDeathAndQuit(Actor player)
 
         ; Journal: normal death (non-cap). Special cases are handled above.
         if config.IsCharacterJournalEnabled()
-            if luck.ConsumeNextDeathJournalSuppression()
-            elseif deathsNow < hardCap
-                journal.LogEventForGuid(player, guid, IronSoulJournal.DefeatOutcomeText(deathsNow, hardCap))
+            if deathsNow < hardCap
+                maybeLogDefeatJournal = True
+                defeatJournalText = IronSoulJournal.DefeatOutcomeText(deathsNow, hardCap)
             endif
         endif
 
@@ -426,7 +454,8 @@ Function HandleDeathAndQuit(Actor player)
             ; - 10th death without Defiant/CHIM transition
             ; - 10th Devour death when Permadeath is enabled
             ; - 20th death with Defiant active when CHIM transition is not taken.
-            journal.LogEventForGuid(player, guid, IronSoulJournal.TrueDeathOutcomeText(deathsNow, hardCap))
+            logTrueDeathJournal = True
+            trueDeathJournalText = IronSoulJournal.TrueDeathOutcomeText(deathsNow, hardCap)
             presentationMode = 4
             presentationMenu = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
             quitToMainMenu = True
@@ -437,6 +466,9 @@ Function HandleDeathAndQuit(Actor player)
             endif
         endif
     endif
+
+    IronSoulNative.DataFlushIfDirty()
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Outcome resolved mode=" + presentationMode + " menu=" + presentationMenu + " quitToMainMenu=" + quitToMainMenu + " committedTier=" + committedTier + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
     if presentationMode == 1 || presentationMode == 2 || presentationMode == 4
         PlayPermadeathImod()
@@ -450,12 +482,15 @@ Function HandleDeathAndQuit(Actor player)
     endif
 
     player.GetActorBase().SetEssential(False)
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Calling EndDeferredKill() t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     player.EndDeferredKill()
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: EndDeferredKill() returned t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
     Utility.Wait(0.01)
 
-    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Calling KillPlayerImmediate()")
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Calling KillPlayerImmediate() t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     Bool nativeKillQueued = IronSoulNative.KillPlayerImmediate(True, "death-failure")
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: KillPlayerImmediate() returned queued=" + nativeKillQueued + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     if !nativeKillQueued
         if player.IsEssential()
             LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Native kill unavailable; calling KillEssential()")
@@ -465,6 +500,34 @@ Function HandleDeathAndQuit(Actor player)
             player.Kill()
         endif
     endif
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Kill queued; post-kill phase start t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+
+    if tierStateCommittedBeforeKill
+        tiers.SyncCommittedTierStateAfterDeath(player, guid, committedTier)
+    elseif !syncedEffectsBeforeKill
+        effects.SyncSoulPresentationAndStats(player, guid)
+    endif
+
+    if logDefiantActivationJournal
+        journal.LogEventForGuid(player, guid, "You refuse Sovngarde and rise again. Defiant Soul awakened. Death limit is now 20.")
+    endif
+    if logDefiantFatigueJournal
+        journal.LogEventForGuid(player, guid, defiantFatigueJournalText)
+    endif
+    if logCHIMRealizedJournal
+        journal.LogCHIMRealized(player, guid)
+    endif
+    if maybeLogDefeatJournal
+        if luck.ConsumeNextDeathJournalSuppression()
+        else
+            journal.LogEventForGuid(player, guid, defeatJournalText)
+        endif
+    endif
+    if logTrueDeathJournal
+        journal.LogEventForGuid(player, guid, trueDeathJournalText)
+    endif
+
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Post-kill journals and presentation state complete t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
     IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "death-failure-kill")
     Utility.Wait(1.0)

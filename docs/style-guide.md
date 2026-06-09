@@ -81,15 +81,15 @@ Naming By Layer
 | Area | Convention | Example |
 |---|---|---|
 | Special root docs | Uppercase conventional names | `README.md`, `AGENTS.md`, `LICENSE`, `CHANGELOG.md` |
-| Repo docs | lower-kebab | `docs/style-guide.md`, `docs/heartshards-roadmap.md` |
+| Repo docs | lower-kebab | `docs/style-guide.md`, `docs/sunderhearts-roadmap.md` |
 | Repo tools | lower-kebab | `tools/compile-papyrus.ps1` |
 | Internal repo buckets | Top-level lowercase folders | `docs`, `tools`, `assets`, `reference` |
 | Papyrus scripts | PascalCase, no dashes | `IronSoulDraugnarokMain.psc` |
 | Quest fragments | `IronSoul_QF_*` | `IronSoul_QF_DraugnarokMain.psc` |
 | EditorIDs | `IronSoul_*` | `IronSoul_DraugnarokMainQuest` |
-| INI sections | PascalCase | `[Draugnarok]`, `[HeartShards]` |
-| INI keys | PascalCase | `DraugnarokSystem`, `HeartShardSystem` |
-| Skyrim runtime assets | lower_snake_case | `splash_01_iron.png`, `heartshard_item_enhanced.swf` |
+| INI sections | PascalCase | `[Draugnarok]`, `[Sunderhearts]` |
+| INI keys | PascalCase | `DraugnarokSystem`, `SunderheartSystem` |
+| Skyrim runtime assets | lower_snake_case | `splash_01_iron.png`, `sunderheart_item_enhanced.swf` |
 | SKSE plugin files | lowercase | `ironsoul.ini`, `ironsoul.dll` |
 | Public titles | Title Case | `Iron Soul: Dead God's Dream` |
 
@@ -220,7 +220,7 @@ README And Documentation
 - Keep the README's logo banner and Setext Markdown file-header style.
 - Use Markdown section dividers from this guide in Markdown docs.
 - Use concise prose first, then short one-level bullet lists.
-- Keep roadmap names in Title Case: `Heartshards`, `Return of the Dead God`, `War of the Barrows`.
+- Keep roadmap names in Title Case: `Sunderhearts`, `Return of the Dead God`, `War of the Barrows`.
 - Prefer public-facing clarity over implementation detail in README prose.
 - Use lower-kebab filenames for additional docs under `docs`.
 - Avoid nested bullets unless the extra hierarchy prevents confusion.

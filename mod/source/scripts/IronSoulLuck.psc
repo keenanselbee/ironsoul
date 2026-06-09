@@ -344,60 +344,35 @@ Function PlayRollPresentation(Actor player, Bool success)
         return
     endif
 
+    Float presentationStartedAt = Utility.GetCurrentRealTime()
     Utility.Wait(0.5)
+
+    if !Controller.Config.IsLuckRollMessageEnabled()
+        LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: LuckRollMessage disabled success=" + success + " roll100=" + _lastLuckRoll + " luck=" + _lastLuckValue, True)
+        return
+    endif
 
     Int roll20 = ComputeLuckRollD20(_lastLuckValue, _lastLuckRoll)
 
-    Int messageMode = 1
-    if Controller.Config
-        messageMode = Controller.Config.GetLuckRollMessageMode()
+    String rollMenu = "luck_roll_" + roll20
+    Sound resultSFX = Controller.SFX.SFXLuckFailure
+    if success
+        resultSFX = Controller.SFX.SFXLuckSuccess
     endif
 
-    if messageMode == 1
-        String rollMenu = "luck_roll_" + roll20
-        String resultMenu = "luck_defeat_" + roll20
-        Sound resultSFX = Controller.SFX.SFXLuckFailure
-        if success
-            resultMenu = "luck_survival_" + roll20
-            resultSFX = Controller.SFX.SFXLuckSuccess
-        endif
+    UI.CloseCustomMenu()
+    Int cursorToken = IronSoulNative.BeginCursorSuppress()
+    Utility.Wait(0.05)
 
-        UI.CloseCustomMenu()
-        Int cursorToken = IronSoulNative.BeginCursorSuppress()
-        Utility.Wait(0.05)
-
-        Controller.SFX.Play(Controller.SFX.SFXLuckRoll, player)
-
-        UI.OpenCustomMenu(rollMenu, 0)
-        IronSoulNative.RefreshCursorSuppress()
-        Utility.WaitMenuMode(2.5)
-
-        Controller.SFX.Play(resultSFX, player)
-        UI.CloseCustomMenu()
-        IronSoulNative.RefreshCursorSuppress()
-
-        UI.OpenCustomMenu(resultMenu, 0)
-        IronSoulNative.RefreshCursorSuppress()
-        Utility.WaitMenuMode(1.5)
-        UI.CloseCustomMenu()
-        IronSoulNative.EndCursorSuppress(cursorToken)
-
-    elseif messageMode == 2
-        String resultMenuOnly = "luck_defeat_" + roll20
-        Sound resultSFXOnly = Controller.SFX.SFXLuckFailure
-        if success
-            resultMenuOnly = "luck_survival_" + roll20
-            resultSFXOnly = Controller.SFX.SFXLuckSuccess
-        endif
-
-        Int cursorTokenOnly = IronSoulNative.BeginCursorSuppress()
-        Controller.SFX.Play(resultSFXOnly, player)
-        UI.OpenCustomMenu(resultMenuOnly, 0)
-        IronSoulNative.RefreshCursorSuppress()
-        Utility.WaitMenuMode(1.0)
-        UI.CloseCustomMenu()
-        IronSoulNative.EndCursorSuppress(cursorTokenOnly)
-    endif
+    Controller.SFX.Play(resultSFX, player)
+    UI.OpenCustomMenu(rollMenu, 0)
+    IronSoulNative.RefreshCursorSuppress()
+    LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: Menu opened success=" + success + " menu=" + rollMenu + " roll100=" + _lastLuckRoll + " luck=" + _lastLuckValue + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - presentationStartedAt), True)
+    Utility.WaitMenuMode((46.0 / 18.0) + 1.0)
+    UI.CloseCustomMenu()
+    LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: Menu close requested menu=" + rollMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - presentationStartedAt), True)
+    IronSoulNative.EndCursorSuppress(cursorToken)
+    LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: Complete success=" + success + " menu=" + rollMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - presentationStartedAt), True)
 EndFunction
 
 Function JournalLogOutcome(Bool survived, Actor player, String guid)

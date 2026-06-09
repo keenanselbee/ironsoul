@@ -38,10 +38,10 @@ IronSoulController Property Controller Auto
 ; This component owns shared UI, death, respawn, luck, and heavy-breathing
 ; sounds. Tier and Dragon Soul Revive sounds stay with their owning components.
 Sound Property SFXIronIntro Auto
+Sound Property SFXIronIntroPrisoner Auto
 Sound Property SFXDeath Auto
 Sound Property SFXPermadeath Auto
 Sound Property SFXRespawn Auto
-Sound Property SFXLuckRoll Auto
 Sound Property SFXLuckFailure Auto
 Sound Property SFXLuckSuccess Auto
 Sound Property SFXHeavyBreathing0 Auto ; MaleKhajiit
@@ -132,7 +132,7 @@ Bool Function IsOwnedSFXEnabled(Sound sfx)
         return False
     endif
 
-    if sfx == SFXIronIntro
+    if sfx == SFXIronIntro || sfx == SFXIronIntroPrisoner
         return Controller.Config.IsIronIntroSFXEnabled()
     elseif sfx == SFXDeath
         return Controller.Config.IsDeathSFXEnabled()
@@ -140,8 +140,6 @@ Bool Function IsOwnedSFXEnabled(Sound sfx)
         return Controller.Config.IsPermadeathSFXEnabled()
     elseif sfx == SFXRespawn
         return Controller.Config.IsRespawnSFXEnabled()
-    elseif sfx == SFXLuckRoll
-        return Controller.Config.IsLuckRollSFXEnabled()
     elseif sfx == SFXLuckFailure || sfx == SFXLuckSuccess
         return Controller.Config.IsLuckOutcomeSFXEnabled()
     elseif sfx == SFXHeavyBreathing0 || sfx == SFXHeavyBreathing1 || sfx == SFXHeavyBreathing2 || sfx == SFXHeavyBreathing3 || sfx == SFXHeavyBreathing4 || sfx == SFXHeavyBreathing5 || sfx == SFXHeavyBreathing6 || sfx == SFXHeavyBreathing7 || sfx == SFXHeavyBreathing8 || sfx == SFXHeavyBreathing9
@@ -163,12 +161,12 @@ Bool Function CanPlaySFX(Bool sfxEnabled, Bool uninstallMode, Bool modDisabled) 
     return True
 EndFunction
 
-Bool Function IsSFXCategoryEnabled(Sound sfx, Sound ironIntro, Sound death, Sound permadeath, Sound respawn, Sound defiantTransition, Sound chimTransition, Sound defiantReset, Sound deathsPurged, Sound dsrCast1, Sound dsrCast2, Sound dsrCast3, Sound dsrCast4, Sound dsr1, Sound dsr2, Sound dsr3, Sound dsr4, Sound featSilver, Sound featGold, Sound featEbon, Sound featPlatinum, Sound featDevour, Sound featDefiant, Sound luckRoll, Sound luckFailure, Sound luckSuccess, Sound heavy0, Sound heavy1, Sound heavy2, Sound heavy3, Sound heavy4, Sound heavy5, Sound heavy6, Sound heavy7, Sound heavy8, Sound heavy9, Bool ironIntroEnabled, Bool deathEnabled, Bool permadeathEnabled, Bool respawnEnabled, Bool defiantTransitionEnabled, Bool chimTransitionEnabled, Bool defiantResetEnabled, Bool deathsPurgedEnabled, Bool dsrCastEnabled, Bool dsrEnabled, Bool featEnabled, Bool luckRollEnabled, Bool luckOutcomeEnabled, Bool heavyBreathingEnabled) Global
+Bool Function IsSFXCategoryEnabled(Sound sfx, Sound ironIntro, Sound ironIntroPrisoner, Sound death, Sound permadeath, Sound respawn, Sound defiantTransition, Sound chimTransition, Sound defiantReset, Sound deathsPurged, Sound dsrCast1, Sound dsrCast2, Sound dsrCast3, Sound dsrCast4, Sound dsr1, Sound dsr2, Sound dsr3, Sound dsr4, Sound featSilver, Sound featGold, Sound featEbon, Sound featPlatinum, Sound featDevour, Sound featDefiant, Sound luckFailure, Sound luckSuccess, Sound heavy0, Sound heavy1, Sound heavy2, Sound heavy3, Sound heavy4, Sound heavy5, Sound heavy6, Sound heavy7, Sound heavy8, Sound heavy9, Bool ironIntroEnabled, Bool deathEnabled, Bool permadeathEnabled, Bool respawnEnabled, Bool defiantTransitionEnabled, Bool chimTransitionEnabled, Bool defiantResetEnabled, Bool deathsPurgedEnabled, Bool dsrCastEnabled, Bool dsrEnabled, Bool featEnabled, Bool luckOutcomeEnabled, Bool heavyBreathingEnabled) Global
     if !sfx
         return False
     endif
 
-    if sfx == ironIntro
+    if sfx == ironIntro || sfx == ironIntroPrisoner
         return ironIntroEnabled
     elseif sfx == death
         return deathEnabled
@@ -190,8 +188,6 @@ Bool Function IsSFXCategoryEnabled(Sound sfx, Sound ironIntro, Sound death, Soun
         return dsrEnabled
     elseif sfx == featSilver || sfx == featGold || sfx == featEbon || sfx == featPlatinum || sfx == featDevour || sfx == featDefiant
         return featEnabled
-    elseif sfx == luckRoll
-        return luckRollEnabled
     elseif sfx == luckFailure || sfx == luckSuccess
         return luckOutcomeEnabled
     elseif sfx == heavy0 || sfx == heavy1 || sfx == heavy2 || sfx == heavy3 || sfx == heavy4 || sfx == heavy5 || sfx == heavy6 || sfx == heavy7 || sfx == heavy8 || sfx == heavy9

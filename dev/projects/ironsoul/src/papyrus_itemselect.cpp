@@ -3,6 +3,7 @@
 #include "papyrus_common.h"
 
 #include <string>
+#include <string_view>
 
 namespace IronSoul::Papyrus::ItemSelect
 {
@@ -63,9 +64,50 @@ namespace
         return item ? item->data.objDesc : nullptr;
     }
 
+    RE::InventoryEntryData* GetInventorySelectedEntry()
+    {
+        auto* itemList = GetOpenInventoryItemList();
+        auto* item = itemList ? itemList->GetSelectedItem() : nullptr;
+        return item ? item->data.objDesc : nullptr;
+    }
+
+    static bool InventorySelectedItemHasEditorIDPrefix(RE::StaticFunctionTag*, std::string a_editorIDPrefix)
+    {
+        if (a_editorIDPrefix.empty()) {
+            return false;
+        }
+
+        auto* entry = GetInventorySelectedEntry();
+        auto* object = entry ? entry->object : nullptr;
+        const char* editorID = object ? object->GetFormEditorID() : nullptr;
+        if (!editorID || editorID[0] == '\0') {
+            return false;
+        }
+
+        return std::string_view(editorID).starts_with(a_editorIDPrefix);
+    }
+
+    static bool InventorySelectedItemHasEditorID(RE::StaticFunctionTag*, std::string a_editorID)
+    {
+        if (a_editorID.empty()) {
+            return false;
+        }
+
+        auto* entry = GetInventorySelectedEntry();
+        auto* object = entry ? entry->object : nullptr;
+        const char* editorID = object ? object->GetFormEditorID() : nullptr;
+        if (!editorID || editorID[0] == '\0') {
+            return false;
+        }
+
+        return a_editorID == editorID;
+    }
+
     void Register(RE::BSScript::IVirtualMachine* a_vm)
     {
         a_vm->RegisterFunction("OpenMenu", kScriptName, OpenMenu);
         a_vm->RegisterFunction("CloseMenu", kScriptName, CloseMenu);
+        a_vm->RegisterFunction("InventorySelectedItemHasEditorIDPrefix", kScriptName, InventorySelectedItemHasEditorIDPrefix);
+        a_vm->RegisterFunction("InventorySelectedItemHasEditorID", kScriptName, InventorySelectedItemHasEditorID);
     }
 }

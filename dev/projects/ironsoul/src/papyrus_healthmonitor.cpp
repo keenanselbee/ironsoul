@@ -702,7 +702,16 @@ namespace
         const bool ragdollInstant = a_ragdollInstant;
         const bool infoLog = InfoLoggingEnabled();
         const std::string reason = a_reason.empty() ? "unknown" : a_reason;
-        task->AddTask([ragdollInstant, infoLog, reason]() {
+        const auto requestedAt = std::chrono::steady_clock::now();
+
+        if (infoLog) {
+            logger::info("KillPlayerImmediate: request queued ragdollInstant={} reason={}", ragdollInstant, reason);
+        }
+
+        task->AddTask([ragdollInstant, infoLog, reason, requestedAt]() {
+            const auto queueDelayMs = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - requestedAt).count();
+
             auto* player = RE::PlayerCharacter::GetSingleton();
             if (!player) {
                 logger::warn("KillPlayerImmediate: player unavailable reason={}", reason);
@@ -728,7 +737,11 @@ namespace
             }
 
             if (infoLog) {
-                logger::info("KillPlayerImmediate: KillImpl queued ragdollInstant={} reason={}", ragdollInstant, reason);
+                logger::info(
+                    "KillPlayerImmediate: KillImpl executed ragdollInstant={} reason={} queueDelayMs={:.1f}",
+                    ragdollInstant,
+                    reason,
+                    queueDelayMs);
             }
         });
 

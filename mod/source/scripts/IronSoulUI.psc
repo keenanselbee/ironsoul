@@ -69,6 +69,7 @@ Scriptname IronSoulUI extends Quest
 ; ResolveDefiantFeatUnlockMenu()
 ; ResolveDefiantTransitionMenu()
 ; ResolveCHIMTransitionMenu()
+; IsLuckRollMenu()
 ; ResolveLuckThresholdNotification()
 
 ; --- Load Notification Text ---
@@ -510,6 +511,9 @@ Function OpenTimedMessageSWF(String menuName, Float duration = 6.0, Bool restore
     if duration <= 0.0
         duration = 0.1
     endif
+    if IsLuckRollMenu(menuName)
+        duration += 0.5
+    endif
 
     Int cursorToken = IronSoulNative.BeginCursorSuppress()
     FadeMusicForTransitionSequence()
@@ -593,6 +597,9 @@ Bool Function OpenKeyDismissMenu(String menuName, Float maxDuration = 6.0, Float
 
     if maxDuration <= 0.0
         maxDuration = 0.1
+    endif
+    if IsLuckRollMenu(menuName)
+        maxDuration += 0.5
     endif
     if minDismissSeconds < 0.0
         minDismissSeconds = 0.0
@@ -682,7 +689,16 @@ Bool Function ShowIronIntro(Actor player, String guid)
         return False
     endif
 
-    OpenTimedMessageSWF_KeyDismissIronIntro(SwfNoBonus("1_iron_intro", Controller.Config.IsSoulBonusEnabled()), 30.0, 14.5, Controller.SFX.SFXIronIntro, player)
+    String introMenu = SwfNoBonus("1_iron_intro", Controller.Config.IsSoulBonusEnabled())
+    Sound introSFX = Controller.SFX.SFXIronIntro
+    Float minDismissSeconds = 14.5
+    if Controller.Identity.IsCurrentCharacterTest(player)
+        introMenu = "1_iron_intro_prisoner"
+        introSFX = Controller.SFX.SFXIronIntroPrisoner
+        minDismissSeconds = 2.0
+    endif
+
+    OpenTimedMessageSWF_KeyDismissIronIntro(introMenu, 30.0, minDismissSeconds, introSFX, player)
     RestoreMusic()
     Controller.Persistence.MarkIronIntroShown(player, guid)
     Utility.Wait(1.0)
@@ -1163,6 +1179,10 @@ String Function ResolveCHIMTransitionMenu(Int curTier) Global
         return "9_chim_intro_transitionplatinum"
     endif
     return "9_chim_intro_transitioniron"
+EndFunction
+
+Bool Function IsLuckRollMenu(String menuName) Global
+    return StringUtil.Find(menuName, "luck") != -1 && StringUtil.Find(menuName, "roll") != -1
 EndFunction
 
 String Function ResolveLuckThresholdNotification(Int tier) Global

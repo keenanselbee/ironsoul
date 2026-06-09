@@ -74,7 +74,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "dragonsoulrevivetransform", "DragonSoulReviveTransform", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
 
 	{ "luckremindernotification", "LuckReminderNotification", "Respawn", 1, true, 0, true, 1, 0 },
-	{ "luckrollmessagemode", "LuckRollMessageMode", "Respawn", 1, true, 0, true, 2, 0 },
+	{ "luckrollmessage", "LuckRollMessage", "Respawn", 1, true, 0, true, 1, 0 },
 	{ "respawn", "Respawn", "Respawn", 1, true, 0, true, 1, 0 },
 	{ "respawnmessage", "RespawnMessage", "Respawn", 1, true, 0, true, 1, 0 },
 
@@ -100,10 +100,10 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "roadencounters", "RoadEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 	{ "wildernessencounters", "WildernessEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 
-	{ "heartshardmessage", "HeartshardMessage", "Heartshards", 1, true, 0, true, 1, 0 },
-	{ "heartshardnotification", "HeartshardNotification", "Heartshards", 1, true, 0, true, 1, 0 },
-	{ "heartshardinventorymode", "HeartshardInventoryMode", "Heartshards", 1, true, 0, true, 3, 0 },
-	{ "heartshardtonalmaxtemper", "HeartshardTonalMaxTemper", "Heartshards", 10, true, 1, true, 100, 0 },
+	{ "sunderheartmessage", "SunderheartMessage", "Sunderhearts", 1, true, 0, true, 1, 0 },
+	{ "sunderheartnotification", "SunderheartNotification", "Sunderhearts", 1, true, 0, true, 1, 0 },
+	{ "sunderheartinventorymode", "SunderheartInventoryMode", "Sunderhearts", 1, true, 0, true, 3, 0 },
+	{ "sunderhearttonalmaxtemper", "SunderheartTonalMaxTemper", "Sunderhearts", 10, true, 1, true, 100, 0 },
 
 	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "mirrordatabackup", "MirrorDataBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
@@ -125,11 +125,11 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "defianttransitionsfx", "DefiantTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "chimtransitionsfx", "CHIMTransitionSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "defiantrestoresfx", "DefiantRestoreSFX", "Sound", 1, true, 0, true, 1, 0 },
-	{ "heartshardabsorbsfx", "HeartshardAbsorbSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "sunderheartabsorbsfx", "SunderheartAbsorbSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "sunderheartfocussfx", "SunderheartFocusSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivecastsfx", "DragonSoulReviveCastSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivesfx", "DragonSoulReviveSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "featunlocksfx", "FeatUnlockSFX", "Sound", 1, true, 0, true, 1, 0 },
-	{ "luckrollsfx", "LuckRollSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "luckoutcomesfx", "LuckOutcomeSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "respawnheavybreathingsfx", "RespawnHeavyBreathingSFX", "Sound", 1, true, 0, true, 1, 0 },
 
@@ -935,7 +935,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		AppendConfigSummarySection(result, "DragonSoulRevive");
 		AppendConfigSummarySection(result, "Respawn");
 		AppendConfigSummarySection(result, "Draugnarok");
-		AppendConfigSummarySection(result, "Heartshards");
+		AppendConfigSummarySection(result, "Sunderhearts");
 		AppendConfigSummarySection(result, "SKSEPlugin");
 		AppendConfigSummarySection(result, "Sound");
 		AppendConfigSummarySection(result, "Experimental");

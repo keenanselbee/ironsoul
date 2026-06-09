@@ -125,7 +125,7 @@ IronSoulCleanup Property Cleanup Auto
 IronSoulRespawn Property Respawn Auto
 IronSoulDragonSoulRevive Property DragonSoulRevive Auto
 IronSoulTiers Property Tiers Auto
-IronSoulHeartshards Property Heartshards Auto
+IronSoulSunderhearts Property Sunderhearts Auto
 IronSoulEffects Property Effects Auto
 IronSoulGlobals Property Globals Auto
 
@@ -229,10 +229,10 @@ Bool Function LoadConfig()
         Debug.MessageBox("Iron Soul has been disabled because the IronSoulTiers quest component is not wired.")
         return False
     endif
-    if !Heartshards
+    if !Sunderhearts
         SetModDisabled(True)
-        LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Heartshards property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulHeartshards quest component is not wired.")
+        LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Sunderhearts property is not wired")
+        Debug.MessageBox("Iron Soul has been disabled because the IronSoulSunderhearts quest component is not wired.")
         return False
     endif
     if !Effects
@@ -249,6 +249,7 @@ Bool Function LoadConfig()
     endif
 
     Config.LoadFromIni()
+    Sunderhearts.RegisterInventoryFocusSFX()
     Game.SetGameSettingFloat("fPlayerDeathReloadTime", 3600.0)
     if Config.IsRequiemCompatibilityEnabled()
         GlobalVariable requiemNoDeathHandling = Game.GetFormFromFile(0x00AA1E9C, "Requiem.esp") as GlobalVariable
@@ -300,8 +301,8 @@ Function LogSystemSnapshot()
     else
         LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Tiers (IronSoulTiers)")
     endif
-    if !Heartshards
-        LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Heartshards (IronSoulHeartshards)")
+    if !Sunderhearts
+        LogControllerSnapshot(IronSoulConfig.LOG_ERR(), "MISSING PROPERTY: Sunderhearts (IronSoulSunderhearts)")
     endif
     if Effects
         Effects.LogSnapshot()
@@ -654,9 +655,9 @@ Function ResetTransientState()
         Tiers.ResetTransientState()
     endif
 
-    ; Heartshard use locks are transient.
-    if Heartshards
-        Heartshards.ResetTransientState()
+    ; Sunderheart use locks are transient.
+    if Sunderhearts
+        Sunderhearts.ResetTransientState()
     endif
 
     ; Destructive console command confirmation is transient and expires quickly.
@@ -755,6 +756,9 @@ Function OnUpdateHeartbeat(Actor player)
     ; Tier progression owns Dragon Soul accounting, boss latches, and Soul Feat scheduling.
     if Tiers
         Tiers.Heartbeat(player, guid)
+    endif
+    if Globals
+        Globals.SyncIntegrationStatus(player)
     endif
     ; Allow Luck notifications after first stable heartbeat.
     Luck.AllowThresholdNotifications()
