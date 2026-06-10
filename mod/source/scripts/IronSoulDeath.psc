@@ -127,8 +127,10 @@ Function PlayDeathInitialImod()
     endif
 
     if DeathInitialImod
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathInitialImod: applying crossfade=0.35 t=" + Utility.GetCurrentRealTime(), True)
         DeathInitialImod.ApplyCrossFade(0.35)
         _deathInitialImodStartedAt = Utility.GetCurrentRealTime()
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathInitialImod: applied t=" + _deathInitialImodStartedAt, True)
     else
         _deathInitialImodStartedAt = 0.0
         LogDeath(IronSoulConfig.LOG_ERR(), "PlayDeathInitialImod: DeathInitialImod property is not wired")
@@ -141,7 +143,9 @@ Bool Function PlayDeathImod()
     endif
 
     if DeathImod
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathImod: applying crossfade=1.0 t=" + Utility.GetCurrentRealTime(), True)
         DeathImod.ApplyCrossFade(1.0)
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathImod: applied t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
 
@@ -155,7 +159,9 @@ Bool Function PlayPermadeathImod()
     endif
 
     if PermadeathImod
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayPermadeathImod: applying crossfade=1.0 t=" + Utility.GetCurrentRealTime(), True)
         PermadeathImod.ApplyCrossFade(1.0)
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayPermadeathImod: applied t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
 
@@ -179,7 +185,9 @@ Function PlayLoadPermadeathSequence(Actor player, String menuName, Sound sfx, St
 
     IronSoulNative.BeginMenuBlock(menuBlockReason, True)
     PlayLoadTransitionImodAndWait()
+    LogDeath(IronSoulConfig.LOG_INFO(), "PlayLoadPermadeathSequence: opening menu=" + menuName + " t=" + Utility.GetCurrentRealTime(), True)
     Controller.Presentation.OpenTimedMessageSWF_KeyDismiss_SFX(menuName, 55.0, 27.0, sfx, player, False)
+    LogDeath(IronSoulConfig.LOG_INFO(), "PlayLoadPermadeathSequence: menu returned=" + menuName + " t=" + Utility.GetCurrentRealTime(), True)
     FinalizeDeathQuit(True)
 EndFunction
 
@@ -192,7 +200,9 @@ Bool Function PlayBlackScreenImod(Float fadeSeconds = 2.0)
     endif
 
     if BlackScreenImod
-        BlackScreenImod.ApplyCrossFade(fadeSeconds)
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayBlackScreenImod: applying crossfade=" + fadeSeconds + " t=" + Utility.GetCurrentRealTime(), True)
+        ;BlackScreenImod.ApplyCrossFade(5)
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayBlackScreenImod: applied crossfade=" + fadeSeconds + " t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
 
@@ -536,13 +546,21 @@ Function HandleDeathAndQuit(Actor player)
     player.GetActorBase().SetEssential(False)
 
     if presentationMode == 1
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening Defiant transition menu t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         tiers.PlayDefiantTransitionSWF(soulTierTD, False)
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Defiant transition menu returned t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     elseif presentationMode == 2
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening CHIM transition menu t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         tiers.PlayCHIMTransitionSWF(soulTierTD, False)
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: CHIM transition menu returned t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     elseif presentationMode == 3
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening death menu=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         presentation.OpenTimedMessageSWF_SFX(presentationMenu, 6.0, sfx.SFXDeath, player, False)
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: death menu returned=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     elseif presentationMode == 4
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening permadeath menu=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         presentation.OpenTimedMessageSWF_KeyDismiss_SFX(presentationMenu, 55.0, 27.0, sfx.SFXPermadeath, player, False)
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: permadeath menu returned=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     endif
 
     if quitToMainMenu
@@ -709,14 +727,19 @@ EndFunction
 
 Function FinalizeDeathQuit(Bool mainMenu)
     Float finalDelay = 1.0
+    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: start mainMenu=" + mainMenu + " t=" + Utility.GetCurrentRealTime(), True)
     if PlayBlackScreenImod(2.0)
         finalDelay = 2.0
     endif
 
+    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: waiting finalDelay=" + finalDelay + " t=" + Utility.GetCurrentRealTime(), True)
     Utility.Wait(finalDelay)
+    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: wait complete mainMenu=" + mainMenu + " t=" + Utility.GetCurrentRealTime(), True)
     if mainMenu
+        LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: calling FinalizeAndQuitMainMenu t=" + Utility.GetCurrentRealTime(), True)
         Controller.FinalizeAndQuitMainMenu()
     else
+        LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: calling FinalizeAndQuit t=" + Utility.GetCurrentRealTime(), True)
         Controller.FinalizeAndQuit()
     endif
 EndFunction
