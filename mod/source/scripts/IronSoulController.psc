@@ -205,6 +205,12 @@ Bool Function LoadConfig()
         Debug.MessageBox("Iron Soul has been disabled because the IronSoulSFX quest component is not wired.")
         return False
     endif
+    if !SFX.AudioCategoryIronSoul
+        SetModDisabled(True)
+        LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: SFX AudioCategoryIronSoul property is not wired")
+        Debug.MessageBox("Iron Soul has been disabled because the Iron Soul sound category is not wired.")
+        return False
+    endif
     if !Cleanup
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Cleanup property is not wired")
@@ -907,10 +913,10 @@ EndFunction
 ; --- Quit Flow ---
 ; =================
 
-Function FinalizeAndQuit()
+Function FinalizeAndQuit(Float preQuitDelay = 1.0)
     ; Centralized quit path:
     ;  - Stops periodic updates
-    ;  - Waits 1 second for UI stability, then quits
+    ;  - Waits for UI stability when requested, then quits
     if _isQuitting
         return
     endif
@@ -924,14 +930,16 @@ Function FinalizeAndQuit()
 
     UnregisterForUpdate()
 
-    Utility.Wait(1.0)
+    if preQuitDelay > 0.0
+        Utility.Wait(preQuitDelay)
+    endif
     Debug.QuitGame()
 EndFunction
 
-Function FinalizeAndQuitMainMenu()
+Function FinalizeAndQuitMainMenu(Float preQuitDelay = 1.0)
     ; Centralized main menu quit path:
     ;  - Stops periodic updates
-    ;  - Waits 1 second for UI stability, then quits
+    ;  - Waits for UI stability when requested, then quits
     if _isQuitting
         return
     endif
@@ -949,7 +957,9 @@ Function FinalizeAndQuitMainMenu()
         Presentation.RestoreMusic()
     endif
 
-    Utility.Wait(1.0)
+    if preQuitDelay > 0.0
+        Utility.Wait(preQuitDelay)
+    endif
     Game.QuitToMainMenu()
 EndFunction
 

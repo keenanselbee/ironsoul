@@ -90,6 +90,18 @@ Scriptname IronSoulNative Hidden
 ; MusicFadeOut()
 ; MusicFadeIn()
 
+; --- Sunderheart Focus Audio ---
+; --------------------------------
+; SunderheartFocusConfigure()
+; SunderheartFocusSetHoverTarget()
+; SunderheartFocusClearHoverTarget()
+; SunderheartFocusSetActionTarget()
+; SunderheartFocusClearActionTarget()
+; SunderheartFocusSetUseTarget()
+; SunderheartFocusClearUseTarget()
+; SunderheartFocusPresentationHandoff()
+; SunderheartFocusStopImmediate()
+
 ; --- Health Monitoring ---
 ; -------------------------
 ; StartHealthMonitor()
@@ -211,6 +223,15 @@ Bool Function InventorySelectedItemHasEditorIDPrefix(String editorIDPrefix) Glob
 ; Returns true when InventoryMenu's highlighted row has a base item with the exact EditorID.
 Bool Function InventorySelectedItemHasEditorID(String editorID) Global Native
 
+; Resolves a hex or decimal FormID string to a live Form, or None when invalid/unloaded.
+Form Function FormIDStringToForm(String formIDText) Global Native
+
+; Resolves a hex or decimal FormID string and returns true when its EditorID has the given prefix.
+Bool Function FormIDStringHasEditorIDPrefix(String formIDText, String editorIDPrefix) Global Native
+
+; Resolves a hex or decimal FormID string and returns true when its EditorID is an exact match.
+Bool Function FormIDStringHasEditorID(String formIDText, String editorID) Global Native
+
 
 ; --- CURSOR CONTROL ---
 ; =====================
@@ -243,6 +264,33 @@ Bool Function MusicFadeIsActive() Global Native
 Bool Function MusicFadeRecoverAfterLoad(SoundCategory musicCategory, Float fallbackMenuVolume = 1.0, Bool savedFadeActive = False) Global Native
 Function MusicFadeOut(SoundCategory musicCategory, Float seconds = 2.0, Float menuVolume = -1.0) Global Native
 Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0, Float fallbackMenuVolume = -1.0) Global Native
+
+
+; --- SUNDERHEART FOCUS AUDIO ---
+; ===============================
+
+; Configures the native focus loop sound. Returns false when the Sound property is not wired.
+Bool Function SunderheartFocusConfigure(Sound focusLoop) Global Native
+
+; Sets the debounced inventory-hover target volume. Passing 0.0 requests a debounced hover clear.
+Function SunderheartFocusSetHoverTarget(Float volume) Global Native
+
+; Immediately clears the inventory-hover target, for hard transitions such as menu close or cancel.
+Function SunderheartFocusClearHoverTarget() Global Native
+
+; Sets or clears the action-choice menu target.
+Function SunderheartFocusSetActionTarget(Float volume) Global Native
+Function SunderheartFocusClearActionTarget() Global Native
+
+; Sets or clears the Sunderheart use-flow target. immediate=True stops all focus audio now.
+Function SunderheartFocusSetUseTarget(Float volume) Global Native
+Function SunderheartFocusClearUseTarget(Bool immediate = False) Global Native
+
+; Clears all focus targets and begins the presentation/SFX handoff fade.
+Function SunderheartFocusPresentationHandoff() Global Native
+
+; Immediately stops native focus audio and clears all native focus targets.
+Function SunderheartFocusStopImmediate() Global Native
 
 
 ; --- HEALTH MONITORING ---

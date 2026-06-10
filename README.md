@@ -37,6 +37,7 @@ Current TODO
 ------------
 
 - Finish Ebon / Platinum restore work.
+- Track that `ironsoul_messagebox.swf` currently requires Dear Diary message box assets/config until Iron Soul fully owns that menu.
 
 Systems
 -------

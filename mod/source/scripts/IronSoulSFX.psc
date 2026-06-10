@@ -34,6 +34,7 @@ Scriptname IronSoulSFX extends Quest
 ; ==========================================
 
 IronSoulController Property Controller Auto
+SoundCategory Property AudioCategoryIronSoul Auto
 
 ; This component owns shared UI, death, respawn, luck, and heavy-breathing
 ; sounds. Tier and Dragon Soul Revive sounds stay with their owning components.

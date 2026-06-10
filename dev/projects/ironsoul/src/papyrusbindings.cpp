@@ -13,6 +13,7 @@
 #include "papyrus_menublocker.h"
 #include "papyrus_musicfade.h"
 #include "papyrus_runtime.h"
+#include "papyrus_sunderheart_focus.h"
 
 namespace IronSoul::Papyrus
 {
@@ -41,6 +42,7 @@ namespace IronSoul::Papyrus
             MenuBlocker::Register(a_vm);
             Data::Register(a_vm);
             Sunderhearts::Register(a_vm);
+            SunderheartFocus::Register(a_vm);
             return true;
         });
 

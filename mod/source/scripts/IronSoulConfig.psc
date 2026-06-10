@@ -680,7 +680,7 @@ String Function LogSourceTag(String source) Global
     elseif source == "effects"
         return "E" + "ffects"
     elseif source == "sunderhearts"
-        return "H" + "eartshards"
+        return "S" + "underheart"
     elseif source == "identity"
         return "I" + "dentity"
     elseif source == "journal"

@@ -6,6 +6,7 @@
 #include "datastore.h"
 #include "menu_blocker.h"
 #include "papyrus_musicfade.h"
+#include "papyrus_sunderheart_focus.h"
 
 namespace fs = std::filesystem;
 
@@ -82,6 +83,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::MenuBlocker::RegisterSinks();
 	IronSoul::MenuBlocker::RegisterLifecycleHooks();
 	IronSoul::Papyrus::MusicFade::RegisterLifecycleHooks();
+	IronSoul::Papyrus::SunderheartFocus::RegisterLifecycleHooks();
 
 	// Flush DataStore on save (most reliable session boundary)
 	if (auto* ser = SKSE::GetSerializationInterface(); ser) {

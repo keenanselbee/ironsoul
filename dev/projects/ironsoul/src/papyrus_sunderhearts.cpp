@@ -113,7 +113,7 @@ namespace
         }
 
         if (auto* weapon = a_object->As<RE::TESObjectWEAP>()) {
-            return !weapon->IsStaff() && !weapon->IsBound();
+            return !weapon->IsStaff() && !weapon->IsBound() && !weapon->IsHandToHandMelee();
         }
 
         if (auto* armor = a_object->As<RE::TESObjectARMO>()) {
@@ -254,9 +254,7 @@ namespace
             }
 
             const std::int32_t extraCount = extraList->GetCount();
-            if (extraCount > 0) {
-                count += extraCount;
-            }
+            count += extraCount > 0 ? extraCount : 1;
         }
         return count;
     }
