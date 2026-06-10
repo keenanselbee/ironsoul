@@ -144,7 +144,7 @@ Bool Function PlayDeathImod()
 
     if DeathImod
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathImod: applying crossfade=1.0 t=" + Utility.GetCurrentRealTime(), True)
-        DeathImod.ApplyCrossFade(1.0)
+        DeathImod.ApplyCrossFade(3.0)
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathImod: applied t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
@@ -160,7 +160,7 @@ Bool Function PlayPermadeathImod()
 
     if PermadeathImod
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayPermadeathImod: applying crossfade=1.0 t=" + Utility.GetCurrentRealTime(), True)
-        PermadeathImod.ApplyCrossFade(1.0)
+        PermadeathImod.ApplyCrossFade(3.0)
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayPermadeathImod: applied t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
@@ -728,9 +728,6 @@ EndFunction
 Function FinalizeDeathQuit(Bool mainMenu)
     Float finalDelay = 1.0
     LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: start mainMenu=" + mainMenu + " t=" + Utility.GetCurrentRealTime(), True)
-    if PlayBlackScreenImod(2.0)
-        finalDelay = 2.0
-    endif
 
     LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: waiting finalDelay=" + finalDelay + " t=" + Utility.GetCurrentRealTime(), True)
     Utility.Wait(finalDelay)
