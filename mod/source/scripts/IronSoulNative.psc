@@ -100,6 +100,7 @@ Scriptname IronSoulNative Hidden
 ; SunderheartFocusSetUseTarget()
 ; SunderheartFocusClearUseTarget()
 ; SunderheartFocusPresentationHandoff()
+; SunderheartFocusClearCancelTargets()
 ; SunderheartFocusStopImmediate()
 
 ; --- Health Monitoring ---
@@ -288,6 +289,9 @@ Function SunderheartFocusClearUseTarget(Bool immediate = False) Global Native
 
 ; Clears all focus targets and begins the presentation/SFX handoff fade.
 Function SunderheartFocusPresentationHandoff() Global Native
+
+; Clears use/action targets after cancel while preserving hover focus.
+Function SunderheartFocusClearCancelTargets() Global Native
 
 ; Immediately stops native focus audio and clears all native focus targets.
 Function SunderheartFocusStopImmediate() Global Native

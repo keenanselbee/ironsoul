@@ -14,14 +14,17 @@ namespace IronSoul::Papyrus::SunderheartFocus
 {
 namespace
 {
-    constexpr float kFadeInSeconds = 1.0F;
+    constexpr float kFadeInSeconds = 0.35F;
     constexpr float kFadeOutSeconds = 1.0F;
-    constexpr float kRetargetSeconds = 0.25F;
-    constexpr float kHoverMatchDebounceSeconds = 0.10F;
-    constexpr float kHoverClearDebounceSeconds = 0.30F;
-    constexpr float kFadeStepSeconds = 0.05F;
+    constexpr float kHoverFadeOutSeconds = 0.20F;
+    constexpr float kRetargetSeconds = 0.12F;
+    constexpr float kHoverMatchDebounceSeconds = 0.04F;
+    constexpr float kHoverClearDebounceSeconds = 0.25F;
+    constexpr float kHoverLeaseCheckSeconds = 0.25F;
+    constexpr float kFadeStepSeconds = 0.03F;
     constexpr float kVolumeEpsilon = 0.001F;
     constexpr std::uint32_t kFocusSoundFlags = 0x1A;
+    constexpr const char* kInventoryMenuName = "InventoryMenu";
 
     struct FocusTarget
     {
@@ -42,13 +45,27 @@ namespace
         float currentVolume{ 0.0F };
         float targetVolume{ 0.0F };
         std::atomic<std::uint64_t> hoverToken{ 0 };
+        std::atomic<std::uint64_t> hoverLeaseToken{ 0 };
         std::atomic<std::uint64_t> fadeToken{ 0 };
         std::atomic<bool> warnedMissingTask{ false };
         std::atomic<bool> warnedMissingAudio{ false };
         std::atomic<bool> warnedMissingSound{ false };
+        bool menuSinkRegistered{ false };
+    };
+
+    class FocusMenuSink :
+        public RE::BSTEventSink<RE::MenuOpenCloseEvent>
+    {
+    public:
+        RE::BSEventNotifyControl ProcessEvent(
+            const RE::MenuOpenCloseEvent* a_event,
+            RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
     };
 
     FocusState g_focus;
+    FocusMenuSink g_menuSink;
+
+    void ValidateHoverLease(std::uint64_t a_token);
 
     float Clamp01(float a_value)
     {
@@ -99,19 +116,61 @@ namespace
         return true;
     }
 
+    bool IsInventoryMenuOpen()
+    {
+        auto* ui = RE::UI::GetSingleton();
+        return ui && ui->IsMenuOpen(kInventoryMenuName);
+    }
+
+    void QueueHoverLeaseCheck(std::uint64_t a_token)
+    {
+        std::thread([a_token]() {
+            std::this_thread::sleep_for(std::chrono::duration<float>(kHoverLeaseCheckSeconds));
+            if (g_focus.hoverLeaseToken.load() != a_token) {
+                return;
+            }
+
+            QueueTask([a_token]() {
+                ValidateHoverLease(a_token);
+            }, "SunderheartFocus hover lease");
+        }).detach();
+    }
+
+    void ArmHoverLeaseLocked()
+    {
+        const std::uint64_t token = g_focus.hoverLeaseToken.fetch_add(1) + 1;
+        QueueHoverLeaseCheck(token);
+    }
+
+    void CancelHoverLease()
+    {
+        g_focus.hoverLeaseToken.fetch_add(1);
+    }
+
     void ResetHandleLocked()
     {
         g_focus.handle = RE::BSSoundHandle{};
         g_focus.handleActive = false;
     }
 
-    bool EnsureHandleLocked()
+    bool StopOwnedHandleLocked()
     {
-        if (g_focus.handleActive && g_focus.handle.IsValid() && g_focus.handle.IsPlaying()) {
+        if (g_focus.handleActive && g_focus.handle.IsValid()) {
+            g_focus.handle.Stop();
             return true;
         }
+        return false;
+    }
 
-        ResetHandleLocked();
+    bool EnsureHandleLocked()
+    {
+        if (g_focus.handleActive) {
+            if (g_focus.handle.IsValid()) {
+                return true;
+            }
+            ResetHandleLocked();
+        }
+
         if (g_focus.focusLoopFormID == 0 || !FocusSfxEnabled()) {
             return false;
         }
@@ -166,8 +225,7 @@ namespace
             if (g_focus.fadeToken.load() != a_token) {
                 return;
             }
-            if (g_focus.handleActive && g_focus.handle.IsValid()) {
-                g_focus.handle.Stop();
+            if (StopOwnedHandleLocked()) {
                 if (InfoLoggingEnabled()) {
                     logger::info("SunderheartFocus: stopped focus loop reason={}", reason);
                 }
@@ -197,8 +255,7 @@ namespace
             g_focus.currentVolume = volume;
 
             if (a_stopAfterFade && volume <= kVolumeEpsilon) {
-                if (g_focus.handleActive && g_focus.handle.IsValid()) {
-                    g_focus.handle.Stop();
+                if (StopOwnedHandleLocked()) {
                     if (InfoLoggingEnabled()) {
                         logger::info("SunderheartFocus: fade stopped focus loop reason={}", reason);
                     }
@@ -270,7 +327,14 @@ namespace
             const bool starting = !g_focus.handleActive || g_focus.currentVolume <= kVolumeEpsilon;
             StartFadeLocked(desired, starting ? kFadeInSeconds : kRetargetSeconds, false, std::move(a_reason));
         } else {
-            StartFadeLocked(0.0F, kFadeOutSeconds, true, std::move(a_reason));
+            const bool hoverOnlyFade =
+                a_reason == "hover" ||
+                a_reason == "hover-clear" ||
+                a_reason == "cancel-clear" ||
+                a_reason == "inventory-menu-close" ||
+                a_reason == "hover-lease-menu-closed";
+            const float fadeSeconds = hoverOnlyFade ? kHoverFadeOutSeconds : kFadeOutSeconds;
+            StartFadeLocked(0.0F, fadeSeconds, true, std::move(a_reason));
         }
     }
 
@@ -299,6 +363,11 @@ namespace
             return;
         }
         if (g_focus.hover.active == g_focus.pendingHover.active && NearlyEqual(g_focus.hover.volume, g_focus.pendingHover.volume)) {
+            if (g_focus.hover.active) {
+                ArmHoverLeaseLocked();
+            } else {
+                CancelHoverLease();
+            }
             return;
         }
 
@@ -307,11 +376,17 @@ namespace
             logger::info("SunderheartFocus: hover commit active={} volume={}", g_focus.hover.active, g_focus.hover.volume);
         }
         RecomputeFadeLocked("hover");
+        if (g_focus.hover.active) {
+            ArmHoverLeaseLocked();
+        } else {
+            CancelHoverLease();
+        }
     }
 
     void QueueHoverCommit(float a_volume, bool a_active)
     {
         const std::uint64_t token = g_focus.hoverToken.fetch_add(1) + 1;
+        CancelHoverLease();
         const float volume = a_active ? Clamp01(a_volume) : 0.0F;
         const float delaySeconds = a_active ? kHoverMatchDebounceSeconds : kHoverClearDebounceSeconds;
         {
@@ -326,11 +401,8 @@ namespace
         }).detach();
     }
 
-    void ClearHoverImmediate(std::string a_reason)
+    void ClearHoverLocked(std::string a_reason)
     {
-        const std::uint64_t token = g_focus.hoverToken.fetch_add(1) + 1;
-        (void)token;
-        std::scoped_lock lock(g_focus.lock);
         g_focus.pendingHover = {};
         if (!g_focus.hover.active && NearlyEqual(g_focus.hover.volume, 0.0F)) {
             return;
@@ -342,11 +414,45 @@ namespace
         RecomputeFadeLocked(std::move(a_reason));
     }
 
+    void ClearHoverImmediate(std::string a_reason)
+    {
+        g_focus.hoverToken.fetch_add(1);
+        CancelHoverLease();
+        std::scoped_lock lock(g_focus.lock);
+        ClearHoverLocked(std::move(a_reason));
+    }
+
+    void ValidateHoverLease(std::uint64_t a_token)
+    {
+        {
+            std::scoped_lock lock(g_focus.lock);
+            if (g_focus.hoverLeaseToken.load() != a_token || !g_focus.hover.active || g_focus.action.active || g_focus.use.active) {
+                return;
+            }
+        }
+
+        const bool inventoryOpen = IsInventoryMenuOpen();
+        std::scoped_lock lock(g_focus.lock);
+        if (g_focus.hoverLeaseToken.load() != a_token || !g_focus.hover.active || g_focus.action.active || g_focus.use.active) {
+            return;
+        }
+
+        if (inventoryOpen) {
+            QueueHoverLeaseCheck(a_token);
+            return;
+        }
+
+        g_focus.hoverToken.fetch_add(1);
+        CancelHoverLease();
+        ClearHoverLocked("hover-lease-menu-closed");
+    }
+
     void StopImmediate(bool a_clearTargets, std::string a_reason)
     {
         std::uint64_t token = 0;
         {
             std::scoped_lock lock(g_focus.lock);
+            CancelHoverLease();
             if (a_clearTargets) {
                 g_focus.hoverToken.fetch_add(1);
                 g_focus.hover = {};
@@ -365,11 +471,29 @@ namespace
     {
         std::scoped_lock lock(g_focus.lock);
         g_focus.hoverToken.fetch_add(1);
+        CancelHoverLease();
         g_focus.hover = {};
         g_focus.pendingHover = {};
         g_focus.action = {};
         g_focus.use = {};
         StartFadeLocked(0.0F, kFadeOutSeconds, true, std::move(a_reason));
+    }
+
+    void ClearCancelTargets()
+    {
+        std::scoped_lock lock(g_focus.lock);
+        const bool hadAction = g_focus.action.active || !NearlyEqual(g_focus.action.volume, 0.0F);
+        const bool hadUse = g_focus.use.active || !NearlyEqual(g_focus.use.volume, 0.0F);
+        if (!hadAction && !hadUse) {
+            return;
+        }
+
+        g_focus.action = {};
+        g_focus.use = {};
+        if (InfoLoggingEnabled()) {
+            logger::info("SunderheartFocus: cancel clear action={} use={}", hadAction, hadUse);
+        }
+        RecomputeFadeLocked("cancel-clear");
     }
 
     static bool SunderheartFocusConfigure(RE::StaticFunctionTag*, RE::TESSound* a_focusLoop)
@@ -431,12 +555,17 @@ namespace
             return;
         }
 
-        ClearAllAndFade("use-clear");
+        SetImmediateTarget(g_focus.use, 0.0F, "use-clear");
     }
 
     static void SunderheartFocusPresentationHandoff(RE::StaticFunctionTag*)
     {
         ClearAllAndFade("presentation-handoff");
+    }
+
+    static void SunderheartFocusClearCancelTargets(RE::StaticFunctionTag*)
+    {
+        ClearCancelTargets();
     }
 
     static void SunderheartFocusStopImmediate(RE::StaticFunctionTag*)
@@ -453,6 +582,22 @@ namespace
             StopImmediate(true, "pre-load");
         }
     }
+
+    RE::BSEventNotifyControl FocusMenuSink::ProcessEvent(
+        const RE::MenuOpenCloseEvent* a_event,
+        RE::BSTEventSource<RE::MenuOpenCloseEvent>*)
+    {
+        if (!a_event || a_event->opening) {
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
+        const std::string_view menuName{ a_event->menuName.c_str() ? a_event->menuName.c_str() : "" };
+        if (menuName == kInventoryMenuName) {
+            ClearHoverImmediate("inventory-menu-close");
+        }
+
+        return RE::BSEventNotifyControl::kContinue;
+    }
 }
 
     void Register(RE::BSScript::IVirtualMachine* a_vm)
@@ -465,6 +610,7 @@ namespace
         a_vm->RegisterFunction("SunderheartFocusSetUseTarget", IronSoul::Papyrus::kScriptName, SunderheartFocusSetUseTarget);
         a_vm->RegisterFunction("SunderheartFocusClearUseTarget", IronSoul::Papyrus::kScriptName, SunderheartFocusClearUseTarget);
         a_vm->RegisterFunction("SunderheartFocusPresentationHandoff", IronSoul::Papyrus::kScriptName, SunderheartFocusPresentationHandoff);
+        a_vm->RegisterFunction("SunderheartFocusClearCancelTargets", IronSoul::Papyrus::kScriptName, SunderheartFocusClearCancelTargets);
         a_vm->RegisterFunction("SunderheartFocusStopImmediate", IronSoul::Papyrus::kScriptName, SunderheartFocusStopImmediate);
     }
 
@@ -473,14 +619,26 @@ namespace
         auto* messaging = SKSE::GetMessagingInterface();
         if (!messaging) {
             logger::warn("SunderheartFocus: messaging interface unavailable; pre-load stop disabled");
-            return;
-        }
-
-        if (!messaging->RegisterListener(OnSKSEMessage)) {
+        } else if (!messaging->RegisterListener(OnSKSEMessage)) {
             logger::warn("SunderheartFocus: failed to register lifecycle listener");
+        } else {
+            logger::info("SunderheartFocus: lifecycle listener registered");
+        }
+
+        std::scoped_lock lock(g_focus.lock);
+        if (g_focus.menuSinkRegistered) {
             return;
         }
 
-        logger::info("SunderheartFocus: lifecycle listener registered");
+        auto* ui = RE::UI::GetSingleton();
+        if (!ui) {
+            logger::warn("SunderheartFocus: UI singleton unavailable; inventory close cleanup disabled");
+            return;
+        }
+
+        ui->AddEventSink<RE::MenuOpenCloseEvent>(
+            static_cast<RE::BSTEventSink<RE::MenuOpenCloseEvent>*>(&g_menuSink));
+        g_focus.menuSinkRegistered = true;
+        logger::info("SunderheartFocus: menu sink registered");
     }
 }

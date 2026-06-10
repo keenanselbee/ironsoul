@@ -12,6 +12,9 @@ Event OnEquipped(Actor akActor)
         return
     endif
     if _handlingUse
+        if Controller && Controller.Sunderhearts && SunderheartBaseItem
+            Controller.Sunderhearts.QueueSunderheartUseAfterCancel(Game.GetPlayer(), SunderheartBaseItem, SunderheartType, SunderheartTier)
+        endif
         return
     endif
 

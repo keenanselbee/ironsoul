@@ -151,14 +151,20 @@ String SUNDERHEART_INVENTORY_BRIDGE_HOVER_EVENT = "IronSoul_InventoryBridge_Hove
 String SUNDERHEART_INVENTORY_BRIDGE_ERROR_EVENT = "IronSoul_InventoryBridge_Error"
 String SUNDERHEART_INVENTORY_BRIDGE_DELIMITER = "{ISIB}"
 Float SUNDERHEART_PRESENTATION_MAX_SECONDS = 6.5
-Float SUNDERHEART_PRESENTATION_DISMISS_SECONDS = 2.7
+Float SUNDERHEART_PRESENTATION_DISMISS_SECONDS = 2.9
 Float SUNDERHEART_FOCUS_VOLUME_EPSILON = 0.01
-Float SUNDERHEART_FOCUS_TIER1_VOLUME = 0.6
-Float SUNDERHEART_FOCUS_TIER2_VOLUME = 0.7
-Float SUNDERHEART_FOCUS_TIER3_VOLUME = 0.8
-Float SUNDERHEART_FOCUS_TIER4_VOLUME = 0.9
+Float SUNDERHEART_FOCUS_TIER1_VOLUME = 0.2
+Float SUNDERHEART_FOCUS_TIER2_VOLUME = 0.4
+Float SUNDERHEART_FOCUS_TIER3_VOLUME = 0.6
+Float SUNDERHEART_FOCUS_TIER4_VOLUME = 0.8
 Float SUNDERHEART_FOCUS_TIER5_VOLUME = 1.0
 Float SUNDERHEART_CUSTOM_MENU_LOAD_TIMEOUT_SECONDS = 2.0
+Float SUNDERHEART_CUSTOM_MENU_CLOSE_WAIT_SECONDS = 1.0
+Float SUNDERHEART_CUSTOM_MENU_CANCEL_CLOSE_WAIT_SECONDS = 0.1
+Float SUNDERHEART_USE_RELEASE_WAIT_SECONDS = 0.05
+Float SUNDERHEART_CANCEL_REPLAY_WINDOW_SECONDS = 0.75
+Float SUNDERHEART_REPLAY_UPDATE_DELAY_SECONDS = 0.05
+Float SUNDERHEART_USE_REENTRY_COOLDOWN_SECONDS = 0.75
 Int TONAL_TEMPER_MAX_LEVEL = 10
 Int TONAL_TEMPER_CONFIG_MAX_LEVEL = 100
 Int TONAL_RESULT_ALREADY_CAPPED = 4
@@ -167,6 +173,10 @@ Int SUNDERHEART_ACTION_NONE = 0
 Int SUNDERHEART_ACTION_ANIMA = 1
 Int SUNDERHEART_ACTION_ENHANCE = 2
 Int SUNDERHEART_ACTION_PURGE = 3
+Int SUNDERHEART_ENHANCE_RESULT_CANCELED = 0
+Int SUNDERHEART_ENHANCE_RESULT_SUCCESS = 1
+Int SUNDERHEART_ENHANCE_RESULT_NO_ROWS = -2
+Int SUNDERHEART_ENHANCE_RESULT_FAILED = -3
 Int SUNDERHEART_CANCEL_KEY_ESC = 1
 Int SUNDERHEART_CANCEL_KEY_TAB = 15
 Int SUNDERHEART_CANCEL_KEY_START = 270
@@ -206,9 +216,21 @@ Bool _sunderheartCustomMenuCanceled = False
 Int _sunderheartCustomMenuChoice = -1
 Bool _sunderheartChoiceCancelActive = False
 Bool _sunderheartChoiceCanceledByInput = False
+Bool _sunderheartPresentationActive = False
+Float _sunderheartUseBlockedUntil = 0.0
+Bool _sunderheartUseReplayWindowActive = False
+Float _sunderheartUseReplayWindowUntil = 0.0
+Bool _queuedSunderheartUse = False
+Actor _queuedSunderheartUsePlayer = None
+Form _queuedSunderheartUseBaseItem = None
+Int _queuedSunderheartUseType = 0
+Int _queuedSunderheartUseTier = 0
+Float _queuedSunderheartUseAt = 0.0
+Bool _sunderheartUseReplayUpdateQueued = False
 
 Function ResetTransientState()
     EndSunderheartMenuBlock("reset")
+    UnregisterForUpdate()
     UnregisterForMenu(SUNDERHEART_INVENTORY_MENU)
     if _sunderheartCustomMenuActive
         UI.CloseCustomMenu()
@@ -219,6 +241,12 @@ Function ResetTransientState()
     _sunderheartUseFocusVolume = 0.0
     _sunderheartActionChoiceFocusSFX = False
     _sunderheartActionChoiceFocusVolume = 0.0
+    _sunderheartPresentationActive = False
+    _sunderheartUseBlockedUntil = 0.0
+    _sunderheartUseReplayWindowActive = False
+    _sunderheartUseReplayWindowUntil = 0.0
+    _sunderheartUseReplayUpdateQueued = False
+    ClearQueuedSunderheartUse()
     ClearSunderheartInventoryHoverSuppression()
     ClearSunderheartInventoryHover()
     IronSoulNative.SunderheartFocusStopImmediate()
@@ -588,6 +616,179 @@ Function ReopenInventoryAfterSunderheartAction(Bool enhanceAction)
     Utility.WaitMenuMode(0.1)
 EndFunction
 
+Function WaitSunderheartMenuOrReal(Float seconds)
+    if seconds <= 0.0
+        return
+    endif
+    if UI.IsMenuOpen(SUNDERHEART_INVENTORY_MENU) || UI.IsMenuOpen(SUNDERHEART_CUSTOM_MENU) || UI.IsMenuOpen(SUNDERHEART_MESSAGEBOX_MENU)
+        Utility.WaitMenuMode(seconds)
+    else
+        Utility.Wait(seconds)
+    endif
+EndFunction
+
+Function CloseSunderheartCustomMenuAndWait(String reason = "", Float maxWait = 1.0)
+    if !UI.IsMenuOpen(SUNDERHEART_CUSTOM_MENU)
+        return
+    endif
+
+    UI.CloseCustomMenu()
+    Float waited = 0.0
+    while UI.IsMenuOpen(SUNDERHEART_CUSTOM_MENU) && waited < maxWait
+        WaitSunderheartMenuOrReal(0.05)
+        waited += 0.05
+    endwhile
+
+    if UI.IsMenuOpen(SUNDERHEART_CUSTOM_MENU)
+        LogSunderhearts(IronSoulConfig.LOG_INFO(), "CloseSunderheartCustomMenuAndWait: CustomMenu still open reason=" + reason + " waited=" + waited)
+    elseif reason != ""
+        LogSunderhearts(IronSoulConfig.LOG_DBG(), "CloseSunderheartCustomMenuAndWait: CustomMenu closed reason=" + reason + " waited=" + waited, True)
+    endif
+EndFunction
+
+Function BlockSunderheartUseBriefly(Float seconds = 0.75)
+    if seconds <= 0.0
+        return
+    endif
+
+    Float untilTime = Utility.GetCurrentRealTime() + seconds
+    if untilTime > _sunderheartUseBlockedUntil
+        _sunderheartUseBlockedUntil = untilTime
+    endif
+EndFunction
+
+Bool Function IsSunderheartUseBlocked()
+    return GetSunderheartUseBlockReason() != ""
+EndFunction
+
+String Function GetSunderheartUseBlockReason()
+    if _handlingUse
+        return "handling-use"
+    elseif _sunderheartPresentationActive
+        return "presentation"
+    elseif _sunderheartMenuBlockToken > 0
+        return "menu-block"
+    elseif Utility.GetCurrentRealTime() < _sunderheartUseBlockedUntil
+        return "cooldown"
+    endif
+    return ""
+EndFunction
+
+Function ClearQueuedSunderheartUse()
+    _queuedSunderheartUse = False
+    _queuedSunderheartUsePlayer = None
+    _queuedSunderheartUseBaseItem = None
+    _queuedSunderheartUseType = 0
+    _queuedSunderheartUseTier = 0
+    _queuedSunderheartUseAt = 0.0
+EndFunction
+
+Bool Function IsSunderheartUseReplayWindowOpen()
+    if !_sunderheartUseReplayWindowActive
+        return False
+    endif
+
+    if Utility.GetCurrentRealTime() > _sunderheartUseReplayWindowUntil
+        _sunderheartUseReplayWindowActive = False
+        _sunderheartUseReplayWindowUntil = 0.0
+        ClearQueuedSunderheartUse()
+        return False
+    endif
+
+    return True
+EndFunction
+
+Function OpenSunderheartUseReplayWindow()
+    ClearQueuedSunderheartUse()
+    _sunderheartUseReplayWindowActive = True
+    _sunderheartUseReplayWindowUntil = Utility.GetCurrentRealTime() + SUNDERHEART_CANCEL_REPLAY_WINDOW_SECONDS
+    LogSunderhearts(IronSoulConfig.LOG_DBG(), "OpenSunderheartUseReplayWindow: until=" + _sunderheartUseReplayWindowUntil, True)
+EndFunction
+
+Bool Function CanQueueSunderheartUseAfterCancel(Actor player, Form sunderheartBaseItem)
+    if !HasCoreRuntime() || !player || player != Game.GetPlayer() || !sunderheartBaseItem
+        return False
+    endif
+    if !IsSunderheartUseReplayWindowOpen()
+        return False
+    endif
+    if _sunderheartPresentationActive || _sunderheartMenuBlockToken > 0 || _tonalSelectionActive || _tonalInventoryBridgeActive
+        return False
+    endif
+    if Utility.GetCurrentRealTime() < _sunderheartUseBlockedUntil
+        return False
+    endif
+    return True
+EndFunction
+
+Bool Function QueueSunderheartUseAfterCancel(Actor player, Form sunderheartBaseItem, Int sunderheartType = 0, Int sunderheartTier = 0)
+    if !CanQueueSunderheartUseAfterCancel(player, sunderheartBaseItem)
+        return False
+    endif
+
+    _queuedSunderheartUse = True
+    _queuedSunderheartUsePlayer = player
+    _queuedSunderheartUseBaseItem = sunderheartBaseItem
+    _queuedSunderheartUseType = sunderheartType
+    _queuedSunderheartUseTier = sunderheartTier
+    _queuedSunderheartUseAt = Utility.GetCurrentRealTime()
+    LogSunderhearts(IronSoulConfig.LOG_INFO(), "QueueSunderheartUseAfterCancel: queued type=" + sunderheartType + " tier=" + sunderheartTier)
+
+    ScheduleQueuedSunderheartUseReplay()
+    return True
+EndFunction
+
+Function ScheduleQueuedSunderheartUseReplay()
+    if !_queuedSunderheartUse || _sunderheartUseReplayUpdateQueued
+        return
+    endif
+
+    _sunderheartUseReplayUpdateQueued = True
+    RegisterForSingleUpdate(SUNDERHEART_REPLAY_UPDATE_DELAY_SECONDS)
+    LogSunderhearts(IronSoulConfig.LOG_DBG(), "ScheduleQueuedSunderheartUseReplay: delay=" + SUNDERHEART_REPLAY_UPDATE_DELAY_SECONDS, True)
+EndFunction
+
+Event OnUpdate()
+    _sunderheartUseReplayUpdateQueued = False
+    if !_queuedSunderheartUse
+        return
+    endif
+    if _handlingUse
+        ScheduleQueuedSunderheartUseReplay()
+        return
+    endif
+
+    TryReplayQueuedSunderheartUse()
+EndEvent
+
+Bool Function TryReplayQueuedSunderheartUse()
+    if !_queuedSunderheartUse
+        return False
+    endif
+
+    Actor queuedPlayer = _queuedSunderheartUsePlayer
+    Form queuedBaseItem = _queuedSunderheartUseBaseItem
+    Int queuedType = _queuedSunderheartUseType
+    Int queuedTier = _queuedSunderheartUseTier
+    if !CanQueueSunderheartUseAfterCancel(queuedPlayer, queuedBaseItem)
+        ClearQueuedSunderheartUse()
+        return False
+    endif
+
+    ClearQueuedSunderheartUse()
+    _sunderheartUseReplayWindowActive = False
+    _sunderheartUseReplayWindowUntil = 0.0
+    LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryReplayQueuedSunderheartUse: replaying type=" + queuedType + " tier=" + queuedTier)
+    return TryUseSunderheart(queuedPlayer, queuedBaseItem, queuedType, queuedTier)
+EndFunction
+
+Bool Function ShouldIgnoreSunderheartInventoryHover()
+    if _sunderheartUseFocusSFX || _sunderheartActionChoiceFocusSFX || _sunderheartCustomMenuActive || _tonalSelectionActive || _sunderheartPresentationActive
+        return True
+    endif
+    return False
+EndFunction
+
 String Function GetSunderheartEnhanceResultText()
     String resultText = IronSoulNative.SunderheartGetEnhanceResultText()
     if resultText == ""
@@ -629,7 +830,13 @@ Bool Function TryUseSunderheart(Actor player, Form sunderheartBaseItem, Int sund
     if player != Game.GetPlayer()
         return False
     endif
-    if _handlingUse
+    String blockReason = GetSunderheartUseBlockReason()
+    if blockReason != ""
+        Bool queuedReplay = False
+        if blockReason == "handling-use"
+            queuedReplay = QueueSunderheartUseAfterCancel(player, sunderheartBaseItem, sunderheartType, sunderheartTier)
+        endif
+        LogSunderhearts(IronSoulConfig.LOG_DBG(), "TryUseSunderheart: blocked reason=" + blockReason + " queuedReplay=" + queuedReplay, True)
         return False
     endif
     if player.GetItemCount(sunderheartBaseItem) <= 0
@@ -647,65 +854,18 @@ Bool Function TryUseSunderheart(Actor player, Form sunderheartBaseItem, Int sund
         Int deaths = Controller.Death.GetCurrentDeathCount(player, guid)
         Int tier = Controller.Tiers.GetCurrentTier(player, guid)
         Int maxTemper = GetTonalMaxTemperLevel()
-        Int enhanceSessionToken = PrepareTonalEnhanceSession(player, sunderheartBaseItem, sunderheartType, sunderheartTier, maxTemper)
 
         Bool canAnima = IronSoulTiers.IsNormalSoulTier(tier)
         Bool canPurge = deaths > 0
-        Bool canEnhance = enhanceSessionToken > 0
+        Bool canEnhance = sunderheartType == SUNDERHEART_TYPE_TONAL
 
-        result = ShowSunderheartSmartChoice(player, guid, sunderheartBaseItem, sunderheartType, sunderheartTier, canAnima, canEnhance, canPurge, enhanceSessionToken, maxTemper)
+        result = ShowSunderheartSmartChoice(player, guid, sunderheartBaseItem, sunderheartType, sunderheartTier, canAnima, canEnhance, canPurge, maxTemper)
     endif
 
-    Utility.WaitMenuMode(0.2)
+    WaitSunderheartMenuOrReal(SUNDERHEART_USE_RELEASE_WAIT_SECONDS)
     _handlingUse = False
+    ScheduleQueuedSunderheartUseReplay()
     return result
-EndFunction
-
-Int Function PrepareTonalEnhanceSession(Actor player, Form sunderheartBaseItem, Int sunderheartType, Int sunderheartTier, Int maxTemper)
-    if sunderheartType != SUNDERHEART_TYPE_TONAL || !player || !sunderheartBaseItem
-        return 0
-    endif
-    if player.GetItemCount(sunderheartBaseItem) <= 0
-        return 0
-    endif
-
-    Int addLevels = ResolveTonalAddLevels(sunderheartTier)
-    Int sessionToken = IronSoulNative.SunderheartBuildEnhanceSession(SUNDERHEART_EFFECT_TONAL, addLevels, maxTemper)
-    if sessionToken <= 0
-        LogSunderhearts(IronSoulConfig.LOG_INFO(), "PrepareTonalEnhanceSession: No Tonal enhancement options type=" + sunderheartType + " tier=" + sunderheartTier + " maxTemper=" + maxTemper + " result=" + GetSunderheartEnhanceResultText())
-        return 0
-    endif
-
-    Int optionCount = IronSoulNative.SunderheartGetEnhanceSessionOptionCount(sessionToken)
-    if optionCount <= 0
-        IronSoulNative.SunderheartReleaseEnhanceSession(sessionToken)
-        LogSunderhearts(IronSoulConfig.LOG_INFO(), "PrepareTonalEnhanceSession: Built empty Tonal enhancement session type=" + sunderheartType + " tier=" + sunderheartTier + " maxTemper=" + maxTemper)
-        return 0
-    endif
-
-    sessionToken = ValidateTonalEnhanceSessionInventoryRows(sessionToken, sunderheartType, sunderheartTier, maxTemper)
-    return sessionToken
-EndFunction
-
-Int Function ValidateTonalEnhanceSessionInventoryRows(Int sessionToken, Int sunderheartType, Int sunderheartTier, Int maxTemper)
-    if sessionToken <= 0
-        return 0
-    endif
-    if !UI.IsMenuOpen(SUNDERHEART_INVENTORY_MENU)
-        return sessionToken
-    endif
-
-    String serializedRows = IronSoulNative.SunderheartRefreshEnhanceSessionInventoryRows(sessionToken)
-    if serializedRows == ""
-        String resultText = GetSunderheartEnhanceResultText()
-        IronSoulNative.SunderheartReleaseEnhanceSession(sessionToken)
-        LogSunderhearts(IronSoulConfig.LOG_INFO(), "ValidateTonalEnhanceSessionInventoryRows: Raw session built, but no eligible InventoryMenu rows found type=" + sunderheartType + " tier=" + sunderheartTier + " maxTemper=" + maxTemper + " result=" + resultText)
-        LogSunderhearts(IronSoulConfig.LOG_INFO(), "ValidateTonalEnhanceSessionInventoryRows: Enhance hidden due visible-row prescreen")
-        return 0
-    endif
-
-    LogSunderhearts(IronSoulConfig.LOG_INFO(), "ValidateTonalEnhanceSessionInventoryRows: Enhance available from visible InventoryMenu rows type=" + sunderheartType + " tier=" + sunderheartTier + " maxTemper=" + maxTemper)
-    return sessionToken
 EndFunction
 
 Function ReleasePreparedTonalEnhanceSession(Int sessionToken)
@@ -714,42 +874,56 @@ Function ReleasePreparedTonalEnhanceSession(Int sessionToken)
     endif
 EndFunction
 
-Bool Function ShowSunderheartSmartChoice(Actor player, String guid, Form sunderheartBaseItem, Int sunderheartType, Int sunderheartTier, Bool canAnima, Bool canEnhance, Bool canPurge, Int enhanceSessionToken, Int enhanceMaxTemper)
+Bool Function ShowSunderheartSmartChoice(Actor player, String guid, Form sunderheartBaseItem, Int sunderheartType, Int sunderheartTier, Bool canAnima, Bool canEnhance, Bool canPurge, Int enhanceMaxTemper)
     if !canAnima && !canEnhance && !canPurge
-        ReleasePreparedTonalEnhanceSession(enhanceSessionToken)
         return ShowSunderheartUnavailable(player, sunderheartType, sunderheartTier)
     endif
 
     BeginSunderheartUseFocus(sunderheartTier)
-    Int selectedAction = ShowSunderheartActionChoice(canAnima, canEnhance, canPurge, sunderheartTier)
-    if selectedAction == SUNDERHEART_ACTION_ANIMA
-        ReleasePreparedTonalEnhanceSession(enhanceSessionToken)
-        Bool absorbed = TryAbsorbAnima(player, guid, sunderheartBaseItem, sunderheartType, sunderheartTier)
-        if !absorbed
-            EndSunderheartUseFocus(False)
+    while True
+        Int selectedAction = ShowSunderheartActionChoice(canAnima, canEnhance, canPurge, sunderheartTier)
+        if selectedAction == SUNDERHEART_ACTION_ANIMA
+            Bool absorbed = TryAbsorbAnima(player, guid, sunderheartBaseItem, sunderheartType, sunderheartTier)
+            if !absorbed
+                EndSunderheartUseFocus(False)
+            endif
+            return absorbed
+        elseif selectedAction == SUNDERHEART_ACTION_ENHANCE && canEnhance
+            Int enhanceResult = TryEnhanceItemResult(player, sunderheartBaseItem, sunderheartType, sunderheartTier, 0, enhanceMaxTemper)
+            if enhanceResult == SUNDERHEART_ENHANCE_RESULT_SUCCESS
+                return True
+            elseif enhanceResult == SUNDERHEART_ENHANCE_RESULT_NO_ROWS && (canAnima || canPurge)
+                LogSunderhearts(IronSoulConfig.LOG_INFO(), "ShowSunderheartSmartChoice: Reopening action menu after empty enhance selector")
+            else
+                EndSunderheartUseFocus(False)
+                return False
+            endif
+        elseif selectedAction == SUNDERHEART_ACTION_PURGE
+            Bool purged = TryPurgeDeath(player, guid, sunderheartBaseItem, sunderheartType, sunderheartTier)
+            if !purged
+                EndSunderheartUseFocus(False)
+            endif
+            return purged
+        else
+            LogSunderhearts(IronSoulConfig.LOG_INFO(), "ShowSunderheartSmartChoice: Sunderheart lowered")
+            EndSunderheartUseFocus(False, True, True)
+            return False
         endif
-        return absorbed
-    elseif selectedAction == SUNDERHEART_ACTION_ENHANCE && canEnhance
-        Int sessionToken = enhanceSessionToken
-        enhanceSessionToken = 0
-        Bool enhanced = TryEnhanceItem(player, sunderheartBaseItem, sunderheartType, sunderheartTier, sessionToken, enhanceMaxTemper)
-        if !enhanced
-            EndSunderheartUseFocus(False)
-        endif
-        return enhanced
-    elseif selectedAction == SUNDERHEART_ACTION_PURGE
-        ReleasePreparedTonalEnhanceSession(enhanceSessionToken)
-        Bool purged = TryPurgeDeath(player, guid, sunderheartBaseItem, sunderheartType, sunderheartTier)
-        if !purged
-            EndSunderheartUseFocus(False)
-        endif
-        return purged
-    endif
+    endwhile
 
-    ReleasePreparedTonalEnhanceSession(enhanceSessionToken)
-    LogSunderhearts(IronSoulConfig.LOG_INFO(), "ShowSunderheartSmartChoice: Sunderheart lowered")
     EndSunderheartUseFocus(False)
     return False
+EndFunction
+
+String Function GetSunderheartActionMessageText(Bool canAnima, Bool canEnhance, Bool canPurge)
+    String newline = StringUtil.AsChar(10)
+    if canEnhance && !canAnima && !canPurge
+        return "The Sunderheart warms in your palm." + newline + "The power within yearns for purpose." + newline + newline + "What would you have it strengthen?"
+    elseif canPurge && !canAnima && !canEnhance
+        return "The Sunderheart warms in your palm," + newline + "it remembers the shape of a death not yet settled." + newline + newline + "What would you ask of it?"
+    endif
+
+    return "The Sunderheart warms in your palm." + newline + "The power within yearns for purpose." + newline + newline + "What would you ask of it?"
 EndFunction
 
 Int Function ShowSunderheartActionChoice(Bool canAnima, Bool canEnhance, Bool canPurge, Int sunderheartTier)
@@ -792,7 +966,7 @@ Int Function ShowSunderheartActionChoice(Bool canAnima, Bool canEnhance, Bool ca
     if ConfigureSunderheartFocusSFX()
         IronSoulNative.SunderheartFocusSetActionTarget(_sunderheartActionChoiceFocusVolume)
     endif
-    Int choice = ShowSunderheartCustomMenu("The Sunderheart stirs.", labels, False, True)
+    Int choice = ShowSunderheartCustomMenu(GetSunderheartActionMessageText(canAnima, canEnhance, canPurge), labels, False, True)
     _sunderheartActionChoiceFocusSFX = False
     _sunderheartActionChoiceFocusVolume = 0.0
     IronSoulNative.SunderheartFocusClearActionTarget()
@@ -829,7 +1003,7 @@ Int Function ShowSunderheartCustomMenu(String messageText, String[] buttonLabels
         i += 1
     endwhile
 
-    UI.CloseCustomMenu()
+    CloseSunderheartCustomMenuAndWait("action-menu-open", SUNDERHEART_CUSTOM_MENU_CLOSE_WAIT_SECONDS)
     BeginSunderheartCustomMenuWait()
     UI.OpenCustomMenu(SUNDERHEART_CUSTOM_MENU_SWF, 0)
     UI.InvokeString(SUNDERHEART_CUSTOM_MENU, SUNDERHEART_CUSTOM_MENU_CONFIGURE_SERIALIZED, payload)
@@ -838,7 +1012,7 @@ Int Function ShowSunderheartCustomMenu(String messageText, String[] buttonLabels
 
     Float waited = 0.0
     while UI.IsMenuOpen(SUNDERHEART_CUSTOM_MENU) && !_sunderheartCustomMenuConfigured && !_sunderheartCustomMenuCanceled && waited < 0.5
-        Utility.WaitMenuMode(0.05)
+        WaitSunderheartMenuOrReal(0.05)
         waited += 0.05
     endwhile
 
@@ -847,13 +1021,18 @@ Int Function ShowSunderheartCustomMenu(String messageText, String[] buttonLabels
     endif
 
     while UI.IsMenuOpen(SUNDERHEART_CUSTOM_MENU) && !_sunderheartCustomMenuSelected && !_sunderheartCustomMenuCanceled
-        Utility.WaitMenuMode(0.1)
+        WaitSunderheartMenuOrReal(0.1)
     endwhile
 
     Int choice = _sunderheartCustomMenuChoice
     Bool selected = _sunderheartCustomMenuSelected
     Bool canceled = _sunderheartCustomMenuCanceled
-    UI.CloseCustomMenu()
+    Float closeWait = SUNDERHEART_CUSTOM_MENU_CLOSE_WAIT_SECONDS
+    if canceled
+        OpenSunderheartUseReplayWindow()
+        closeWait = SUNDERHEART_CUSTOM_MENU_CANCEL_CLOSE_WAIT_SECONDS
+    endif
+    CloseSunderheartCustomMenuAndWait("action-menu-close", closeWait)
     ClearSunderheartCustomMenuWait()
 
     if !selected || canceled || choice < 0 || choice >= buttonCount
@@ -1021,25 +1200,34 @@ Bool Function ShowSunderheartUnavailable(Actor player, Int sunderheartType = 0, 
 EndFunction
 
 Bool Function TryEnhanceItem(Actor player, Form sunderheartBaseItem, Int sunderheartType = 0, Int sunderheartTier = 0, Int preparedSessionToken = 0, Int preparedMaxTemper = 0)
+    return TryEnhanceItemResult(player, sunderheartBaseItem, sunderheartType, sunderheartTier, preparedSessionToken, preparedMaxTemper) == SUNDERHEART_ENHANCE_RESULT_SUCCESS
+EndFunction
+
+Int Function TryEnhanceItemResult(Actor player, Form sunderheartBaseItem, Int sunderheartType = 0, Int sunderheartTier = 0, Int preparedSessionToken = 0, Int preparedMaxTemper = 0)
     if sunderheartType == SUNDERHEART_TYPE_TONAL
-        return TryEnhanceTonalItem(player, sunderheartBaseItem, sunderheartType, sunderheartTier, preparedSessionToken, preparedMaxTemper)
+        return TryEnhanceTonalItemResult(player, sunderheartBaseItem, sunderheartType, sunderheartTier, preparedSessionToken, preparedMaxTemper)
     endif
 
     ReleasePreparedTonalEnhanceSession(preparedSessionToken)
     LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryEnhanceItem: Enhancement unavailable type=" + sunderheartType + " tier=" + sunderheartTier)
-    return ShowEnhanceUnavailable(player, sunderheartType, sunderheartTier)
+    ShowEnhanceUnavailable(player, sunderheartType, sunderheartTier)
+    return SUNDERHEART_ENHANCE_RESULT_FAILED
 EndFunction
 
 Bool Function TryEnhanceTonalItem(Actor player, Form sunderheartBaseItem, Int sunderheartType = 0, Int sunderheartTier = 0, Int preparedSessionToken = 0, Int preparedMaxTemper = 0)
+    return TryEnhanceTonalItemResult(player, sunderheartBaseItem, sunderheartType, sunderheartTier, preparedSessionToken, preparedMaxTemper) == SUNDERHEART_ENHANCE_RESULT_SUCCESS
+EndFunction
+
+Int Function TryEnhanceTonalItemResult(Actor player, Form sunderheartBaseItem, Int sunderheartType = 0, Int sunderheartTier = 0, Int preparedSessionToken = 0, Int preparedMaxTemper = 0)
     if !HasCoreRuntime() || !player || !sunderheartBaseItem
         ReleasePreparedTonalEnhanceSession(preparedSessionToken)
-        return False
+        return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
     if player.GetItemCount(sunderheartBaseItem) <= 0
         ReleasePreparedTonalEnhanceSession(preparedSessionToken)
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "TryEnhanceTonalItem: Player does not have the exact Tonal Sunderheart base form")
         Debug.MessageBox("The Sunderheart is no longer in your inventory.")
-        return False
+        return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
 
     Int addLevels = ResolveTonalAddLevels(sunderheartTier)
@@ -1055,23 +1243,34 @@ Bool Function TryEnhanceTonalItem(Actor player, Form sunderheartBaseItem, Int su
         String buildFailureText = GetSunderheartEnhanceResultText()
         Debug.Notification("The Sunderheart finds no eligible weapon or armor to strengthen.")
         LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: No Tonal enhancement options type=" + sunderheartType + " tier=" + sunderheartTier + " maxTemper=" + maxTemper + " result=" + buildFailureText)
-        return False
+        return SUNDERHEART_ENHANCE_RESULT_NO_ROWS
     endif
 
     if !StartTonalEnhancementState(player, sunderheartBaseItem, sunderheartType, sunderheartTier, sessionToken, maxTemper)
         IronSoulNative.SunderheartReleaseEnhanceSession(sessionToken)
-        return False
+        return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
 
     Int selectedIndex = ShowSunderheartEnhanceList(sessionToken)
-    if selectedIndex < 0
+    if selectedIndex == SUNDERHEART_ENHANCE_RESULT_NO_ROWS
+        LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: Tonal enhancement selector found no eligible rows type=" + sunderheartType + " tier=" + sunderheartTier)
+        ClearTonalEnhancementState()
+        return SUNDERHEART_ENHANCE_RESULT_NO_ROWS
+    elseif selectedIndex == SUNDERHEART_ENHANCE_RESULT_FAILED
+        LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: Tonal enhancement selector failed type=" + sunderheartType + " tier=" + sunderheartTier)
+        ClearTonalEnhancementState()
+        return SUNDERHEART_ENHANCE_RESULT_FAILED
+    elseif selectedIndex < 0
         LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryEnhanceTonalItem: Tonal enhancement selection canceled type=" + sunderheartType + " tier=" + sunderheartTier)
         ClearTonalEnhancementState()
-        return False
+        return SUNDERHEART_ENHANCE_RESULT_CANCELED
     endif
 
     _pendingTonalSelectedIndex = selectedIndex
-    return CompleteTonalEnhancement()
+    if CompleteTonalEnhancement()
+        return SUNDERHEART_ENHANCE_RESULT_SUCCESS
+    endif
+    return SUNDERHEART_ENHANCE_RESULT_FAILED
 EndFunction
 
 Bool Function StartTonalEnhancementState(Actor player, Form sunderheartBaseItem, Int sunderheartType, Int sunderheartTier, Int sessionToken, Int maxTemper)
@@ -1103,7 +1302,7 @@ Int Function ShowSunderheartEnhanceList(Int sessionToken)
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "ShowSunderheartEnhanceList: InventoryMenu could not be queued")
         ClearSunderheartInventoryBridgeWait()
         Debug.MessageBox("The Sunderheart selection menu is not available.")
-        return -1
+        return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
 
     Float waited = 0.0
@@ -1116,7 +1315,7 @@ Int Function ShowSunderheartEnhanceList(Int sessionToken)
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "ShowSunderheartEnhanceList: InventoryMenu did not open")
         ClearSunderheartInventoryBridgeWait()
         Debug.MessageBox("The Sunderheart selection menu is not available.")
-        return -1
+        return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
 
     InjectSunderheartInventoryBridge()
@@ -1140,8 +1339,9 @@ Int Function ShowSunderheartEnhanceList(Int sessionToken)
         ClearSunderheartInventoryBridgeWait()
         if !noEligibleRows
             Debug.MessageBox("The Sunderheart selection menu is not available.")
+            return SUNDERHEART_ENHANCE_RESULT_FAILED
         endif
-        return -1
+        return SUNDERHEART_ENHANCE_RESULT_NO_ROWS
     endif
 
     while UI.IsMenuOpen(SUNDERHEART_INVENTORY_MENU) && _pendingTonalSelectedIndex < 0 && !_tonalInventoryBridgeFailed
@@ -1239,6 +1439,10 @@ Event OnIronSoul_InventoryBridge_Error(String eventName, String strArg, Float nu
 EndEvent
 
 Function HandleSunderheartInventoryBridgeHover(String payload)
+    if ShouldIgnoreSunderheartInventoryHover()
+        return
+    endif
+
     Int delimLen = StringUtil.GetLength(SUNDERHEART_INVENTORY_BRIDGE_DELIMITER)
     Int firstDelim = StringUtil.Find(payload, SUNDERHEART_INVENTORY_BRIDGE_DELIMITER)
     if firstDelim < 0
@@ -1515,23 +1719,29 @@ Function PlaySunderheartPresentation(Actor player, String menuName)
     if !player
         EndSunderheartUseFocus(False)
         EndSunderheartMenuBlock("sunderheart-presentation-skipped")
+        BlockSunderheartUseBriefly(SUNDERHEART_USE_REENTRY_COOLDOWN_SECONDS)
         return
     endif
     if Controller && Controller.Config && !Controller.Config.IsSunderheartMessageEnabled()
+        _sunderheartPresentationActive = True
         BeginSunderheartPresentationFocusHandoff()
         PlaySunderheartSFX(player)
         EndSunderheartMenuBlock("sunderheart-presentation-complete")
+        _sunderheartPresentationActive = False
+        BlockSunderheartUseBriefly(SUNDERHEART_USE_REENTRY_COOLDOWN_SECONDS)
         return
     endif
     if menuName == ""
         EndSunderheartUseFocus(False)
         EndSunderheartMenuBlock("sunderheart-presentation-skipped")
+        BlockSunderheartUseBriefly(SUNDERHEART_USE_REENTRY_COOLDOWN_SECONDS)
         return
     endif
 
+    _sunderheartPresentationActive = True
     Int cursorToken = IronSoulNative.BeginCursorSuppress()
     Controller.Presentation.FadeMusicForTransitionSequence()
-    UI.CloseCustomMenu()
+    CloseSunderheartCustomMenuAndWait("presentation-open", SUNDERHEART_CUSTOM_MENU_CLOSE_WAIT_SECONDS)
     IronSoulNative.RefreshCursorSuppress()
     BeginSunderheartPresentationFocusHandoff()
     PlaySunderheartSFX(player)
@@ -1542,6 +1752,8 @@ Function PlaySunderheartPresentation(Actor player, String menuName)
     IronSoulNative.EndCursorSuppress(cursorToken)
     Controller.Presentation.RestoreMusic()
     EndSunderheartMenuBlock("sunderheart-presentation-complete")
+    _sunderheartPresentationActive = False
+    BlockSunderheartUseBriefly(SUNDERHEART_USE_REENTRY_COOLDOWN_SECONDS)
 EndFunction
 
 Function PlaySunderheartSFX(Actor player)
@@ -1608,11 +1820,12 @@ Function BeginSunderheartUseFocus(Int sunderheartTier)
     else
         IronSoulNative.SunderheartFocusClearUseTarget(False)
     endif
+    ClearSunderheartInventoryHoverSuppression()
 EndFunction
 
-Function EndSunderheartUseFocus(Bool immediate = False)
+Function EndSunderheartUseFocus(Bool immediate = False, Bool preserveHover = False, Bool cancelClear = False)
     if _sunderheartUseFocusSFX || _sunderheartActionChoiceFocusSFX || _sunderheartInventoryHoverFocusSFX
-        LogSunderhearts(IronSoulConfig.LOG_DBG(), "EndSunderheartUseFocus: immediate=" + immediate + " useVolume=" + _sunderheartUseFocusVolume, True)
+        LogSunderhearts(IronSoulConfig.LOG_DBG(), "EndSunderheartUseFocus: immediate=" + immediate + " preserveHover=" + preserveHover + " cancelClear=" + cancelClear + " useVolume=" + _sunderheartUseFocusVolume, True)
     endif
 
     _sunderheartUseFocusSFX = False
@@ -1626,9 +1839,17 @@ Function EndSunderheartUseFocus(Bool immediate = False)
         IronSoulNative.SunderheartFocusClearActionTarget()
         IronSoulNative.SunderheartFocusClearUseTarget(True)
     else
-        SuppressSunderheartInventoryHover()
-        IronSoulNative.SunderheartFocusClearActionTarget()
-        IronSoulNative.SunderheartFocusClearUseTarget(False)
+        if preserveHover && _sunderheartInventoryHoverLastMatched && _sunderheartInventoryHoverFocusVolume > 0.0
+            ClearSunderheartInventoryHoverSuppression()
+        else
+            SuppressSunderheartInventoryHover()
+        endif
+        if cancelClear
+            IronSoulNative.SunderheartFocusClearCancelTargets()
+        else
+            IronSoulNative.SunderheartFocusClearActionTarget()
+            IronSoulNative.SunderheartFocusClearUseTarget(False)
+        endif
     endif
 EndFunction
 
