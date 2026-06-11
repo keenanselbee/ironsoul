@@ -88,6 +88,80 @@ function New-BackupPlan([string]$BackupRoot) {
     }
 }
 
+function ConvertFrom-RobocopySummaryLine([string]$Line) {
+    if ($Line -notmatch '^\s*(?<label>Dirs|Files|Bytes)\s*:\s*(?<values>.+)$') {
+        return $null
+    }
+
+    $values = @($Matches["values"] -split '\s{2,}' | Where-Object { $_.Trim().Length -gt 0 })
+    if ($values.Count -lt 6) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Label = $Matches["label"]
+        Total = $values[0].Trim()
+        Copied = $values[1].Trim()
+        Skipped = $values[2].Trim()
+        Mismatch = $values[3].Trim()
+        Failed = $values[4].Trim()
+        Extras = $values[5].Trim()
+    }
+}
+
+function Get-RobocopySummary([string[]]$Output) {
+    $summary = [ordered]@{}
+
+    foreach ($line in $Output) {
+        $row = ConvertFrom-RobocopySummaryLine $line
+        if ($null -ne $row) {
+            $summary[$row.Label] = $row
+        }
+    }
+
+    return [pscustomobject]@{
+        Dirs = $summary["Dirs"]
+        Files = $summary["Files"]
+        Bytes = $summary["Bytes"]
+    }
+}
+
+function Format-RobocopySummaryRow($Row) {
+    if ($null -eq $Row) {
+        return $null
+    }
+
+    $summary = "total $($Row.Total), copied $($Row.Copied), skipped $($Row.Skipped), failed $($Row.Failed)"
+    if (($Row.Mismatch -ne "0") -or ($Row.Extras -ne "0")) {
+        $summary += ", mismatch $($Row.Mismatch), extras $($Row.Extras)"
+    }
+
+    return $summary
+}
+
+function Write-RobocopySummary($Summary) {
+    if (($null -eq $Summary) -or (($null -eq $Summary.Dirs) -and ($null -eq $Summary.Files) -and ($null -eq $Summary.Bytes))) {
+        Write-Host "[SUCCESS] robocopy completed; summary was not available."
+        return
+    }
+
+    Write-Host "[SUCCESS] Robocopy summary:"
+
+    $dirs = Format-RobocopySummaryRow $Summary.Dirs
+    if ($null -ne $dirs) {
+        Write-Host "[SUCCESS]   Dirs: $dirs"
+    }
+
+    $files = Format-RobocopySummaryRow $Summary.Files
+    if ($null -ne $files) {
+        Write-Host "[SUCCESS]   Files: $files"
+    }
+
+    if ($null -ne $Summary.Bytes) {
+        Write-Host "[SUCCESS]   Bytes: total $($Summary.Bytes.Total), copied $($Summary.Bytes.Copied)"
+    }
+}
+
 function Invoke-RobocopyBackup([string]$SourceRoot, [string]$BackupPath) {
     $robocopy = Get-Command "robocopy.exe" -ErrorAction SilentlyContinue
     if ($null -eq $robocopy) {
@@ -109,14 +183,18 @@ function Invoke-RobocopyBackup([string]$SourceRoot, [string]$BackupPath) {
         "/NDL"
     )
 
-    & $robocopy.Source @arguments
+    $output = @(& $robocopy.Source @arguments)
     $exitCode = $LASTEXITCODE
+    $summary = Get-RobocopySummary $output
 
     if ($exitCode -ge 8) {
         throw "robocopy failed with exit code $exitCode. Partial backup folder left untouched: $BackupPath"
     }
 
-    return $exitCode
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Summary = $summary
+    }
 }
 
 Assert-DirectoryExists $repo "repo root"
@@ -139,7 +217,7 @@ New-Item -Path $plan.Path -ItemType Directory -ErrorAction Stop | Out-Null
 Write-Host "[INFO] Source: $repo"
 Write-Host "[INFO] Backup: $($plan.Path)"
 
-$robocopyExitCode = Invoke-RobocopyBackup $repo $plan.Path
+$robocopyResult = Invoke-RobocopyBackup $repo $plan.Path
 
 Write-Host "[SUCCESS] Backup created: $($plan.Path)"
-Write-Host "[SUCCESS] robocopy exit code: $robocopyExitCode"
+Write-RobocopySummary $robocopyResult.Summary
