@@ -75,7 +75,7 @@ Config path: [b]Data/SKSE/plugins/ironsoul.ini[/b]
 [list]
 [*][b]Respawn[/b]: turn Optional Respawn Integration on/off.
 [*][b]DragonSoulRevive[/b]: turn Dragon Soul Revive on/off.
-[*][b]DeathMessage[/b], [b]RespawnMessage[/b], [b]LoadNotification[/b], [b]LuckReminderNotification[/b], [b]LuckRollMessage[/b]: control message/UI behavior.
+[*][b]DeathMenu[/b], [b]RespawnMenu[/b], [b]LoadNotification[/b], [b]LuckReminderNotification[/b], [b]LuckRollMenu[/b]: control menu/notification behavior.
 [*][b]SoulFeats[/b], [b]SoulBonus[/b], [b]SoulFatigue[/b]: control progression and stat-modifier behavior.
 [*][b]DefiantResetSFX[/b], [b]SunderheartAbsorbSFX[/b]: control restore and Sunderheart purge SFX behavior.
 [*][b]Anticheat[/b]: controls suspicious Dragon Soul gain detection. Menu blocking support is planned.

@@ -70,6 +70,8 @@ Scriptname IronSoulController extends Quest
 ; LogController()
 ; LogControllerSnapshot()
 ; LoadConfig()
+; EnforceRequiemDeathHandlingDisabled()
+; StartRequiemDeathHandlingReassertion()
 ; LogSystemSnapshot()
 
 ; --- Lifecycle ---
@@ -83,6 +85,7 @@ Scriptname IronSoulController extends Quest
 ; --------------------------
 ; OnUpdate()
 ; OnUpdateHeartbeat()
+; TickRequiemDeathHandlingReassertion()
 ; BootstrapTick()
 ; SyncBootstrapDynamicAssets()
 ; QueueUpdate()
@@ -257,15 +260,8 @@ Bool Function LoadConfig()
     Config.LoadFromIni()
     Sunderhearts.RegisterInventoryFocusSFX()
     Game.SetGameSettingFloat("fPlayerDeathReloadTime", 3600.0)
-    if Config.IsRequiemCompatibilityEnabled()
-        GlobalVariable requiemNoDeathHandling = Game.GetFormFromFile(0x00AA1E9C, "Requiem.esp") as GlobalVariable
-        if requiemNoDeathHandling
-            requiemNoDeathHandling.SetValueInt(1)
-            LogController(IronSoulConfig.LOG_INFO(), "LoadConfig: Requiem death handling disabled")
-        else
-            LogController(IronSoulConfig.LOG_DBG(), "LoadConfig: Requiem death handling global not found", True)
-        endif
-    endif
+    EnforceRequiemDeathHandlingDisabled("load-config", True)
+    StartRequiemDeathHandlingReassertion("load-config")
     Respawn.RefreshRuntime()
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     Bool draugnarokEnabled = False
@@ -279,6 +275,43 @@ Bool Function LoadConfig()
         Globals.SyncIntegrationStatus(Game.GetPlayer())
     endif
     return True
+EndFunction
+
+Bool Function EnforceRequiemDeathHandlingDisabled(String reason = "runtime", Bool logAlways = False)
+    if !Config || !Config.IsRequiemCompatibilityEnabled()
+        return False
+    endif
+
+    GlobalVariable requiemNoDeathHandling = Game.GetFormFromFile(0x00AA1E9C, "Requiem.esp") as GlobalVariable
+    if !requiemNoDeathHandling
+        LogController(IronSoulConfig.LOG_DBG(), "EnforceRequiemDeathHandlingDisabled: Requiem death handling global not found reason=" + reason, True)
+        return False
+    endif
+
+    Int previousValue = requiemNoDeathHandling.GetValueInt()
+    if previousValue != 1
+        requiemNoDeathHandling.SetValueInt(1)
+        LogController(IronSoulConfig.LOG_INFO(), "EnforceRequiemDeathHandlingDisabled: forced Requiem death handling off previous=" + previousValue + " reason=" + reason)
+    elseif logAlways
+        LogController(IronSoulConfig.LOG_INFO(), "EnforceRequiemDeathHandlingDisabled: Requiem death handling already disabled value=" + previousValue + " reason=" + reason)
+    else
+        LogController(IronSoulConfig.LOG_DBG(), "EnforceRequiemDeathHandlingDisabled: Requiem death handling already disabled value=" + previousValue + " reason=" + reason, True)
+    endif
+
+    return True
+EndFunction
+
+Function StartRequiemDeathHandlingReassertion(String reason)
+    if !Config || !Config.IsRequiemCompatibilityEnabled()
+        _requiemDeathHandlingReassertionsRemaining = 0
+        _nextRequiemDeathHandlingReassertAt = 0.0
+        return
+    endif
+
+    _requiemDeathHandlingReassertionsRemaining = 15
+    _nextRequiemDeathHandlingReassertAt = Utility.GetCurrentRealTime() + 1.0
+    LogController(IronSoulConfig.LOG_DBG(), "StartRequiemDeathHandlingReassertion: queued checks=" + _requiemDeathHandlingReassertionsRemaining + " reason=" + reason, True)
+    QueueUpdate(1.0)
 EndFunction
 
 Function LogSystemSnapshot()
@@ -380,6 +413,8 @@ Float _nextHeartbeatAt = 0.0
 Bool _updateQueued = False
 Float _updateQueuedDelay = 0.0
 Bool _isQuitting = False
+Int _requiemDeathHandlingReassertionsRemaining = 0
+Float _nextRequiemDeathHandlingReassertAt = 0.0
 
 Event OnInit()
 
@@ -621,6 +656,8 @@ Function ResetTransientState()
 
     ; Runtime scheduling state
     _updateQueued = False
+    _requiemDeathHandlingReassertionsRemaining = 0
+    _nextRequiemDeathHandlingReassertAt = 0.0
 
     ; Identity cache and bootstrap state are transient across load/init edges.
     if Identity
@@ -696,6 +733,8 @@ Event OnUpdate()
     if tickGuid != ""
         Luck.TickRegen(player, tickGuid)
     endif
+
+    TickRequiemDeathHandlingReassertion()
 
     ; Defer initialisation bootstrap if necessary
     if BootstrapTick()
@@ -774,6 +813,32 @@ Function OnUpdateHeartbeat(Actor player)
     ; datastore is dirty (i.e., a value actually changed via DataSet*IfChanged).
     IronSoulNative.DataFlushIfDirty()
 
+EndFunction
+
+Bool Function TickRequiemDeathHandlingReassertion()
+    if _requiemDeathHandlingReassertionsRemaining <= 0
+        return False
+    endif
+    if !Config || !Config.IsRequiemCompatibilityEnabled()
+        _requiemDeathHandlingReassertionsRemaining = 0
+        _nextRequiemDeathHandlingReassertAt = 0.0
+        return False
+    endif
+
+    Float nowRT = Utility.GetCurrentRealTime()
+    if _nextRequiemDeathHandlingReassertAt != 0.0 && nowRT < _nextRequiemDeathHandlingReassertAt
+        return True
+    endif
+
+    EnforceRequiemDeathHandlingDisabled("post-load-reassert", False)
+    _requiemDeathHandlingReassertionsRemaining -= 1
+    if _requiemDeathHandlingReassertionsRemaining <= 0
+        _nextRequiemDeathHandlingReassertAt = 0.0
+        return False
+    endif
+
+    _nextRequiemDeathHandlingReassertAt = nowRT + 1.0
+    return True
 EndFunction
 
 Bool Function BootstrapTick()

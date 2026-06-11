@@ -197,7 +197,7 @@ Bool Function TryStartRespawn(Actor player, String guid)
 
     BeginRespawnMenuBlock()
 
-    if Controller.Config.IsRespawnMessageEnabled()
+    if Controller.Config.IsRespawnMenuEnabled()
         Controller.Presentation.FadeMusicForTransitionSequence()
     endif
 
@@ -555,7 +555,7 @@ Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
     _respawnMenuArmed = False
 
     if player && !player.IsDead()
-        if Controller.Config.IsRespawnMessageEnabled()
+        if Controller.Config.IsRespawnMenuEnabled()
             String guid = Controller.Identity.GetTickGuid(player)
             if guid != ""
                 Int soulTier = 1

@@ -93,8 +93,19 @@ Scriptname IronSoulNative Hidden
 ; --- Sunderheart Focus Audio ---
 ; --------------------------------
 ; SunderheartFocusConfigure()
+; SunderheartFocusConfigureInventoryHover()
+; SunderheartUseIntentConfigureInventoryForms()
+; SunderheartUseIntentBeginCapture()
+; SunderheartUseIntentClearCapture()
+; SunderheartUseIntentClaim()
+; SunderheartUseIntentClaimedBaseForm()
+; SunderheartUseIntentClaimedTier()
+; SunderheartUseIntentClaimedAgeSeconds()
+; SunderheartUseIntentClaimedSource()
 ; SunderheartFocusSetHoverTarget()
 ; SunderheartFocusClearHoverTarget()
+; SunderheartFocusSuppressInventoryHover()
+; SunderheartFocusClearInventoryHoverSuppression()
 ; SunderheartFocusSetActionTarget()
 ; SunderheartFocusClearActionTarget()
 ; SunderheartFocusSetUseTarget()
@@ -218,6 +229,9 @@ Function ApplyDynamicDraugrEyes(Int presetId) Global Native
 Bool Function OpenMenu(String menuName) Global Native
 Bool Function CloseMenu(String menuName) Global Native
 
+; Returns InventoryMenu's currently highlighted base item, or None when unavailable.
+Form Function InventorySelectedItemForm() Global Native
+
 ; Returns true when InventoryMenu's highlighted row has a base item EditorID with the given prefix.
 Bool Function InventorySelectedItemHasEditorIDPrefix(String editorIDPrefix) Global Native
 
@@ -273,11 +287,34 @@ Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0, Float fal
 ; Configures the native focus loop sound. Returns false when the Sound property is not wired.
 Bool Function SunderheartFocusConfigure(Sound focusLoop) Global Native
 
+; Configures native InventoryMenu selected-row hover ownership for Sunderheart focus audio.
+Bool Function SunderheartFocusConfigureInventoryHover(FormList tier1, FormList tier2, FormList tier3, FormList tier4, FormList tier5, Form spent) Global Native
+
+; Configures native InventoryMenu selected-row Sunderheart use intent capture.
+Bool Function SunderheartUseIntentConfigureInventoryForms(FormList tier1, FormList tier2, FormList tier3, FormList tier4, FormList tier5, Form spent) Global Native
+
+; Starts/clears a short native input capture window for InventoryMenu Sunderheart use intents.
+Function SunderheartUseIntentBeginCapture(Float seconds = 0.75, String reason = "") Global Native
+Function SunderheartUseIntentClearCapture(String reason = "") Global Native
+
+; Claims the latest native-captured Sunderheart use intent, then exposes its details through the readback functions.
+Bool Function SunderheartUseIntentClaim() Global Native
+Form Function SunderheartUseIntentClaimedBaseForm() Global Native
+Int Function SunderheartUseIntentClaimedTier() Global Native
+Float Function SunderheartUseIntentClaimedAgeSeconds() Global Native
+String Function SunderheartUseIntentClaimedSource() Global Native
+
 ; Sets the debounced inventory-hover target volume. Passing 0.0 requests a debounced hover clear.
 Function SunderheartFocusSetHoverTarget(Float volume) Global Native
 
 ; Immediately clears the inventory-hover target, for hard transitions such as menu close or cancel.
 Function SunderheartFocusClearHoverTarget() Global Native
+
+; Suppresses native hover for the currently selected InventoryMenu row until selection moves.
+Function SunderheartFocusSuppressInventoryHover(String reason = "") Global Native
+
+; Clears native InventoryMenu hover suppression.
+Function SunderheartFocusClearInventoryHoverSuppression(String reason = "") Global Native
 
 ; Sets or clears the action-choice menu target.
 Function SunderheartFocusSetActionTarget(Float volume) Global Native
@@ -316,7 +353,7 @@ Bool Function KillPlayerImmediate(Bool ragdollInstant = True, String reason = ""
 ; ==============================
 
 ; Builds an Iron Soul-owned filtered enhancement session.
-; effectId 1 is Tonal tempering. Returns 0 when no valid session can be built.
+; effectId 1 is temper gear. Returns 0 when no valid session can be built.
 Int Function SunderheartBuildEnhanceSession(Int effectId, Int power, Int cap) Global Native
 
 ; Returns the number of displayable options in a session.

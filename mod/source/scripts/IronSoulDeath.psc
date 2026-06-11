@@ -143,8 +143,8 @@ Bool Function PlayDeathImod()
     endif
 
     if DeathImod
-        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathImod: applying crossfade=1.0 t=" + Utility.GetCurrentRealTime(), True)
-        DeathImod.ApplyCrossFade(3.0)
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathImod: applying crossfade=2.0 t=" + Utility.GetCurrentRealTime(), True)
+        DeathImod.ApplyCrossFade(1.2)
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathImod: applied t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
@@ -159,8 +159,8 @@ Bool Function PlayPermadeathImod()
     endif
 
     if PermadeathImod
-        LogDeath(IronSoulConfig.LOG_INFO(), "PlayPermadeathImod: applying crossfade=1.0 t=" + Utility.GetCurrentRealTime(), True)
-        PermadeathImod.ApplyCrossFade(3.0)
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayPermadeathImod: applying crossfade=2.0 t=" + Utility.GetCurrentRealTime(), True)
+        PermadeathImod.ApplyCrossFade(1.2)
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayPermadeathImod: applied t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
@@ -188,6 +188,7 @@ Function PlayLoadPermadeathSequence(Actor player, String menuName, Sound sfx, St
     LogDeath(IronSoulConfig.LOG_INFO(), "PlayLoadPermadeathSequence: opening menu=" + menuName + " t=" + Utility.GetCurrentRealTime(), True)
     Controller.Presentation.OpenTimedMessageSWF_KeyDismiss_SFX(menuName, 55.0, 27.0, sfx, player, False)
     LogDeath(IronSoulConfig.LOG_INFO(), "PlayLoadPermadeathSequence: menu returned=" + menuName + " t=" + Utility.GetCurrentRealTime(), True)
+    PlayBlackScreenImod(1.9)
     FinalizeDeathQuit(True)
 EndFunction
 
@@ -201,7 +202,7 @@ Bool Function PlayBlackScreenImod(Float fadeSeconds = 2.0)
 
     if BlackScreenImod
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayBlackScreenImod: applying crossfade=" + fadeSeconds + " t=" + Utility.GetCurrentRealTime(), True)
-        ;BlackScreenImod.ApplyCrossFade(5)
+        BlackScreenImod.ApplyCrossFade(fadeSeconds)
         LogDeath(IronSoulConfig.LOG_INFO(), "PlayBlackScreenImod: applied crossfade=" + fadeSeconds + " t=" + Utility.GetCurrentRealTime(), True)
         return True
     endif
@@ -336,6 +337,7 @@ Function HandleDeathAndQuit(Actor player)
     IronSoulSFX sfx = Controller.SFX
     IronSoulEffects effects = Controller.Effects
 
+    Controller.EnforceRequiemDeathHandlingDisabled("death-enter", True)
     LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Enter t=" + deathQuitStartedAt, True)
     IronSoulNative.HoldDeathSlowMo("death-failure")
     IronSoulNative.BeginMenuBlock("death", True)
@@ -370,14 +372,6 @@ Function HandleDeathAndQuit(Actor player)
         syncedEffectsBeforeKill = True
         defiantFatigueTerminal = tiers.IsDefiantSoulFatigueTerminal(player, guid)
     endif
-
-    ; Luck reset: death milestone should consume the current cycle.
-    if luck.IsRuntimeAvailable()
-        luck.ResetValue(player, guid)
-        luck.ForcePersistNow(player, guid)
-        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: ResetLuck()")
-    endif
-    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Pre-kill state committed deathsNow=" + deathsNow + " tier=" + soulTierTD + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
     ; Resolve the death outcome before the kill; defer journals and presentation.
     ; presentationMode: 0 none, 1 Defiant transition, 2 CHIM transition, 3 death, 4 permadeath.
@@ -440,9 +434,9 @@ Function HandleDeathAndQuit(Actor player)
             maybeLogDefeatJournal = True
             defeatJournalText = IronSoulJournal.DefeatOutcomeText(deathsNow, tiers.GetEffectiveMaxLives(player, guid))
         endif
-        if config.IsDeathMessageEnabled()
+        if config.IsDeathMenuEnabled()
             presentationMode = 3
-            presentationMenu = IronSoulUI.ResolveDeathMessageMenu(soulTierTD, deathsNow)
+            presentationMenu = IronSoulUI.ResolveDeathMenu(soulTierTD, deathsNow)
         endif
     else
         ; Non-CHIM caps + messaging.
@@ -470,14 +464,13 @@ Function HandleDeathAndQuit(Actor player)
             presentationMenu = IronSoulUI.ResolvePermadeathMenu(soulTierTD)
             quitToMainMenu = True
         else
-            if config.IsDeathMessageEnabled()
+            if config.IsDeathMenuEnabled()
                 presentationMode = 3
-                presentationMenu = IronSoulUI.ResolveDeathMessageMenu(soulTierTD, deathsNow)
+                presentationMenu = IronSoulUI.ResolveDeathMenu(soulTierTD, deathsNow)
             endif
         endif
     endif
 
-    IronSoulNative.DataFlushIfDirty()
     LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Outcome resolved mode=" + presentationMode + " menu=" + presentationMenu + " quitToMainMenu=" + quitToMainMenu + " committedTier=" + committedTier + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
     if presentationMode == 1 || presentationMode == 2 || presentationMode == 4
@@ -486,12 +479,8 @@ Function HandleDeathAndQuit(Actor player)
         PlayDeathImod()
     endif
 
-    ; Non-luck death routes still need the fixed front-delay.
-    if !luck.ConsumeDeathFrontDelay()
-        Utility.Wait(0.5)
-    endif
-
     player.GetActorBase().SetEssential(False)
+    Controller.EnforceRequiemDeathHandlingDisabled("pre-kill", True)
     LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Calling EndDeferredKill() t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     player.EndDeferredKill()
     LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: EndDeferredKill() returned t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
@@ -511,6 +500,14 @@ Function HandleDeathAndQuit(Actor player)
         endif
     endif
     LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Kill queued; post-kill phase start t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+
+    ; Luck reset: death milestone should consume the current cycle.
+    if luck.IsRuntimeAvailable()
+        luck.ResetValue(player, guid)
+        LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: ResetLuck() t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+    endif
+    IronSoulNative.DataFlushIfDirty()
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Post-kill state committed deathsNow=" + deathsNow + " tier=" + soulTierTD + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
     if tierStateCommittedBeforeKill
         tiers.SyncCommittedTierStateAfterDeath(player, guid, committedTier)
@@ -539,6 +536,12 @@ Function HandleDeathAndQuit(Actor player)
 
     LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Post-kill journals and presentation state complete t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
+    ; Non-luck death routes still need the fixed front-delay.
+    if !luck.ConsumeDeathFrontDelay()
+        Utility.Wait(0.5)
+    endif
+
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: releasing death slowmo t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
     IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "death-failure-kill")
     Utility.Wait(1.0)
 
@@ -557,10 +560,12 @@ Function HandleDeathAndQuit(Actor player)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening death menu=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         presentation.OpenTimedMessageSWF_SFX(presentationMenu, 6.0, sfx.SFXDeath, player, False)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: death menu returned=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+        PlayBlackScreenImod(1.9)
     elseif presentationMode == 4
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening permadeath menu=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         presentation.OpenTimedMessageSWF_KeyDismiss_SFX(presentationMenu, 55.0, 27.0, sfx.SFXPermadeath, player, False)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: permadeath menu returned=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+        PlayBlackScreenImod(1.9)
     endif
 
     if quitToMainMenu
@@ -727,16 +732,18 @@ EndFunction
 
 Function FinalizeDeathQuit(Bool mainMenu)
     Float finalDelay = 1.0
-    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: start mainMenu=" + mainMenu + " t=" + Utility.GetCurrentRealTime(), True)
+    Int deathQuitMode = Controller.Config.GetDeathQuitMode()
+    Bool effectiveMainMenu = (deathQuitMode == 2)
+    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: start requestedMainMenu=" + mainMenu + " effectiveMainMenu=" + effectiveMainMenu + " deathQuitMode=" + deathQuitMode + " t=" + Utility.GetCurrentRealTime(), True)
 
-    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: waiting finalDelay=" + finalDelay + " t=" + Utility.GetCurrentRealTime(), True)
+    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: waiting finalDelay=" + finalDelay + " requestedMainMenu=" + mainMenu + " effectiveMainMenu=" + effectiveMainMenu + " deathQuitMode=" + deathQuitMode + " t=" + Utility.GetCurrentRealTime(), True)
     Utility.Wait(finalDelay)
-    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: wait complete mainMenu=" + mainMenu + " t=" + Utility.GetCurrentRealTime(), True)
-    if mainMenu
-        LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: calling FinalizeAndQuitMainMenu t=" + Utility.GetCurrentRealTime(), True)
+    LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: wait complete requestedMainMenu=" + mainMenu + " effectiveMainMenu=" + effectiveMainMenu + " deathQuitMode=" + deathQuitMode + " t=" + Utility.GetCurrentRealTime(), True)
+    if effectiveMainMenu
+        LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: calling FinalizeAndQuitMainMenu requestedMainMenu=" + mainMenu + " deathQuitMode=" + deathQuitMode + " t=" + Utility.GetCurrentRealTime(), True)
         Controller.FinalizeAndQuitMainMenu()
     else
-        LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: calling FinalizeAndQuit t=" + Utility.GetCurrentRealTime(), True)
+        LogDeath(IronSoulConfig.LOG_INFO(), "FinalizeDeathQuit: calling FinalizeAndQuit requestedMainMenu=" + mainMenu + " deathQuitMode=" + deathQuitMode + " t=" + Utility.GetCurrentRealTime(), True)
         Controller.FinalizeAndQuit()
     endif
 EndFunction

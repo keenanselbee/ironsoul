@@ -62,7 +62,7 @@ Scriptname IronSoulUI extends Quest
 ; -------------------
 ; TierMenuPrefix()
 ; SwfNoBonus()
-; ResolveDeathMessageMenu()
+; ResolveDeathMenu()
 ; ResolvePermadeathMenu()
 ; ResolveRespawnMenu()
 ; ResolveSoulFeatUnlockMenuFromFacts()
@@ -1065,7 +1065,7 @@ String Function SwfNoBonus(String menuName, Bool soulBonusEnabled) Global
     return menuName
 EndFunction
 
-String Function ResolveDeathMessageMenu(Int soulTier, Int deathsNow) Global
+String Function ResolveDeathMenu(Int soulTier, Int deathsNow) Global
     if soulTier == 6
         return "6_devour_death_" + deathsNow
     endif

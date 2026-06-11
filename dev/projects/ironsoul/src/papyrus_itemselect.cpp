@@ -73,6 +73,12 @@ namespace
         return item ? item->data.objDesc : nullptr;
     }
 
+    static RE::TESForm* InventorySelectedItemForm(RE::StaticFunctionTag*)
+    {
+        auto* entry = GetInventorySelectedEntry();
+        return entry ? entry->object : nullptr;
+    }
+
     static bool InventorySelectedItemHasEditorIDPrefix(RE::StaticFunctionTag*, std::string a_editorIDPrefix)
     {
         if (a_editorIDPrefix.empty()) {
@@ -199,6 +205,7 @@ namespace
     {
         a_vm->RegisterFunction("OpenMenu", kScriptName, OpenMenu);
         a_vm->RegisterFunction("CloseMenu", kScriptName, CloseMenu);
+        a_vm->RegisterFunction("InventorySelectedItemForm", kScriptName, InventorySelectedItemForm);
         a_vm->RegisterFunction("InventorySelectedItemHasEditorIDPrefix", kScriptName, InventorySelectedItemHasEditorIDPrefix);
         a_vm->RegisterFunction("InventorySelectedItemHasEditorID", kScriptName, InventorySelectedItemHasEditorID);
         a_vm->RegisterFunction("FormIDStringToForm", kScriptName, FormIDStringToForm);

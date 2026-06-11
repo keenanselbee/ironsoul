@@ -1,11 +1,14 @@
 #include "pch.h"
 #include "papyrus_sunderheart_focus.h"
+#include "papyrus_itemselect.h"
 #include "papyrus_common.h"
 #include "config.h"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <string>
 #include <thread>
@@ -16,15 +19,25 @@ namespace
 {
     constexpr float kFadeInSeconds = 0.35F;
     constexpr float kFadeOutSeconds = 1.0F;
-    constexpr float kHoverFadeOutSeconds = 0.20F;
+    constexpr float kHoverFadeOutSeconds = 0.12F;
     constexpr float kRetargetSeconds = 0.12F;
     constexpr float kHoverMatchDebounceSeconds = 0.04F;
     constexpr float kHoverClearDebounceSeconds = 0.25F;
     constexpr float kHoverLeaseCheckSeconds = 0.25F;
+    constexpr float kInventoryHoverPollSeconds = 0.03F;
+    constexpr float kInventoryHoverStableSeconds = 0.07F;
+    constexpr float kUseIntentPendingMaxAgeSeconds = 0.85F;
     constexpr float kFadeStepSeconds = 0.03F;
     constexpr float kVolumeEpsilon = 0.001F;
     constexpr std::uint32_t kFocusSoundFlags = 0x1A;
     constexpr const char* kInventoryMenuName = "InventoryMenu";
+    constexpr std::array<float, 5> kInventoryHoverTierVolumes{
+        0.2F,
+        0.4F,
+        0.6F,
+        0.8F,
+        1.0F
+    };
 
     struct FocusTarget
     {
@@ -47,10 +60,40 @@ namespace
         std::atomic<std::uint64_t> hoverToken{ 0 };
         std::atomic<std::uint64_t> hoverLeaseToken{ 0 };
         std::atomic<std::uint64_t> fadeToken{ 0 };
+        std::atomic<std::uint64_t> inventoryHoverPollToken{ 0 };
         std::atomic<bool> warnedMissingTask{ false };
         std::atomic<bool> warnedMissingAudio{ false };
         std::atomic<bool> warnedMissingSound{ false };
+        std::array<RE::FormID, 5> inventoryHoverTierListFormIDs{};
+        RE::FormID inventoryHoverSpentFormID{ 0 };
+        RE::FormID inventoryHoverCandidateFormID{ 0 };
+        RE::FormID inventoryHoverCurrentFormID{ 0 };
+        RE::FormID inventoryHoverSuppressedFormID{ 0 };
+        float inventoryHoverCandidateVolume{ 0.0F };
+        double inventoryHoverCandidateSinceSeconds{ 0.0 };
+        bool inventoryHoverConfigured{ false };
+        bool inventoryHoverPolling{ false };
         bool menuSinkRegistered{ false };
+        bool inputSinkRegistered{ false };
+        bool useIntentCaptureActive{ false };
+        double useIntentCaptureUntilSeconds{ 0.0 };
+        bool useIntentPending{ false };
+        RE::FormID useIntentPendingFormID{ 0 };
+        std::int32_t useIntentPendingTier{ 0 };
+        double useIntentPendingAtSeconds{ 0.0 };
+        std::string useIntentPendingSource;
+        bool useIntentClaimed{ false };
+        RE::FormID useIntentClaimedFormID{ 0 };
+        std::int32_t useIntentClaimedTier{ 0 };
+        double useIntentClaimedAtSeconds{ 0.0 };
+        std::string useIntentClaimedSource;
+    };
+
+    struct InventoryHoverConfigSnapshot
+    {
+        std::array<RE::FormID, 5> tierListFormIDs{};
+        RE::FormID spentFormID{ 0 };
+        bool configured{ false };
     };
 
     class FocusMenuSink :
@@ -62,10 +105,21 @@ namespace
             RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
     };
 
+    class FocusInputSink :
+        public RE::BSTEventSink<RE::InputEvent*>
+    {
+    public:
+        RE::BSEventNotifyControl ProcessEvent(
+            RE::InputEvent* const* a_eventList,
+            RE::BSTEventSource<RE::InputEvent*>*) override;
+    };
+
     FocusState g_focus;
     FocusMenuSink g_menuSink;
+    FocusInputSink g_inputSink;
 
     void ValidateHoverLease(std::uint64_t a_token);
+    void StopInventoryHoverPolling(std::string a_reason, bool a_clearHover);
 
     float Clamp01(float a_value)
     {
@@ -75,6 +129,12 @@ namespace
     bool NearlyEqual(float a_left, float a_right)
     {
         return std::fabs(a_left - a_right) <= kVolumeEpsilon;
+    }
+
+    double NowSeconds()
+    {
+        using clock = std::chrono::steady_clock;
+        return std::chrono::duration<double>(clock::now().time_since_epoch()).count();
     }
 
     bool InfoLoggingEnabled()
@@ -120,6 +180,191 @@ namespace
     {
         auto* ui = RE::UI::GetSingleton();
         return ui && ui->IsMenuOpen(kInventoryMenuName);
+    }
+
+    void EnsureInputSinkRegisteredLocked(std::string_view a_reason, bool a_warnMissing)
+    {
+        if (g_focus.inputSinkRegistered) {
+            return;
+        }
+
+        if (auto* inputManager = RE::BSInputDeviceManager::GetSingleton()) {
+            inputManager->AddEventSink(static_cast<RE::BSTEventSink<RE::InputEvent*>*>(&g_inputSink));
+            g_focus.inputSinkRegistered = true;
+            logger::info("SunderheartFocus: input sink registered reason={}", a_reason.empty() ? "unknown" : a_reason);
+        } else if (a_warnMissing) {
+            logger::warn("SunderheartFocus: BSInputDeviceManager unavailable; use intent capture will retry reason={}", a_reason.empty() ? "unknown" : a_reason);
+        }
+    }
+
+    void EnsureInputSinkRegistered(std::string_view a_reason, bool a_warnMissing)
+    {
+        std::scoped_lock lock(g_focus.lock);
+        EnsureInputSinkRegisteredLocked(a_reason, a_warnMissing);
+    }
+
+    InventoryHoverConfigSnapshot GetInventoryHoverConfigSnapshot()
+    {
+        std::scoped_lock lock(g_focus.lock);
+        return {
+            g_focus.inventoryHoverTierListFormIDs,
+            g_focus.inventoryHoverSpentFormID,
+            g_focus.inventoryHoverConfigured
+        };
+    }
+
+    std::int32_t ResolveInventorySunderheartTier(RE::TESForm* a_form, const InventoryHoverConfigSnapshot& a_config)
+    {
+        if (!a_form || !a_config.configured) {
+            return 0;
+        }
+
+        const RE::FormID formID = a_form->GetFormID();
+        if (formID == 0 || (a_config.spentFormID != 0 && formID == a_config.spentFormID)) {
+            return 0;
+        }
+
+        for (std::size_t index = a_config.tierListFormIDs.size(); index > 0; --index) {
+            const RE::FormID listFormID = a_config.tierListFormIDs[index - 1];
+            auto* list = listFormID != 0 ? RE::TESForm::LookupByID<RE::BGSListForm>(listFormID) : nullptr;
+            if (list && list->HasForm(a_form)) {
+                return static_cast<std::int32_t>(index);
+            }
+        }
+
+        return 0;
+    }
+
+    float ResolveInventoryHoverVolume(RE::TESForm* a_form, const InventoryHoverConfigSnapshot& a_config)
+    {
+        const std::int32_t tier = ResolveInventorySunderheartTier(a_form, a_config);
+        if (tier <= 0 || static_cast<std::size_t>(tier) > kInventoryHoverTierVolumes.size()) {
+            return 0.0F;
+        }
+        return kInventoryHoverTierVolumes[static_cast<std::size_t>(tier - 1)];
+    }
+
+    std::string NormalizeInputEventName(std::string_view a_value)
+    {
+        std::string out;
+        out.reserve(a_value.size());
+        for (unsigned char c : a_value) {
+            if (c == ' ' || c == '_' || c == '-' || c == '\t') {
+                continue;
+            }
+            out.push_back(static_cast<char>(std::tolower(c)));
+        }
+        return out;
+    }
+
+    bool IsUseIntentButton(const RE::ButtonEvent& a_event, std::string_view a_userEvent)
+    {
+        if (!a_event.IsDown()) {
+            return false;
+        }
+
+        const std::string normalized = NormalizeInputEventName(a_userEvent);
+        if (normalized == "activate" ||
+            normalized == "accept" ||
+            normalized == "equip" ||
+            normalized == "use") {
+            return true;
+        }
+
+        return a_event.GetDevice() == RE::INPUT_DEVICE::kMouse && a_event.GetIDCode() == 0;
+    }
+
+    void ClearUseIntentLocked()
+    {
+        g_focus.useIntentCaptureActive = false;
+        g_focus.useIntentCaptureUntilSeconds = 0.0;
+        g_focus.useIntentPending = false;
+        g_focus.useIntentPendingFormID = 0;
+        g_focus.useIntentPendingTier = 0;
+        g_focus.useIntentPendingAtSeconds = 0.0;
+        g_focus.useIntentPendingSource.clear();
+        g_focus.useIntentClaimed = false;
+        g_focus.useIntentClaimedFormID = 0;
+        g_focus.useIntentClaimedTier = 0;
+        g_focus.useIntentClaimedAtSeconds = 0.0;
+        g_focus.useIntentClaimedSource.clear();
+    }
+
+    void ExpireUseIntentCaptureLocked(double a_now)
+    {
+        if (g_focus.useIntentCaptureActive && a_now > g_focus.useIntentCaptureUntilSeconds) {
+            g_focus.useIntentCaptureActive = false;
+            g_focus.useIntentCaptureUntilSeconds = 0.0;
+        }
+        if (g_focus.useIntentPending &&
+            a_now > (g_focus.useIntentPendingAtSeconds + kUseIntentPendingMaxAgeSeconds)) {
+            if (InfoLoggingEnabled()) {
+                logger::info(
+                    "SunderheartUseIntent: native pending expired formID={:08X} tier={} source={}",
+                    g_focus.useIntentPendingFormID,
+                    g_focus.useIntentPendingTier,
+                    g_focus.useIntentPendingSource);
+            }
+            g_focus.useIntentPending = false;
+            g_focus.useIntentPendingFormID = 0;
+            g_focus.useIntentPendingTier = 0;
+            g_focus.useIntentPendingAtSeconds = 0.0;
+            g_focus.useIntentPendingSource.clear();
+        }
+    }
+
+    void RecordSelectedSunderheartUseIntent(std::string a_source)
+    {
+        const double now = NowSeconds();
+        InventoryHoverConfigSnapshot config;
+        {
+            std::scoped_lock lock(g_focus.lock);
+            ExpireUseIntentCaptureLocked(now);
+            if (!g_focus.useIntentCaptureActive) {
+                return;
+            }
+            config = {
+                g_focus.inventoryHoverTierListFormIDs,
+                g_focus.inventoryHoverSpentFormID,
+                g_focus.inventoryHoverConfigured
+            };
+        }
+
+        if (!IsInventoryMenuOpen()) {
+            return;
+        }
+
+        auto* entry = ItemSelect::GetInventorySelectedEntry();
+        auto* selectedForm = entry ? entry->object : nullptr;
+        const std::int32_t tier = ResolveInventorySunderheartTier(selectedForm, config);
+        if (tier <= 0 || !selectedForm) {
+            return;
+        }
+
+        const RE::FormID formID = selectedForm->GetFormID();
+        if (formID == 0) {
+            return;
+        }
+
+        {
+            std::scoped_lock lock(g_focus.lock);
+            ExpireUseIntentCaptureLocked(now);
+            if (!g_focus.useIntentCaptureActive) {
+                return;
+            }
+            g_focus.useIntentPending = true;
+            g_focus.useIntentPendingFormID = formID;
+            g_focus.useIntentPendingTier = tier;
+            g_focus.useIntentPendingAtSeconds = now;
+            g_focus.useIntentPendingSource = std::move(a_source);
+            if (InfoLoggingEnabled()) {
+                logger::info(
+                    "SunderheartUseIntent: native captured formID={:08X} tier={} source={}",
+                    g_focus.useIntentPendingFormID,
+                    g_focus.useIntentPendingTier,
+                    g_focus.useIntentPendingSource);
+            }
+        }
     }
 
     void QueueHoverLeaseCheck(std::uint64_t a_token)
@@ -332,7 +577,10 @@ namespace
                 a_reason == "hover-clear" ||
                 a_reason == "cancel-clear" ||
                 a_reason == "inventory-menu-close" ||
-                a_reason == "hover-lease-menu-closed";
+                a_reason == "hover-lease-menu-closed" ||
+                a_reason == "native-hover-clear" ||
+                a_reason == "native-hover-disabled" ||
+                a_reason == "native-hover-suppressed";
             const float fadeSeconds = hoverOnlyFade ? kHoverFadeOutSeconds : kFadeOutSeconds;
             StartFadeLocked(0.0F, fadeSeconds, true, std::move(a_reason));
         }
@@ -422,6 +670,165 @@ namespace
         ClearHoverLocked(std::move(a_reason));
     }
 
+    void ResetInventoryHoverSelectionLocked()
+    {
+        g_focus.inventoryHoverCandidateFormID = 0;
+        g_focus.inventoryHoverCurrentFormID = 0;
+        g_focus.inventoryHoverCandidateVolume = 0.0F;
+        g_focus.inventoryHoverCandidateSinceSeconds = 0.0;
+    }
+
+    void CommitInventoryHoverLocked(RE::FormID a_formID, float a_volume)
+    {
+        const float volume = Clamp01(a_volume);
+        if (volume <= kVolumeEpsilon) {
+            ResetInventoryHoverSelectionLocked();
+            ClearHoverLocked("native-hover-clear");
+            return;
+        }
+
+        g_focus.pendingHover = {};
+        const bool changed =
+            !g_focus.hover.active ||
+            g_focus.inventoryHoverCurrentFormID != a_formID ||
+            !NearlyEqual(g_focus.hover.volume, volume);
+
+        g_focus.inventoryHoverCurrentFormID = a_formID;
+        if (!changed) {
+            ArmHoverLeaseLocked();
+            return;
+        }
+
+        g_focus.hover.active = true;
+        g_focus.hover.volume = volume;
+        if (InfoLoggingEnabled()) {
+            logger::info("SunderheartFocus: native hover commit formID={:08X} volume={}", a_formID, volume);
+        }
+        RecomputeFadeLocked("hover");
+        ArmHoverLeaseLocked();
+    }
+
+    void ClearInventoryHoverLocked(std::string a_reason)
+    {
+        ResetInventoryHoverSelectionLocked();
+        ClearHoverLocked(std::move(a_reason));
+    }
+
+    void PollInventoryHover(std::uint64_t a_token)
+    {
+        if (g_focus.inventoryHoverPollToken.load() != a_token) {
+            return;
+        }
+        if (!IsInventoryMenuOpen()) {
+            StopInventoryHoverPolling("inventory-menu-close", true);
+            return;
+        }
+
+        const InventoryHoverConfigSnapshot config = GetInventoryHoverConfigSnapshot();
+        auto* entry = ItemSelect::GetInventorySelectedEntry();
+        auto* selectedForm = entry ? entry->object : nullptr;
+        const RE::FormID selectedFormID = selectedForm ? selectedForm->GetFormID() : 0;
+        const float focusVolume = ResolveInventoryHoverVolume(selectedForm, config);
+        const bool matched = focusVolume > kVolumeEpsilon;
+        const double now = NowSeconds();
+
+        std::scoped_lock lock(g_focus.lock);
+        if (g_focus.inventoryHoverPollToken.load() != a_token || !g_focus.inventoryHoverPolling) {
+            return;
+        }
+        if (!g_focus.inventoryHoverConfigured || !FocusSfxEnabled() || g_focus.focusLoopFormID == 0) {
+            g_focus.inventoryHoverPolling = false;
+            g_focus.inventoryHoverPollToken.fetch_add(1);
+            g_focus.inventoryHoverSuppressedFormID = 0;
+            ClearInventoryHoverLocked("native-hover-disabled");
+            return;
+        }
+
+        if (!matched) {
+            if (g_focus.inventoryHoverSuppressedFormID != 0 && selectedFormID != g_focus.inventoryHoverSuppressedFormID) {
+                g_focus.inventoryHoverSuppressedFormID = 0;
+            }
+            ClearInventoryHoverLocked("native-hover-clear");
+            return;
+        }
+
+        if (g_focus.inventoryHoverSuppressedFormID != 0) {
+            if (selectedFormID == g_focus.inventoryHoverSuppressedFormID) {
+                ResetInventoryHoverSelectionLocked();
+                ClearHoverLocked("native-hover-suppressed");
+                return;
+            }
+            g_focus.inventoryHoverSuppressedFormID = 0;
+        }
+
+        if (g_focus.inventoryHoverCandidateFormID != selectedFormID ||
+            !NearlyEqual(g_focus.inventoryHoverCandidateVolume, focusVolume)) {
+            g_focus.inventoryHoverCandidateFormID = selectedFormID;
+            g_focus.inventoryHoverCandidateVolume = focusVolume;
+            g_focus.inventoryHoverCandidateSinceSeconds = now;
+            return;
+        }
+
+        if ((now - g_focus.inventoryHoverCandidateSinceSeconds) < kInventoryHoverStableSeconds) {
+            return;
+        }
+
+        CommitInventoryHoverLocked(selectedFormID, focusVolume);
+    }
+
+    void StartInventoryHoverPolling(std::string a_reason)
+    {
+        std::uint64_t token = 0;
+        {
+            std::scoped_lock lock(g_focus.lock);
+            if (!g_focus.inventoryHoverConfigured || g_focus.inventoryHoverPolling || g_focus.focusLoopFormID == 0) {
+                return;
+            }
+            if (!FocusSfxEnabled()) {
+                return;
+            }
+            g_focus.inventoryHoverPolling = true;
+            token = g_focus.inventoryHoverPollToken.fetch_add(1) + 1;
+            if (InfoLoggingEnabled()) {
+                logger::info("SunderheartFocus: inventory hover polling started reason={}", a_reason);
+            }
+        }
+
+        std::thread([token]() {
+            const auto pollDelay = std::chrono::duration<float>(kInventoryHoverPollSeconds);
+            while (g_focus.inventoryHoverPollToken.load() == token) {
+                std::this_thread::sleep_for(pollDelay);
+                if (g_focus.inventoryHoverPollToken.load() != token) {
+                    return;
+                }
+                if (!QueueTask([token]() {
+                    PollInventoryHover(token);
+                }, "SunderheartFocus inventory hover poll")) {
+                    StopInventoryHoverPolling("inventory-hover-task-unavailable", true);
+                    return;
+                }
+            }
+        }).detach();
+    }
+
+    void StopInventoryHoverPolling(std::string a_reason, bool a_clearHover)
+    {
+        std::scoped_lock lock(g_focus.lock);
+        if (g_focus.inventoryHoverPolling) {
+            g_focus.inventoryHoverPolling = false;
+            if (InfoLoggingEnabled()) {
+                logger::info("SunderheartFocus: inventory hover polling stopped reason={}", a_reason);
+            }
+        }
+        g_focus.inventoryHoverPollToken.fetch_add(1);
+        g_focus.inventoryHoverSuppressedFormID = 0;
+        if (a_clearHover) {
+            ClearInventoryHoverLocked(std::move(a_reason));
+        } else {
+            ResetInventoryHoverSelectionLocked();
+        }
+    }
+
     void ValidateHoverLease(std::uint64_t a_token)
     {
         {
@@ -459,6 +866,7 @@ namespace
                 g_focus.pendingHover = {};
                 g_focus.action = {};
                 g_focus.use = {};
+                ResetInventoryHoverSelectionLocked();
             }
             token = g_focus.fadeToken.fetch_add(1) + 1;
             g_focus.currentVolume = 0.0F;
@@ -476,6 +884,7 @@ namespace
         g_focus.pendingHover = {};
         g_focus.action = {};
         g_focus.use = {};
+        ResetInventoryHoverSelectionLocked();
         StartFadeLocked(0.0F, kFadeOutSeconds, true, std::move(a_reason));
     }
 
@@ -499,6 +908,7 @@ namespace
     static bool SunderheartFocusConfigure(RE::StaticFunctionTag*, RE::TESSound* a_focusLoop)
     {
         if (!a_focusLoop) {
+            StopInventoryHoverPolling("configure-null", true);
             StopImmediate(true, "configure-null");
             std::scoped_lock lock(g_focus.lock);
             g_focus.focusLoopFormID = 0;
@@ -519,18 +929,214 @@ namespace
             }
         }
         StopImmediate(false, "configure-change");
+        if (IsInventoryMenuOpen()) {
+            StartInventoryHoverPolling("configure-change");
+        }
         return true;
+    }
+
+    static bool SunderheartFocusConfigureInventoryHover(
+        RE::StaticFunctionTag*,
+        RE::BGSListForm* a_tier1,
+        RE::BGSListForm* a_tier2,
+        RE::BGSListForm* a_tier3,
+        RE::BGSListForm* a_tier4,
+        RE::BGSListForm* a_tier5,
+        RE::TESForm* a_spent)
+    {
+        bool configured = false;
+        {
+            std::scoped_lock lock(g_focus.lock);
+            g_focus.inventoryHoverTierListFormIDs = {
+                a_tier1 ? a_tier1->GetFormID() : 0,
+                a_tier2 ? a_tier2->GetFormID() : 0,
+                a_tier3 ? a_tier3->GetFormID() : 0,
+                a_tier4 ? a_tier4->GetFormID() : 0,
+                a_tier5 ? a_tier5->GetFormID() : 0
+            };
+            g_focus.inventoryHoverSpentFormID = a_spent ? a_spent->GetFormID() : 0;
+            g_focus.inventoryHoverConfigured =
+                g_focus.inventoryHoverTierListFormIDs[0] != 0 ||
+                g_focus.inventoryHoverTierListFormIDs[1] != 0 ||
+                g_focus.inventoryHoverTierListFormIDs[2] != 0 ||
+                g_focus.inventoryHoverTierListFormIDs[3] != 0 ||
+                g_focus.inventoryHoverTierListFormIDs[4] != 0;
+            configured = g_focus.inventoryHoverConfigured;
+            ResetInventoryHoverSelectionLocked();
+            if (InfoLoggingEnabled()) {
+                logger::info(
+                    "SunderheartFocus: inventory hover configured enabled={} spentFormID={:08X}",
+                    g_focus.inventoryHoverConfigured,
+                    g_focus.inventoryHoverSpentFormID);
+            }
+        }
+
+        if (IsInventoryMenuOpen()) {
+            StartInventoryHoverPolling("configure-inventory-hover");
+        }
+        return configured;
+    }
+
+    static bool SunderheartUseIntentConfigureInventoryForms(
+        RE::StaticFunctionTag* a_tag,
+        RE::BGSListForm* a_tier1,
+        RE::BGSListForm* a_tier2,
+        RE::BGSListForm* a_tier3,
+        RE::BGSListForm* a_tier4,
+        RE::BGSListForm* a_tier5,
+        RE::TESForm* a_spent)
+    {
+        return SunderheartFocusConfigureInventoryHover(a_tag, a_tier1, a_tier2, a_tier3, a_tier4, a_tier5, a_spent);
+    }
+
+    static void SunderheartUseIntentBeginCapture(RE::StaticFunctionTag*, float a_seconds, std::string a_reason)
+    {
+        if (a_seconds <= 0.0F) {
+            return;
+        }
+
+        EnsureInputSinkRegistered("use-intent-capture", false);
+
+        const double now = NowSeconds();
+        const double until = now + static_cast<double>((std::min)(a_seconds, 2.0F));
+        {
+            std::scoped_lock lock(g_focus.lock);
+            g_focus.useIntentCaptureActive = true;
+            g_focus.useIntentCaptureUntilSeconds = until;
+            if (InfoLoggingEnabled()) {
+                logger::info(
+                    "SunderheartUseIntent: native capture begin reason={} seconds={}",
+                    a_reason.empty() ? "unknown" : a_reason,
+                    a_seconds);
+            }
+        }
+    }
+
+    static void SunderheartUseIntentClearCapture(RE::StaticFunctionTag*, std::string a_reason)
+    {
+        bool hadState = false;
+        {
+            std::scoped_lock lock(g_focus.lock);
+            hadState =
+                g_focus.useIntentCaptureActive ||
+                g_focus.useIntentPending ||
+                g_focus.useIntentClaimed;
+            ClearUseIntentLocked();
+        }
+        if (hadState && InfoLoggingEnabled()) {
+            logger::info("SunderheartUseIntent: native cleared reason={}", a_reason.empty() ? "unknown" : a_reason);
+        }
+    }
+
+    static bool SunderheartUseIntentClaim(RE::StaticFunctionTag*)
+    {
+        const double now = NowSeconds();
+        std::scoped_lock lock(g_focus.lock);
+        ExpireUseIntentCaptureLocked(now);
+        if (!g_focus.useIntentPending) {
+            return false;
+        }
+
+        g_focus.useIntentClaimed = true;
+        g_focus.useIntentClaimedFormID = g_focus.useIntentPendingFormID;
+        g_focus.useIntentClaimedTier = g_focus.useIntentPendingTier;
+        g_focus.useIntentClaimedAtSeconds = g_focus.useIntentPendingAtSeconds;
+        g_focus.useIntentClaimedSource = g_focus.useIntentPendingSource;
+        g_focus.useIntentPending = false;
+        g_focus.useIntentPendingFormID = 0;
+        g_focus.useIntentPendingTier = 0;
+        g_focus.useIntentPendingAtSeconds = 0.0;
+        g_focus.useIntentPendingSource.clear();
+        g_focus.useIntentCaptureActive = false;
+        g_focus.useIntentCaptureUntilSeconds = 0.0;
+        if (InfoLoggingEnabled()) {
+            logger::info(
+                "SunderheartUseIntent: native claimed formID={:08X} tier={} source={}",
+                g_focus.useIntentClaimedFormID,
+                g_focus.useIntentClaimedTier,
+                g_focus.useIntentClaimedSource);
+        }
+        return true;
+    }
+
+    static RE::TESForm* SunderheartUseIntentClaimedBaseForm(RE::StaticFunctionTag*)
+    {
+        std::scoped_lock lock(g_focus.lock);
+        return g_focus.useIntentClaimedFormID != 0 ? RE::TESForm::LookupByID(g_focus.useIntentClaimedFormID) : nullptr;
+    }
+
+    static std::int32_t SunderheartUseIntentClaimedTier(RE::StaticFunctionTag*)
+    {
+        std::scoped_lock lock(g_focus.lock);
+        return g_focus.useIntentClaimed ? g_focus.useIntentClaimedTier : 0;
+    }
+
+    static float SunderheartUseIntentClaimedAgeSeconds(RE::StaticFunctionTag*)
+    {
+        const double now = NowSeconds();
+        std::scoped_lock lock(g_focus.lock);
+        if (!g_focus.useIntentClaimed || g_focus.useIntentClaimedAtSeconds <= 0.0) {
+            return -1.0F;
+        }
+        return static_cast<float>((std::max)(0.0, now - g_focus.useIntentClaimedAtSeconds));
+    }
+
+    static std::string SunderheartUseIntentClaimedSource(RE::StaticFunctionTag*)
+    {
+        std::scoped_lock lock(g_focus.lock);
+        return g_focus.useIntentClaimed ? g_focus.useIntentClaimedSource : "";
     }
 
     static void SunderheartFocusSetHoverTarget(RE::StaticFunctionTag*, float a_volume)
     {
         const float volume = Clamp01(a_volume);
+        if (volume <= kVolumeEpsilon) {
+            ClearHoverImmediate("hover-clear");
+            return;
+        }
         QueueHoverCommit(volume, volume > kVolumeEpsilon);
     }
 
     static void SunderheartFocusClearHoverTarget(RE::StaticFunctionTag*)
     {
         ClearHoverImmediate("hover-clear");
+    }
+
+    static void SunderheartFocusSuppressInventoryHover(RE::StaticFunctionTag*, std::string a_reason)
+    {
+        auto* entry = ItemSelect::GetInventorySelectedEntry();
+        auto* selectedForm = entry ? entry->object : nullptr;
+        const RE::FormID selectedFormID = selectedForm ? selectedForm->GetFormID() : 0;
+        std::scoped_lock lock(g_focus.lock);
+        g_focus.inventoryHoverSuppressedFormID = selectedFormID;
+        ResetInventoryHoverSelectionLocked();
+        if (InfoLoggingEnabled()) {
+            logger::info(
+                "SunderheartFocus: inventory hover suppressed reason={} formID={:08X}",
+                a_reason.empty() ? "papyrus" : a_reason,
+                selectedFormID);
+        }
+        ClearHoverLocked("native-hover-suppressed");
+    }
+
+    static void SunderheartFocusClearInventoryHoverSuppression(RE::StaticFunctionTag*, std::string a_reason)
+    {
+        bool shouldStartPolling = false;
+        {
+            std::scoped_lock lock(g_focus.lock);
+            if (g_focus.inventoryHoverSuppressedFormID != 0 && InfoLoggingEnabled()) {
+                logger::info(
+                    "SunderheartFocus: inventory hover suppression cleared reason={} formID={:08X}",
+                    a_reason.empty() ? "papyrus" : a_reason,
+                    g_focus.inventoryHoverSuppressedFormID);
+            }
+            g_focus.inventoryHoverSuppressedFormID = 0;
+            shouldStartPolling = g_focus.inventoryHoverConfigured && !g_focus.inventoryHoverPolling;
+        }
+
+        if (shouldStartPolling && IsInventoryMenuOpen()) {
+            StartInventoryHoverPolling(a_reason.empty() ? "clear-suppression" : a_reason);
+        }
     }
 
     static void SunderheartFocusSetActionTarget(RE::StaticFunctionTag*, float a_volume)
@@ -570,6 +1176,7 @@ namespace
 
     static void SunderheartFocusStopImmediate(RE::StaticFunctionTag*)
     {
+        StopInventoryHoverPolling("papyrus-stop", true);
         StopImmediate(true, "papyrus-stop");
     }
 
@@ -579,6 +1186,11 @@ namespace
             return;
         }
         if (a_message->type == SKSE::MessagingInterface::kPreLoadGame) {
+            StopInventoryHoverPolling("pre-load", true);
+            {
+                std::scoped_lock lock(g_focus.lock);
+                ClearUseIntentLocked();
+            }
             StopImmediate(true, "pre-load");
         }
     }
@@ -587,13 +1199,60 @@ namespace
         const RE::MenuOpenCloseEvent* a_event,
         RE::BSTEventSource<RE::MenuOpenCloseEvent>*)
     {
-        if (!a_event || a_event->opening) {
+        if (!a_event) {
             return RE::BSEventNotifyControl::kContinue;
         }
 
         const std::string_view menuName{ a_event->menuName.c_str() ? a_event->menuName.c_str() : "" };
         if (menuName == kInventoryMenuName) {
-            ClearHoverImmediate("inventory-menu-close");
+            if (a_event->opening) {
+                EnsureInputSinkRegistered("inventory-menu-open", false);
+                StartInventoryHoverPolling("inventory-menu-open");
+            } else {
+                StopInventoryHoverPolling("inventory-menu-close", true);
+                {
+                    std::scoped_lock lock(g_focus.lock);
+                    ClearUseIntentLocked();
+                }
+            }
+        }
+
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    RE::BSEventNotifyControl FocusInputSink::ProcessEvent(
+        RE::InputEvent* const* a_eventList,
+        RE::BSTEventSource<RE::InputEvent*>*)
+    {
+        if (!a_eventList) {
+            return RE::BSEventNotifyControl::kContinue;
+        }
+
+        {
+            std::scoped_lock lock(g_focus.lock);
+            ExpireUseIntentCaptureLocked(NowSeconds());
+            if (!g_focus.useIntentCaptureActive) {
+                return RE::BSEventNotifyControl::kContinue;
+            }
+        }
+
+        for (auto* event = *a_eventList; event; event = event->next) {
+            if (event->GetEventType() != RE::INPUT_EVENT_TYPE::kButton) {
+                continue;
+            }
+
+            auto* buttonEvent = event->AsButtonEvent();
+            if (!buttonEvent) {
+                continue;
+            }
+
+            const auto userEventName = buttonEvent->QUserEvent();
+            const std::string_view userEvent{ userEventName.c_str() ? userEventName.c_str() : "" };
+            if (!IsUseIntentButton(*buttonEvent, userEvent)) {
+                continue;
+            }
+
+            RecordSelectedSunderheartUseIntent(userEvent.empty() ? "native-input" : std::string(userEvent));
         }
 
         return RE::BSEventNotifyControl::kContinue;
@@ -603,8 +1262,19 @@ namespace
     void Register(RE::BSScript::IVirtualMachine* a_vm)
     {
         a_vm->RegisterFunction("SunderheartFocusConfigure", IronSoul::Papyrus::kScriptName, SunderheartFocusConfigure);
+        a_vm->RegisterFunction("SunderheartFocusConfigureInventoryHover", IronSoul::Papyrus::kScriptName, SunderheartFocusConfigureInventoryHover);
+        a_vm->RegisterFunction("SunderheartUseIntentConfigureInventoryForms", IronSoul::Papyrus::kScriptName, SunderheartUseIntentConfigureInventoryForms);
+        a_vm->RegisterFunction("SunderheartUseIntentBeginCapture", IronSoul::Papyrus::kScriptName, SunderheartUseIntentBeginCapture);
+        a_vm->RegisterFunction("SunderheartUseIntentClearCapture", IronSoul::Papyrus::kScriptName, SunderheartUseIntentClearCapture);
+        a_vm->RegisterFunction("SunderheartUseIntentClaim", IronSoul::Papyrus::kScriptName, SunderheartUseIntentClaim);
+        a_vm->RegisterFunction("SunderheartUseIntentClaimedBaseForm", IronSoul::Papyrus::kScriptName, SunderheartUseIntentClaimedBaseForm);
+        a_vm->RegisterFunction("SunderheartUseIntentClaimedTier", IronSoul::Papyrus::kScriptName, SunderheartUseIntentClaimedTier);
+        a_vm->RegisterFunction("SunderheartUseIntentClaimedAgeSeconds", IronSoul::Papyrus::kScriptName, SunderheartUseIntentClaimedAgeSeconds);
+        a_vm->RegisterFunction("SunderheartUseIntentClaimedSource", IronSoul::Papyrus::kScriptName, SunderheartUseIntentClaimedSource);
         a_vm->RegisterFunction("SunderheartFocusSetHoverTarget", IronSoul::Papyrus::kScriptName, SunderheartFocusSetHoverTarget);
         a_vm->RegisterFunction("SunderheartFocusClearHoverTarget", IronSoul::Papyrus::kScriptName, SunderheartFocusClearHoverTarget);
+        a_vm->RegisterFunction("SunderheartFocusSuppressInventoryHover", IronSoul::Papyrus::kScriptName, SunderheartFocusSuppressInventoryHover);
+        a_vm->RegisterFunction("SunderheartFocusClearInventoryHoverSuppression", IronSoul::Papyrus::kScriptName, SunderheartFocusClearInventoryHoverSuppression);
         a_vm->RegisterFunction("SunderheartFocusSetActionTarget", IronSoul::Papyrus::kScriptName, SunderheartFocusSetActionTarget);
         a_vm->RegisterFunction("SunderheartFocusClearActionTarget", IronSoul::Papyrus::kScriptName, SunderheartFocusClearActionTarget);
         a_vm->RegisterFunction("SunderheartFocusSetUseTarget", IronSoul::Papyrus::kScriptName, SunderheartFocusSetUseTarget);
@@ -625,20 +1295,23 @@ namespace
             logger::info("SunderheartFocus: lifecycle listener registered");
         }
 
-        std::scoped_lock lock(g_focus.lock);
-        if (g_focus.menuSinkRegistered) {
-            return;
-        }
+        {
+            std::scoped_lock lock(g_focus.lock);
+            if (!g_focus.menuSinkRegistered) {
+                auto* ui = RE::UI::GetSingleton();
+                if (!ui) {
+                    logger::warn("SunderheartFocus: UI singleton unavailable; inventory close cleanup disabled");
+                } else {
+                    ui->AddEventSink<RE::MenuOpenCloseEvent>(
+                        static_cast<RE::BSTEventSink<RE::MenuOpenCloseEvent>*>(&g_menuSink));
+                    g_focus.menuSinkRegistered = true;
+                    logger::info("SunderheartFocus: menu sink registered");
+                }
+            }
 
-        auto* ui = RE::UI::GetSingleton();
-        if (!ui) {
-            logger::warn("SunderheartFocus: UI singleton unavailable; inventory close cleanup disabled");
-            return;
+            if (!g_focus.inputSinkRegistered) {
+                EnsureInputSinkRegisteredLocked("startup", true);
+            }
         }
-
-        ui->AddEventSink<RE::MenuOpenCloseEvent>(
-            static_cast<RE::BSTEventSink<RE::MenuOpenCloseEvent>*>(&g_menuSink));
-        g_focus.menuSinkRegistered = true;
-        logger::info("SunderheartFocus: menu sink registered");
     }
 }

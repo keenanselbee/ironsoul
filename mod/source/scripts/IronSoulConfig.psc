@@ -41,23 +41,24 @@ Scriptname IronSoulConfig extends Quest
 ; GetLogLevel()
 ; GetLogNotificationMode()
 ; IsRespawnEnabled()
-; IsRespawnMessageEnabled()
-; IsDeathMessageEnabled()
+; IsRespawnMenuEnabled()
+; IsDeathMenuEnabled()
+; GetDeathQuitMode()
 ; IsDragonSoulReviveEnabled()
 ; IsDragonSoulReviveTransformEnabled()
 ; GetDragonSoulReviveLimit()
-; IsDragonSoulReviveMessageEnabled()
+; IsDragonSoulReviveMenuEnabled()
 ; IsDragonSoulNotificationEnabled()
 ; IsCharacterJournalEnabled()
 ; GetLuckLevel()
-; IsLuckRollMessageEnabled()
+; IsLuckRollMenuEnabled()
 ; IsCharacterSheetCompatibilityEnabled()
 ; IsRequiemCompatibilityEnabled()
 ; IsCosaveRecoveryBackupEnabled()
 ; IsRedTintOnDeathEnabled()
 ; IsIronSoulIntroEnabled()
 ; GetIronSoulIntroDelaySeconds()
-; IsSunderheartMessageEnabled()
+; IsSunderheartMenuEnabled()
 ; IsSunderheartNotificationEnabled()
 ; GetSunderheartInventoryMode()
 ; GetSunderheartTonalMaxTemper()
@@ -126,25 +127,26 @@ Int _logLevel = 2 ; 1=Errors, 2=Info, 3=Debug
 Int _enableLogNotifications = 0
 
 Bool _respawnEnabled = True
-Bool _respawnMessageEnabled = True
-Bool _deathMessageEnabled = True
+Bool _respawnMenuEnabled = True
+Bool _deathMenuEnabled = True
+Int _deathQuitMode = 1 ; 1=desktop,2=main menu
 Bool _dragonSoulReviveEnabled = True
 Bool _dragonSoulReviveTransformEnabled = True
 Int _dragonSoulReviveLimit = 1
-Bool _dragonSoulReviveMessageEnabled = True
+Bool _dragonSoulReviveMenuEnabled = True
 Bool _dragonSoulNotificationEnabled = True
 Bool _characterJournalLogEnabled = True
 Int _luckLevel = 5
-Bool _luckRollMessageEnabled = True
+Bool _luckRollMenuEnabled = True
 Bool _enableCharacterSheetCompatibility = False
 Bool _requiemCompatibilityEnabled = True
 Bool _cosaveRecoveryBackupEnabled = True
 Bool _redTintOnDeathEnabled = True
 Bool _ironSoulIntroEnabled = True
 Int _ironSoulIntroDelaySeconds = 27
-Bool _sunderheartMessageEnabled = True
+Bool _sunderheartMenuEnabled = True
 Bool _sunderheartNotificationEnabled = True
-Int _sunderheartInventoryMode = 1 ; 0=legacy,1=reopen,2=close,3=mixed
+Int _sunderheartInventoryMode = 1 ; 1=reopen,2=close
 Int _sunderheartTonalMaxTemper = 10
 Bool _sfxEnabled = True
 Bool _musicFadeEnabled = True
@@ -185,20 +187,21 @@ Function ResetDefaults()
     _logLevel = 2
     _enableLogNotifications = 0
 
-    ; Messaging (SWF)
-    _respawnMessageEnabled = True
-    _dragonSoulReviveMessageEnabled = True
+    ; Presentation menus (SWF)
+    _respawnMenuEnabled = True
+    _dragonSoulReviveMenuEnabled = True
     _dragonSoulNotificationEnabled = True
     _ironSoulIntroEnabled = True
     _ironSoulIntroDelaySeconds = 23
-    _sunderheartMessageEnabled = True
+    _sunderheartMenuEnabled = True
     _sunderheartNotificationEnabled = True
     _sunderheartInventoryMode = 1
     _sunderheartTonalMaxTemper = 10
 
     ; Gameplay / integration
     _respawnEnabled = True
-    _deathMessageEnabled = True
+    _deathMenuEnabled = True
+    _deathQuitMode = 1
     _enableCharacterSheetCompatibility = False
     _requiemCompatibilityEnabled = True
     _cosaveRecoveryBackupEnabled = True
@@ -216,7 +219,7 @@ Function ResetDefaults()
     _luckReminderNotificationEnabled = True
     _luckLevel = 5
     _loadNotificationEnabled = True
-    _luckRollMessageEnabled = True
+    _luckRollMenuEnabled = True
 
     ; Feats
     _defiantSoulEnabled = True
@@ -270,18 +273,19 @@ Function LoadFromIni()
     _logLevel = ReadIntRange("LogLevel", _logLevel, 1, 3)
     _enableLogNotifications = ReadIntRange("EnableLogNotifications", _enableLogNotifications, 0, 1)
 
-    _deathMessageEnabled = ReadFeatureEnabled("DeathMessage", True)
+    _deathMenuEnabled = ReadFeatureEnabled("DeathMenu", True)
+    _deathQuitMode = ReadIntRange("DeathQuitMode", _deathQuitMode, 1, 2)
     _dragonSoulReviveEnabled = ReadFeatureEnabled("DragonSoulRevive", True)
     _dragonSoulReviveTransformEnabled = ReadFeatureEnabled("DragonSoulReviveTransform", True)
     _dragonSoulReviveLimit = ReadIntRange("DragonSoulReviveLimit", _dragonSoulReviveLimit, 0, 3)
-    _dragonSoulReviveMessageEnabled = ReadFeatureEnabled("DragonSoulReviveMessage", True)
+    _dragonSoulReviveMenuEnabled = ReadFeatureEnabled("DragonSoulReviveMenu", True)
     _respawnEnabled = ReadFeatureEnabled("Respawn", True)
-    _respawnMessageEnabled = ReadFeatureEnabled("RespawnMessage", True)
+    _respawnMenuEnabled = ReadFeatureEnabled("RespawnMenu", True)
     _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
     _ironSoulIntroDelaySeconds = ReadIntRange("IronSoulIntroDelaySeconds", _ironSoulIntroDelaySeconds, 0, 120)
-    _sunderheartMessageEnabled = ReadFeatureEnabled("SunderheartMessage", True)
+    _sunderheartMenuEnabled = ReadFeatureEnabled("SunderheartMenu", True)
     _sunderheartNotificationEnabled = ReadFeatureEnabled("SunderheartNotification", True)
-    _sunderheartInventoryMode = ReadIntRange("SunderheartInventoryMode", _sunderheartInventoryMode, 0, 3)
+    _sunderheartInventoryMode = ReadIntRange("SunderheartInventoryMode", _sunderheartInventoryMode, 1, 2)
     _sunderheartTonalMaxTemper = ReadIntRange("SunderheartTonalMaxTemper", _sunderheartTonalMaxTemper, 1, 100)
 
     _soulBonusEnabled = ReadFeatureEnabled("SoulBonus", True)
@@ -296,7 +300,7 @@ Function LoadFromIni()
 
     _luckReminderNotificationEnabled = ReadFeatureEnabled("LuckReminderNotification", True)
     _loadNotificationEnabled = ReadFeatureEnabled("LoadNotification", True)
-    _luckRollMessageEnabled = ReadFeatureEnabled("LuckRollMessage", True)
+    _luckRollMenuEnabled = ReadFeatureEnabled("LuckRollMenu", True)
 
     Bool iniDefiantSoul = ReadFeatureEnabled("DefiantSoul", True)
     ApplyPresetCoreSettings(iniPermadeath, iniDefiantSoul)
@@ -349,12 +353,16 @@ Bool Function IsRespawnEnabled()
     return _respawnEnabled
 EndFunction
 
-Bool Function IsRespawnMessageEnabled()
-    return _respawnMessageEnabled
+Bool Function IsRespawnMenuEnabled()
+    return _respawnMenuEnabled
 EndFunction
 
-Bool Function IsDeathMessageEnabled()
-    return _deathMessageEnabled
+Bool Function IsDeathMenuEnabled()
+    return _deathMenuEnabled
+EndFunction
+
+Int Function GetDeathQuitMode()
+    return _deathQuitMode
 EndFunction
 
 Bool Function IsDragonSoulReviveEnabled()
@@ -369,8 +377,8 @@ Int Function GetDragonSoulReviveLimit()
     return _dragonSoulReviveLimit
 EndFunction
 
-Bool Function IsDragonSoulReviveMessageEnabled()
-    return _dragonSoulReviveMessageEnabled
+Bool Function IsDragonSoulReviveMenuEnabled()
+    return _dragonSoulReviveMenuEnabled
 EndFunction
 
 Bool Function IsDragonSoulNotificationEnabled()
@@ -385,8 +393,8 @@ Int Function GetLuckLevel()
     return _luckLevel
 EndFunction
 
-Bool Function IsLuckRollMessageEnabled()
-    return _luckRollMessageEnabled
+Bool Function IsLuckRollMenuEnabled()
+    return _luckRollMenuEnabled
 EndFunction
 
 Bool Function IsCharacterSheetCompatibilityEnabled()
@@ -413,8 +421,8 @@ Int Function GetIronSoulIntroDelaySeconds()
     return _ironSoulIntroDelaySeconds
 EndFunction
 
-Bool Function IsSunderheartMessageEnabled()
-    return _sunderheartMessageEnabled
+Bool Function IsSunderheartMenuEnabled()
+    return _sunderheartMenuEnabled
 EndFunction
 
 Bool Function IsSunderheartNotificationEnabled()
@@ -617,13 +625,13 @@ Function LogSnapshot()
         + " Permadeath=" + _permadeathEnabled \
         + " UninstallMode=" + _uninstallMode)
 
-    LogComponentSnapshot("Config", LOG_INFO(), "Config Sunderhearts: SunderheartMessage=" + _sunderheartMessageEnabled \
+    LogComponentSnapshot("Config", LOG_INFO(), "Config Sunderhearts: SunderheartMenu=" + _sunderheartMenuEnabled \
         + " SunderheartNotification=" + _sunderheartNotificationEnabled \
         + " SunderheartInventoryMode=" + _sunderheartInventoryMode \
         + " SunderheartTonalMaxTemper=" + _sunderheartTonalMaxTemper)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Systems: LuckLevel=" + _luckLevel \
-        + " LuckRollMessage=" + _luckRollMessageEnabled \
+        + " LuckRollMenu=" + _luckRollMenuEnabled \
         + " SoulBonus=" + _soulBonusEnabled \
         + " SoulFeats=" + _soulFeatsEnabled \
         + " DefiantSoul=" + _defiantSoulEnabled)

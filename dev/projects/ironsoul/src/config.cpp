@@ -59,7 +59,8 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 
 	{ "anticheat", "Anticheat", "General", 1, true, 0, true, 1, 0 },
 	{ "characterjournal", "CharacterJournal", "General", 1, true, 0, true, 1, 0 },
-	{ "deathmessage", "DeathMessage", "General", 1, true, 0, true, 1, 0 },
+	{ "deathmenu", "DeathMenu", "General", 1, true, 0, true, 1, 0 },
+	{ "deathquitmode", "DeathQuitMode", "General", 1, true, 1, true, 2, 0 },
 	{ "dragonsoulnotification", "DragonSoulNotification", "General", 1, true, 0, true, 1, 0 },
 	{ "ironsoulintro", "IronSoulIntro", "General", 1, true, 0, true, 1, 0 },
 	{ "ironsoulintrodelayseconds", "IronSoulIntroDelaySeconds", "General", 23, true, 0, true, 120, 0 },
@@ -70,13 +71,13 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 
 	{ "dragonsoulrevive", "DragonSoulRevive", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivelimit", "DragonSoulReviveLimit", "DragonSoulRevive", 1, true, 0, true, 3, 0 },
-	{ "dragonsoulrevivemessage", "DragonSoulReviveMessage", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
+	{ "dragonsoulrevivemenu", "DragonSoulReviveMenu", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivetransform", "DragonSoulReviveTransform", "DragonSoulRevive", 1, true, 0, true, 1, 0 },
 
 	{ "luckremindernotification", "LuckReminderNotification", "Respawn", 1, true, 0, true, 1, 0 },
-	{ "luckrollmessage", "LuckRollMessage", "Respawn", 1, true, 0, true, 1, 0 },
+	{ "luckrollmenu", "LuckRollMenu", "Respawn", 1, true, 0, true, 1, 0 },
 	{ "respawn", "Respawn", "Respawn", 1, true, 0, true, 1, 0 },
-	{ "respawnmessage", "RespawnMessage", "Respawn", 1, true, 0, true, 1, 0 },
+	{ "respawnmenu", "RespawnMenu", "Respawn", 1, true, 0, true, 1, 0 },
 
 	{ "draugnaroksystem", "DraugnarokSystem", "Draugnarok", 1, true, 0, true, 1,
 		kConfigFlagDraugnarokRefresh },
@@ -100,9 +101,9 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "roadencounters", "RoadEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 	{ "wildernessencounters", "WildernessEncounters", "Draugnarok", 1, true, 0, true, 1, 0 },
 
-	{ "sunderheartmessage", "SunderheartMessage", "Sunderhearts", 1, true, 0, true, 1, 0 },
+	{ "sunderheartmenu", "SunderheartMenu", "Sunderhearts", 1, true, 0, true, 1, 0 },
 	{ "sunderheartnotification", "SunderheartNotification", "Sunderhearts", 1, true, 0, true, 1, 0 },
-	{ "sunderheartinventorymode", "SunderheartInventoryMode", "Sunderhearts", 1, true, 0, true, 3, 0 },
+	{ "sunderheartinventorymode", "SunderheartInventoryMode", "Sunderhearts", 1, true, 1, true, 2, 0 },
 	{ "sunderhearttonalmaxtemper", "SunderheartTonalMaxTemper", "Sunderhearts", 10, true, 1, true, 100, 0 },
 
 	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },

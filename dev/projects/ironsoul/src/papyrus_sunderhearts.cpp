@@ -18,7 +18,7 @@ namespace IronSoul::Papyrus::Sunderhearts
 {
 namespace
 {
-    enum class TonalResult : std::int32_t
+    enum class EnhanceResult : std::int32_t
     {
         kOk = 0,
         kNoInventoryMenu = 1,
@@ -38,7 +38,7 @@ namespace
 
     enum class SunderheartEffect : std::int32_t
     {
-        kTonalTemper = 1
+        kTemperGear = 1
     };
 
     enum class TokenMode
@@ -47,13 +47,13 @@ namespace
         kPlainBaseStack
     };
 
-    struct TonalToken
+    struct EnhanceToken
     {
         std::int32_t token{ 0 };
         RE::FormID baseFormID{ 0 };
         RE::ExtraDataList* extraList{ nullptr };
-        std::int32_t addLevels{ 0 };
-        std::int32_t maxTemperLevel{ 0 };
+        std::int32_t power{ 0 };
+        std::int32_t cap{ 0 };
         TokenMode mode{ TokenMode::kPlainBaseStack };
     };
 
@@ -67,26 +67,26 @@ namespace
 
     struct SunderheartEnhanceOption
     {
-        TonalToken token;
+        EnhanceToken token;
         std::string label;
     };
 
     struct SunderheartEnhanceSession
     {
         std::int32_t token{ 0 };
-        SunderheartEffect effect{ SunderheartEffect::kTonalTemper };
+        SunderheartEffect effect{ SunderheartEffect::kTemperGear };
         std::int32_t power{ 0 };
         std::int32_t cap{ 0 };
         std::vector<SunderheartEnhanceOption> options;
-        std::unordered_map<std::int32_t, TonalToken> rowTokens;
+        std::unordered_map<std::int32_t, EnhanceToken> rowTokens;
     };
 
     std::unordered_map<std::int32_t, SunderheartEnhanceSession> g_enhanceSessions;
     std::int32_t g_nextEnhanceSession = 1;
-    TonalResult g_lastResult = TonalResult::kOk;
+    EnhanceResult g_lastResult = EnhanceResult::kOk;
     std::string g_lastResultText = "OK";
 
-    void SetLastResult(TonalResult a_result, std::string a_text)
+    void SetLastResult(EnhanceResult a_result, std::string a_text)
     {
         g_lastResult = a_result;
         g_lastResultText = std::move(a_text);
@@ -106,7 +106,7 @@ namespace
         return a_mode == TokenMode::kPlainBaseStack ? "plain-stack" : "extra-list";
     }
 
-    bool IsPracticalTonalGear(RE::TESBoundObject* a_object)
+    bool IsPracticalTemperGear(RE::TESBoundObject* a_object)
     {
         if (!a_object || !a_object->GetPlayable()) {
             return false;
@@ -306,34 +306,34 @@ namespace
         return g_nextEnhanceSession++;
     }
 
-    SunderheartEnhanceOption BuildTonalEnhanceOption(
+    SunderheartEnhanceOption BuildTemperGearEnhanceOption(
         RE::TESBoundObject* a_object,
         RE::ExtraDataList* a_extraList,
         TokenMode a_mode,
         std::int32_t a_currentLevel,
-        std::int32_t a_addLevels,
-        std::int32_t a_maxTemperLevel)
+        std::int32_t a_power,
+        std::int32_t a_cap)
     {
-        const std::int32_t newLevel = (std::min)(a_currentLevel + a_addLevels, a_maxTemperLevel);
+        const std::int32_t newLevel = (std::min)(a_currentLevel + a_power, a_cap);
 
-        TonalToken token;
+        EnhanceToken token;
         token.token = 0;
         token.baseFormID = a_object ? a_object->GetFormID() : 0;
         token.extraList = a_extraList;
-        token.addLevels = a_addLevels;
-        token.maxTemperLevel = a_maxTemperLevel;
+        token.power = a_power;
+        token.cap = a_cap;
         token.mode = a_mode;
 
         return { token, FormatTemperSummary(a_object, a_currentLevel, newLevel) };
     }
 
-    std::optional<SunderheartEnhanceOption> BuildTonalEnhanceOptionFromInventoryEntry(
+    std::optional<SunderheartEnhanceOption> BuildTemperGearEnhanceOptionFromInventoryEntry(
         RE::InventoryEntryData* a_entry,
-        std::int32_t a_addLevels,
-        std::int32_t a_maxTemperLevel)
+        std::int32_t a_power,
+        std::int32_t a_cap)
     {
         auto* object = a_entry ? a_entry->object : nullptr;
-        if (!object || a_entry->countDelta <= 0 || !IsPracticalTonalGear(object)) {
+        if (!object || a_entry->countDelta <= 0 || !IsPracticalTemperGear(object)) {
             return std::nullopt;
         }
 
@@ -342,13 +342,13 @@ namespace
             if (CountPlainInventoryItems(object) <= 0) {
                 return std::nullopt;
             }
-            return BuildTonalEnhanceOption(
+            return BuildTemperGearEnhanceOption(
                 object,
                 nullptr,
                 TokenMode::kPlainBaseStack,
                 0,
-                a_addLevels,
-                a_maxTemperLevel);
+                a_power,
+                a_cap);
         }
 
         auto* extraList = ResolveSingleExtraList(a_entry);
@@ -357,17 +357,17 @@ namespace
         }
 
         const std::int32_t currentLevel = GetTemperLevel(GetTemperHealth(extraList));
-        if (currentLevel < 0 || currentLevel >= a_maxTemperLevel) {
+        if (currentLevel < 0 || currentLevel >= a_cap) {
             return std::nullopt;
         }
 
-        return BuildTonalEnhanceOption(
+        return BuildTemperGearEnhanceOption(
             object,
             extraList,
             TokenMode::kExistingExtraList,
             currentLevel,
-            a_addLevels,
-            a_maxTemperLevel);
+            a_power,
+            a_cap);
     }
 
     void AppendSerializedRow(std::string& a_output, std::int32_t a_rowIndex, std::string_view a_label)
@@ -378,34 +378,34 @@ namespace
         a_output += std::format("{}_:_{}", a_rowIndex, a_label);
     }
 
-    std::vector<SunderheartEnhanceOption> BuildTonalEnhanceOptions(std::int32_t a_addLevels, std::int32_t a_maxTemperLevel)
+    std::vector<SunderheartEnhanceOption> BuildTemperGearEnhanceOptions(std::int32_t a_power, std::int32_t a_cap)
     {
         std::vector<SunderheartEnhanceOption> options;
 
         auto* player = RE::PlayerCharacter::GetSingleton();
-        if (!player || a_addLevels <= 0 || a_maxTemperLevel <= 0) {
+        if (!player || a_power <= 0 || a_cap <= 0) {
             return options;
         }
 
         const auto inventory = player->GetInventory([](RE::TESBoundObject& a_item) {
-            return IsPracticalTonalGear(std::addressof(a_item));
+            return IsPracticalTemperGear(std::addressof(a_item));
         });
 
         for (const auto& [object, itemData] : inventory) {
-            if (!object || itemData.first <= 0 || !IsPracticalTonalGear(object)) {
+            if (!object || itemData.first <= 0 || !IsPracticalTemperGear(object)) {
                 continue;
             }
 
             auto* entry = FindCanonicalEntry(object);
             const std::int32_t plainCount = (std::max)(0, itemData.first - CountExtraListItems(entry));
             if (plainCount > 0) {
-                options.push_back(BuildTonalEnhanceOption(
+                options.push_back(BuildTemperGearEnhanceOption(
                     object,
                     nullptr,
                     TokenMode::kPlainBaseStack,
                     0,
-                    a_addLevels,
-                    a_maxTemperLevel));
+                    a_power,
+                    a_cap));
             }
 
             if (!entry || !entry->extraLists) {
@@ -418,49 +418,49 @@ namespace
                 }
 
                 const std::int32_t currentLevel = GetTemperLevel(GetTemperHealth(extraList));
-                if (currentLevel < 0 || currentLevel >= a_maxTemperLevel) {
+                if (currentLevel < 0 || currentLevel >= a_cap) {
                     continue;
                 }
 
-                options.push_back(BuildTonalEnhanceOption(
+                options.push_back(BuildTemperGearEnhanceOption(
                     object,
                     extraList,
                     TokenMode::kExistingExtraList,
                     currentLevel,
-                    a_addLevels,
-                    a_maxTemperLevel));
+                    a_power,
+                    a_cap));
             }
         }
 
         return options;
     }
 
-    bool ApplyTemperToExistingExtraList(RE::TESBoundObject* a_object, const TonalToken& a_token, TemperApplySummary& a_summary)
+    bool ApplyTemperToExistingExtraList(RE::TESBoundObject* a_object, const EnhanceToken& a_token, TemperApplySummary& a_summary)
     {
         auto* extraList = a_token.extraList;
         if (!InventoryContainsExtraList(a_object, extraList)) {
             extraList = nullptr;
         }
         if (!extraList) {
-            SetLastResult(TonalResult::kItemMissingAtApply, "Selected item is no longer in inventory");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected item is no longer in inventory");
             return false;
         }
 
         const float currentHealth = GetTemperHealth(extraList);
         const std::int32_t currentLevel = GetTemperLevel(currentHealth);
         if (currentLevel < 0) {
-            SetLastResult(TonalResult::kInvalidGear, "Selected item has invalid temper health");
+            SetLastResult(EnhanceResult::kInvalidGear, "Selected item has invalid temper health");
             return false;
         }
-        if (currentLevel >= a_token.maxTemperLevel) {
-            SetLastResult(TonalResult::kAlreadyCapped, "Selected item is already at the Tonal temper cap");
+        if (currentLevel >= a_token.cap) {
+            SetLastResult(EnhanceResult::kAlreadyCapped, "Selected item is already at the temper cap");
             return false;
         }
 
-        const std::int32_t newLevel = (std::min)(currentLevel + a_token.addLevels, a_token.maxTemperLevel);
+        const std::int32_t newLevel = (std::min)(currentLevel + a_token.power, a_token.cap);
         const float newHealth = GetTemperHealthForLevel(newLevel);
         if (!SetTemperHealth(extraList, newHealth)) {
-            SetLastResult(TonalResult::kApplyFailed, "Could not write Tonal temper data");
+            SetLastResult(EnhanceResult::kApplyFailed, "Could not write temper data");
             return false;
         }
 
@@ -468,33 +468,33 @@ namespace
         return true;
     }
 
-    bool ApplyTemperToPlainBaseStack(RE::TESBoundObject* a_object, const TonalToken& a_token, TemperApplySummary& a_summary)
+    bool ApplyTemperToPlainBaseStack(RE::TESBoundObject* a_object, const EnhanceToken& a_token, TemperApplySummary& a_summary)
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!player || !a_object) {
-            SetLastResult(TonalResult::kItemMissingAtApply, "Player or selected item is unavailable");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, "Player or selected item is unavailable");
             return false;
         }
 
         if (CountInventoryItems(a_object) <= 0) {
-            SetLastResult(TonalResult::kItemMissingAtApply, "Selected item is no longer in inventory");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected item is no longer in inventory");
             return false;
         }
         if (CountPlainInventoryItems(a_object) <= 0) {
-            SetLastResult(TonalResult::kItemMissingAtApply, "Selected plain item is no longer in inventory");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected plain item is no longer in inventory");
             return false;
         }
 
         auto* extraList = CreateExtraDataList();
         if (!extraList) {
-            SetLastResult(TonalResult::kApplyFailed, "Could not allocate Tonal temper data");
+            SetLastResult(EnhanceResult::kApplyFailed, "Could not allocate temper data");
             return false;
         }
-        const std::int32_t newLevel = (std::min)(a_token.addLevels, a_token.maxTemperLevel);
+        const std::int32_t newLevel = (std::min)(a_token.power, a_token.cap);
         const float newHealth = GetTemperHealthForLevel(newLevel);
         if (!SetTemperHealth(extraList, newHealth)) {
             RE::free(extraList);
-            SetLastResult(TonalResult::kApplyFailed, "Could not prepare Tonal temper data");
+            SetLastResult(EnhanceResult::kApplyFailed, "Could not prepare temper data");
             return false;
         }
 
@@ -511,24 +511,29 @@ namespace
         std::int32_t a_cap)
     {
         if (a_power <= 0 || a_cap <= 0) {
-            SetLastResult(TonalResult::kInvalidRequest, "Invalid Sunderheart enhancement request");
+            SetLastResult(EnhanceResult::kInvalidRequest, "Invalid Sunderheart enhancement request");
             return 0;
         }
 
-        if (a_effectID != static_cast<std::int32_t>(SunderheartEffect::kTonalTemper)) {
-            SetLastResult(TonalResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
-            return 0;
-        }
+        const auto effect = static_cast<SunderheartEffect>(a_effectID);
 
         SunderheartEnhanceSession session;
         session.token = NextEnhanceSessionToken();
-        session.effect = SunderheartEffect::kTonalTemper;
+        session.effect = effect;
         session.power = a_power;
         session.cap = a_cap;
-        session.options = BuildTonalEnhanceOptions(a_power, a_cap);
+
+        switch (effect) {
+        case SunderheartEffect::kTemperGear:
+            session.options = BuildTemperGearEnhanceOptions(a_power, a_cap);
+            break;
+        default:
+            SetLastResult(EnhanceResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
+            return 0;
+        }
 
         if (session.options.empty()) {
-            SetLastResult(TonalResult::kNoEligibleOptions, "No eligible gear can be strengthened");
+            SetLastResult(EnhanceResult::kNoEligibleOptions, "No eligible gear can be strengthened");
             logger::info("Iron Soul Sunderheart: no eligible enhancement options effect={} power={} cap={}", a_effectID, a_power, a_cap);
             return 0;
         }
@@ -536,7 +541,7 @@ namespace
         const std::int32_t sessionToken = session.token;
         const std::size_t optionCount = session.options.size();
         g_enhanceSessions[sessionToken] = std::move(session);
-        SetLastResult(TonalResult::kOk, "OK");
+        SetLastResult(EnhanceResult::kOk, "OK");
         logger::info(
             "Iron Soul Sunderheart: built enhancement session token={} effect={} power={} cap={} options={}",
             sessionToken,
@@ -551,7 +556,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(TonalResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
             return 0;
         }
 
@@ -565,13 +570,13 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(TonalResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
             return "";
         }
 
         const auto& options = sessionIt->second.options;
         if (a_optionIndex < 0 || static_cast<std::size_t>(a_optionIndex) >= options.size()) {
-            SetLastResult(TonalResult::kInvalidOption, "Sunderheart enhancement option is invalid");
+            SetLastResult(EnhanceResult::kInvalidOption, "Sunderheart enhancement option is invalid");
             return "";
         }
 
@@ -582,7 +587,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(TonalResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
             return "";
         }
 
@@ -591,7 +596,7 @@ namespace
 
         auto* itemList = ItemSelect::GetOpenInventoryItemList();
         if (!itemList) {
-            SetLastResult(TonalResult::kNoInventoryMenu, "Inventory menu is not open");
+            SetLastResult(EnhanceResult::kNoInventoryMenu, "Inventory menu is not open");
             return "";
         }
 
@@ -599,7 +604,15 @@ namespace
         const auto rowCount = ItemSelect::GetInventoryRowCount(itemList);
         for (std::uint32_t rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
             auto* entry = ItemSelect::GetInventoryRowEntry(itemList, rowIndex);
-            auto option = BuildTonalEnhanceOptionFromInventoryEntry(entry, session.power, session.cap);
+            std::optional<SunderheartEnhanceOption> option;
+            switch (session.effect) {
+            case SunderheartEffect::kTemperGear:
+                option = BuildTemperGearEnhanceOptionFromInventoryEntry(entry, session.power, session.cap);
+                break;
+            default:
+                SetLastResult(EnhanceResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
+                return "";
+            }
             if (!option) {
                 continue;
             }
@@ -610,7 +623,7 @@ namespace
         }
 
         if (session.rowTokens.empty()) {
-            SetLastResult(TonalResult::kNoEligibleOptions, "No eligible visible inventory rows can be strengthened");
+            SetLastResult(EnhanceResult::kNoEligibleOptions, "No eligible visible inventory rows can be strengthened");
             logger::info(
                 "Iron Soul Sunderheart: no eligible InventoryMenu rows for session={} effect={} power={} cap={}",
                 a_sessionToken,
@@ -620,7 +633,7 @@ namespace
             return "";
         }
 
-        SetLastResult(TonalResult::kOk, "OK");
+        SetLastResult(EnhanceResult::kOk, "OK");
         logger::info(
             "Iron Soul Sunderheart: refreshed enhancement session rows session={} rows={}",
             a_sessionToken,
@@ -628,19 +641,19 @@ namespace
         return serializedRows;
     }
 
-    bool ApplyEnhanceToken(
+    bool ApplyTemperGearEnhanceToken(
         std::int32_t a_sessionToken,
         std::int32_t a_selectionIndex,
         std::string_view a_selectionKind,
-        const TonalToken& a_token)
+        const EnhanceToken& a_token)
     {
         auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(a_token.baseFormID);
         if (!object) {
-            SetLastResult(TonalResult::kItemMissingAtApply, "Selected item form is no longer available");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected item form is no longer available");
             return false;
         }
-        if (!IsPracticalTonalGear(object)) {
-            SetLastResult(TonalResult::kInvalidGear, "Selected item is no longer valid Tonal gear");
+        if (!IsPracticalTemperGear(object)) {
+            SetLastResult(EnhanceResult::kInvalidGear, "Selected item is no longer valid temper gear");
             return false;
         }
 
@@ -662,7 +675,7 @@ namespace
         }
 
         const std::string resultText = FormatTemperSummary(object, summary.currentLevel, summary.newLevel);
-        SetLastResult(TonalResult::kOk, resultText);
+        SetLastResult(EnhanceResult::kOk, resultText);
         if (auto* player = RE::PlayerCharacter::GetSingleton()) {
             RE::SendUIMessage::SendInventoryUpdateMessage(player, object);
         }
@@ -674,14 +687,30 @@ namespace
             a_token.baseFormID,
             GetFormName(object),
             GetTokenModeName(a_token.mode),
-            a_token.addLevels,
-            a_token.maxTemperLevel,
+            a_token.power,
+            a_token.cap,
             summary.currentHealth,
             summary.newHealth,
             summary.currentLevel,
             summary.newLevel,
             resultText);
         return true;
+    }
+
+    bool ApplyEnhanceToken(
+        SunderheartEffect a_effect,
+        std::int32_t a_sessionToken,
+        std::int32_t a_selectionIndex,
+        std::string_view a_selectionKind,
+        const EnhanceToken& a_token)
+    {
+        switch (a_effect) {
+        case SunderheartEffect::kTemperGear:
+            return ApplyTemperGearEnhanceToken(a_sessionToken, a_selectionIndex, a_selectionKind, a_token);
+        default:
+            SetLastResult(EnhanceResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
+            return false;
+        }
     }
 
     static bool SunderheartApplyEnhanceSessionOption(
@@ -691,7 +720,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(TonalResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
             return false;
         }
 
@@ -699,17 +728,12 @@ namespace
         g_enhanceSessions.erase(sessionIt);
 
         if (a_optionIndex < 0 || static_cast<std::size_t>(a_optionIndex) >= session.options.size()) {
-            SetLastResult(TonalResult::kInvalidOption, "Sunderheart enhancement option is invalid");
+            SetLastResult(EnhanceResult::kInvalidOption, "Sunderheart enhancement option is invalid");
             return false;
         }
 
-        if (session.effect != SunderheartEffect::kTonalTemper) {
-            SetLastResult(TonalResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
-            return false;
-        }
-
-        const TonalToken token = session.options[static_cast<std::size_t>(a_optionIndex)].token;
-        return ApplyEnhanceToken(a_sessionToken, a_optionIndex, "option", token);
+        const EnhanceToken token = session.options[static_cast<std::size_t>(a_optionIndex)].token;
+        return ApplyEnhanceToken(session.effect, a_sessionToken, a_optionIndex, "option", token);
     }
 
     static bool SunderheartApplyEnhanceSessionInventoryRow(
@@ -719,7 +743,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(TonalResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
             return false;
         }
 
@@ -728,22 +752,17 @@ namespace
 
         auto rowIt = session.rowTokens.find(a_rowIndex);
         if (rowIt == session.rowTokens.end()) {
-            SetLastResult(TonalResult::kInvalidOption, "Sunderheart enhancement inventory row is invalid");
+            SetLastResult(EnhanceResult::kInvalidOption, "Sunderheart enhancement inventory row is invalid");
             return false;
         }
 
-        if (session.effect != SunderheartEffect::kTonalTemper) {
-            SetLastResult(TonalResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
-            return false;
-        }
-
-        return ApplyEnhanceToken(a_sessionToken, a_rowIndex, "row", rowIt->second);
+        return ApplyEnhanceToken(session.effect, a_sessionToken, a_rowIndex, "row", rowIt->second);
     }
 
     static void SunderheartReleaseEnhanceSession(RE::StaticFunctionTag*, std::int32_t a_sessionToken)
     {
         g_enhanceSessions.erase(a_sessionToken);
-        SetLastResult(TonalResult::kOk, "OK");
+        SetLastResult(EnhanceResult::kOk, "OK");
     }
 
     static std::int32_t SunderheartGetEnhanceResult(RE::StaticFunctionTag*)

@@ -347,8 +347,8 @@ Function PlayRollPresentation(Actor player, Bool success)
     Float presentationStartedAt = Utility.GetCurrentRealTime()
     Utility.Wait(0.5)
 
-    if !Controller.Config.IsLuckRollMessageEnabled()
-        LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: LuckRollMessage disabled success=" + success + " roll100=" + _lastLuckRoll + " luck=" + _lastLuckValue, True)
+    if !Controller.Config.IsLuckRollMenuEnabled()
+        LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: LuckRollMenu disabled success=" + success + " roll100=" + _lastLuckRoll + " luck=" + _lastLuckValue, True)
         return
     endif
 
