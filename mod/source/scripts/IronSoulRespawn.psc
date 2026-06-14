@@ -23,6 +23,7 @@ Scriptname IronSoulRespawn extends Quest
 ; TryStartRespawn()
 ; Tick()
 ; RequiresFastPolling()
+; IsRespawnStateMonitorToken()
 ; HasPendingRespawnState()
 ; UpdatePlayerProtectionState()
 ; LogSnapshot()
@@ -32,6 +33,8 @@ Scriptname IronSoulRespawn extends Quest
 ; BeginRespawnMenuBlock()
 ; EndRespawnMenuBlock()
 ; IsBlockedByTransform()
+; StartRespawnStateMonitor()
+; EndRespawnStateMonitor()
 ; HandleRespawnBlackFade()
 ; HandleDisableRespawn()
 ; HandleDisableRespawnWithRuntime()
@@ -51,6 +54,7 @@ Bool _respawnAvailable = False
 Bool _pendingDisableRespawn = False
 Bool _respawnWindowArmed = False
 Float _pendingDisableRespawnStartedAt = 0.0
+Int _respawnStateMonitorToken = 0
 
 Bool _pendingRespawnMenu = False
 Bool _respawnMenuArmed = False
@@ -230,6 +234,10 @@ Bool Function TryStartRespawn(Actor player, String guid)
 
     _pendingDisableRespawnStartedAt = Utility.GetCurrentRealTime()
     _pendingDisableRespawn = True
+    StartRespawnStateMonitor("try-start-respawn")
+    if _respawnStateMonitorToken <= 0
+        Controller.QueueUpdate(Controller.FastPollSeconds)
+    endif
     return True
 EndFunction
 
@@ -250,7 +258,14 @@ Bool Function Tick(Actor player)
 EndFunction
 
 Bool Function RequiresFastPolling()
-    return _pendingDisableRespawn || _pendingRespawnMenu || _respawnWindowArmed || _pendingRespawnBlackFade || _respawnBlackFadeStarted || _respawnBlackFadeOutCompleteAt > 0.0
+    Bool nativeMonitorActive = (_respawnStateMonitorToken > 0)
+    Bool respawnRecoveryPolling = _pendingDisableRespawn || (_respawnWindowArmed && !_respawnMenuArmed)
+    Bool respawnMenuTiming = (_pendingRespawnMenu && _respawnMenuArmed) || _pendingRespawnBlackFade || _respawnBlackFadeStarted || _respawnBlackFadeOutCompleteAt > 0.0
+    return (!nativeMonitorActive && respawnRecoveryPolling) || respawnMenuTiming
+EndFunction
+
+Bool Function IsRespawnStateMonitorToken(Int token)
+    return token > 0 && token == _respawnStateMonitorToken
 EndFunction
 
 Bool Function HasPendingRespawnState()
@@ -363,6 +378,34 @@ Bool Function IsBlockedByTransform(Actor player)
     return Controller.BeastList.HasForm(currentRace)
 EndFunction
 
+Function StartRespawnStateMonitor(String reason = "respawn-state-monitor")
+    if _respawnStateMonitorToken > 0
+        return
+    endif
+
+    Float watchdogSeconds = 30.0
+    if Controller
+        watchdogSeconds = Controller.PendingFastLoopWatchdogSeconds
+    endif
+
+    _respawnStateMonitorToken = IronSoulNative.BeginRespawnStateMonitor(watchdogSeconds, reason)
+    if _respawnStateMonitorToken > 0
+        LogRespawn(IronSoulConfig.LOG_INFO(), "StartRespawnStateMonitor: token=" + _respawnStateMonitorToken + " watchdog=" + watchdogSeconds + " reason=" + reason, True)
+    else
+        LogRespawn(IronSoulConfig.LOG_INFO(), "StartRespawnStateMonitor: native monitor unavailable; using Papyrus fast polling reason=" + reason)
+    endif
+EndFunction
+
+Function EndRespawnStateMonitor(String reason = "respawn-state-monitor")
+    if _respawnStateMonitorToken <= 0
+        return
+    endif
+
+    IronSoulNative.EndRespawnStateMonitor(_respawnStateMonitorToken, reason)
+    LogRespawn(IronSoulConfig.LOG_INFO(), "EndRespawnStateMonitor: token=" + _respawnStateMonitorToken + " reason=" + reason, True)
+    _respawnStateMonitorToken = 0
+EndFunction
+
 Bool Function ArmRespawnWindow(Actor player, String guid)
     if !HasCoreRuntime() || !player || guid == ""
         LogRespawn(IronSoulConfig.LOG_ERR(), "ArmRespawnWindow: Invalid args (player None or GUID empty); aborting respawn handler")
@@ -391,7 +434,7 @@ Function QueueRespawnBlackFade(Float delaySeconds = 3.0, Float fadeSeconds = 6.0
     if !HasCoreRuntime()
         return
     endif
-    if !Controller.Config.IsRedTintOnDeathEnabled()
+    if !Controller.Config.IsTintOverlayEnabled()
         return
     endif
     if delaySeconds < 0.0
@@ -450,6 +493,7 @@ Bool Function HandleDisableRespawnWithRuntime(Actor player, Bool runtimeAvailabl
     endif
 
     if _pendingDisableRespawn
+        StartRespawnStateMonitor("pending-disable-respawn")
         Float nowRT = Utility.GetCurrentRealTime()
         if _pendingDisableRespawnStartedAt <= 0.0
             _pendingDisableRespawnStartedAt = nowRT
@@ -488,12 +532,15 @@ Bool Function HandleDisableRespawnWithRuntime(Actor player, Bool runtimeAvailabl
 
             _pendingDisableRespawn = False
             _respawnWindowArmed = False
+            EndRespawnStateMonitor("recovered-from-bleedout")
             Controller.Death.ClearDeathEventLock()
             LogRespawn(IronSoulConfig.LOG_INFO(), "HandleDisableRespawn: Disarmed respawn window reason=recovered_from_bleedout")
             UpdatePlayerProtectionState(player)
             return False
         else
-            Controller.QueueUpdate(Controller.FastPollSeconds)
+            if _respawnStateMonitorToken <= 0
+                Controller.QueueUpdate(Controller.FastPollSeconds)
+            endif
             return True
         endif
     endif
@@ -578,6 +625,7 @@ EndFunction
 Function ClearPendingRespawnState(String reason = "clear-pending-respawn", Bool clearSlowMo = True)
     Bool hadPendingState = _pendingDisableRespawn || _pendingRespawnMenu || _respawnMenuArmed || _respawnWindowArmed || _pendingRespawnBlackFade || _respawnBlackFadeStarted || _respawnBlackFadeOutCompleteAt > 0.0 || _respawnMenuBlockToken > 0
 
+    EndRespawnStateMonitor(reason)
     EndRespawnMenuBlock(reason)
 
     _pendingDisableRespawn = False

@@ -77,18 +77,26 @@ Scriptname IronSoulController extends Quest
 ; --- Lifecycle ---
 ; ---------------
 ; OnInit()
+; RegisterRuntimeUpdateBridge()
 ; StartBootstrap()
 ; OnPlayerLoadGame()
 ; ResetTransientState()
 
 ; --- Runtime Scheduling ---
 ; --------------------------
-; OnUpdate()
-; OnUpdateHeartbeat()
+; OnIronSoul_RuntimeUpdate()
+; RunRuntimeUpdateTick()
+; RunDragonSoulWatcherTick()
+; RunLuckActiveAlarmTick()
+; RunDragonSoulReviveActiveAlarmTick()
+; RunMaintenanceTick()
 ; TickRequiemDeathHandlingReassertion()
 ; BootstrapTick()
 ; SyncBootstrapDynamicAssets()
+; StartNativeGameplayWatchers()
 ; QueueUpdate()
+; QueueRuntimeUpdateNative()
+; CancelQueuedRuntimeUpdate()
 ; RescheduleIfJobsRemain()
 ; StopRuntimeUpdates()
 
@@ -284,7 +292,7 @@ Bool Function EnforceRequiemDeathHandlingDisabled(String reason = "runtime", Boo
 
     GlobalVariable requiemNoDeathHandling = Game.GetFormFromFile(0x00AA1E9C, "Requiem.esp") as GlobalVariable
     if !requiemNoDeathHandling
-        LogController(IronSoulConfig.LOG_DBG(), "EnforceRequiemDeathHandlingDisabled: Requiem death handling global not found reason=" + reason, True)
+        LogController(IronSoulConfig.LOG_INFO(), "EnforceRequiemDeathHandlingDisabled: Requiem death handling global not found reason=" + reason, True)
         return False
     endif
 
@@ -292,10 +300,6 @@ Bool Function EnforceRequiemDeathHandlingDisabled(String reason = "runtime", Boo
     if previousValue != 1
         requiemNoDeathHandling.SetValueInt(1)
         LogController(IronSoulConfig.LOG_INFO(), "EnforceRequiemDeathHandlingDisabled: forced Requiem death handling off previous=" + previousValue + " reason=" + reason)
-    elseif logAlways
-        LogController(IronSoulConfig.LOG_INFO(), "EnforceRequiemDeathHandlingDisabled: Requiem death handling already disabled value=" + previousValue + " reason=" + reason)
-    else
-        LogController(IronSoulConfig.LOG_DBG(), "EnforceRequiemDeathHandlingDisabled: Requiem death handling already disabled value=" + previousValue + " reason=" + reason, True)
     endif
 
     return True
@@ -405,13 +409,15 @@ EndFunction
 ; ===============
 
 ; Runtime / Polling
-Float Property StandardPollSeconds = 1.00 Auto ; Best-effort scheduler. Requested 1.0s, but under real VM load typically fires ~1.5-2.0s.
+Float Property StandardPollSeconds = 5.00 Auto ; Best-effort idle maintenance scheduler.
 Float Property FastPollSeconds     = 0.20 Auto ; Best-effort fast mode. Requested 0.2s, but in practice usually ~0.4-0.6s.
 Float Property PendingFastLoopWatchdogSeconds = 30.0 Auto ; clears stuck fast-loop jobs
 Float _nextHeartbeatAt = 0.0
+String _runtimeUpdateEvent = "IronSoul_RuntimeUpdate"
 
 Bool _updateQueued = False
 Float _updateQueuedDelay = 0.0
+Int _updateQueuedNativeToken = 0
 Bool _isQuitting = False
 Int _requiemDeathHandlingReassertionsRemaining = 0
 Float _nextRequiemDeathHandlingReassertAt = 0.0
@@ -432,6 +438,7 @@ Event OnInit()
     if !LoadConfig()
         return
     endif
+    RegisterRuntimeUpdateBridge()
     Presentation.RegisterMusicFadeBridge()
     Presentation.RegisterMusicVolumeCacheMenus()
     Presentation.RefreshConfiguredMusicVolumeCache("init")
@@ -452,6 +459,11 @@ Event OnInit()
     QueueUpdate(StandardPollSeconds)
 
 EndEvent
+
+Function RegisterRuntimeUpdateBridge()
+    UnregisterForModEvent(_runtimeUpdateEvent)
+    RegisterForModEvent(_runtimeUpdateEvent, "OnIronSoul_RuntimeUpdate")
+EndFunction
 
 Function StartBootstrap()
     ; Kick off bootstrap sequence for GUID system.
@@ -500,6 +512,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         IronSoulNative.EndLoadMenuBlock("load-config-failed")
         return
     endif
+    RegisterRuntimeUpdateBridge()
 
     IronSoulConfig cfg = Config
     IronSoulCleanup cleanupQ = Cleanup
@@ -549,6 +562,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         Int _curSoulsLS = player.GetActorValue("DragonSouls") as Int
         tiersQ.RebaselineDragonSoulsLastSeen(player, guid, _curSoulsLS)
         tiersQ.SetPendingDragonSoulsRebaseline(False)
+        StartNativeGameplayWatchers(player, guid, "player-load")
 
         deathQ.SyncCurrentDeathCountMirrors(player, guid)
 
@@ -652,6 +666,7 @@ EndFunction
 Function ResetTransientState()
     ; Heartbeat / cadence timers are transient (GetCurrentRealTime can reset across reloads).
     _nextHeartbeatAt = 0.0
+    CancelQueuedRuntimeUpdate("reset")
     _updateQueuedDelay = 0.0
 
     ; Runtime scheduling state
@@ -714,9 +729,51 @@ EndFunction
 ; --- Runtime Scheduling ---
 ; ==========================
 
-Event OnUpdate()
+Event OnIronSoul_RuntimeUpdate(String eventName, String strArg, Float numArg, Form formArg)
+    Int token = numArg as Int
+    Bool respawnMonitorEvent = (StringUtil.Find(strArg, "respawn-") == 0)
+    Bool dragonSoulWatcherEvent = (StringUtil.Find(strArg, "dragon-souls-") == 0)
+    Bool luckActiveAlarmEvent = (StringUtil.Find(strArg, "luck-active") == 0)
+    Bool dsrActiveAlarmEvent = (StringUtil.Find(strArg, "dsr-active") == 0)
+
+    if respawnMonitorEvent
+        if !Respawn || !Respawn.IsRespawnStateMonitorToken(token)
+            LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale respawn monitor event reason=" + strArg + " token=" + token, True)
+            return
+        endif
+    elseif dragonSoulWatcherEvent
+        if !Tiers || !Tiers.IsDragonSoulWatcherToken(token)
+            LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale dragon soul watcher event reason=" + strArg + " token=" + token, True)
+            return
+        endif
+        RunDragonSoulWatcherTick(token, strArg)
+        return
+    elseif luckActiveAlarmEvent
+        if !Luck || !Luck.IsActiveGameplayAlarmToken(token)
+            LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale Luck alarm event reason=" + strArg + " token=" + token, True)
+            return
+        endif
+        RunLuckActiveAlarmTick(token, strArg)
+        return
+    elseif dsrActiveAlarmEvent
+        if !DragonSoulRevive || !DragonSoulRevive.IsActiveGameplayAlarmToken(token)
+            LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale DSR alarm event reason=" + strArg + " token=" + token, True)
+            return
+        endif
+        RunDragonSoulReviveActiveAlarmTick(token, strArg)
+        return
+    elseif token <= 0 || token != _updateQueuedNativeToken
+        LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale update event reason=" + strArg + " token=" + token + " current=" + _updateQueuedNativeToken, True)
+        return
+    endif
+
+    RunRuntimeUpdateTick(strArg)
+EndEvent
+
+Function RunRuntimeUpdateTick(String source = "runtime-update")
     _updateQueued = False
     _updateQueuedDelay = 0.0
+    CancelQueuedRuntimeUpdate("tick-" + source)
 
     if _isQuitting
         return
@@ -727,12 +784,6 @@ Event OnUpdate()
     endif
 
     Actor player = Game.GetPlayer()
-
-    ; Luck regen tick (menu-safe). Run early so menu time never advances.
-    String tickGuid = Identity.GetCachedGuid()
-    if tickGuid != ""
-        Luck.TickRegen(player, tickGuid)
-    endif
 
     TickRequiemDeathHandlingReassertion()
 
@@ -747,8 +798,8 @@ Event OnUpdate()
     ; Delayed first-character intro, scheduled by fresh GUID finalization.
     Presentation.HandleDelayedIronIntro(player)
 
-    ; Low-frequency (5s) maintenance and progression integrity checks
-    OnUpdateHeartbeat(player)
+    ; Low-frequency maintenance and progression integrity checks.
+    RunMaintenanceTick(player)
 
     ; Tier component handles delayed Soul Feat and transition SFX jobs.
     if Tiers
@@ -761,9 +812,60 @@ Event OnUpdate()
     endif
 
     RescheduleIfJobsRemain()
-EndEvent
+EndFunction
 
-Function OnUpdateHeartbeat(Actor player)
+Function RunDragonSoulWatcherTick(Int token, String source = "dragon-souls-changed")
+    if _isQuitting || Config.IsUninstallMode() || _modDisabled
+        return
+    endif
+
+    Actor player = Game.GetPlayer()
+    String guid = Identity.GetCachedGuid()
+    if guid == "" && player
+        guid = Identity.GetTickGuid(player)
+    endif
+    if guid == ""
+        return
+    endif
+
+    Tiers.HandleDragonSoulWatcherUpdate(player, guid, token)
+EndFunction
+
+Function RunLuckActiveAlarmTick(Int token, String source = "luck-active-alarm")
+    if _isQuitting || Config.IsUninstallMode() || _modDisabled
+        return
+    endif
+
+    Actor player = Game.GetPlayer()
+    String guid = Identity.GetCachedGuid()
+    if guid == "" && player
+        guid = Identity.GetTickGuid(player)
+    endif
+    if guid == ""
+        return
+    endif
+
+    Luck.HandleActiveGameplayAlarm(player, guid, token)
+EndFunction
+
+Function RunDragonSoulReviveActiveAlarmTick(Int token, String source = "dsr-active-alarm")
+    if _isQuitting || Config.IsUninstallMode() || _modDisabled
+        return
+    endif
+
+    Actor player = Game.GetPlayer()
+    String guid = Identity.GetCachedGuid()
+    if guid == "" && player
+        guid = Identity.GetTickGuid(player)
+    endif
+    if guid == ""
+        return
+    endif
+
+    DragonSoulRevive.HandleActiveGameplayAlarm(player, guid, token)
+EndFunction
+
+Function RunMaintenanceTick(Actor player)
 
     if !player || player.IsDead() || player.IsBleedingOut()
         return
@@ -791,8 +893,6 @@ Function OnUpdateHeartbeat(Actor player)
         return
     endif
 
-    DragonSoulRevive.SyncLimitState(player, guid)
-
     ; Refresh last-seen identity snapshot (I.L/I.D) on this low-frequency cadence.
     Identity.WriteIdentitySnapshotLastSeen(guid, player)
 
@@ -807,11 +907,6 @@ Function OnUpdateHeartbeat(Actor player)
     endif
     ; Allow Luck notifications after first stable heartbeat.
     Luck.AllowThresholdNotifications()
-
-    ; Datastore flush pacing (plugin no longer runs a background flush thread).
-    ; Heartbeat runs ~every 5s, and this native call will flush to disk only if the
-    ; datastore is dirty (i.e., a value actually changed via DataSet*IfChanged).
-    IronSoulNative.DataFlushIfDirty()
 
 EndFunction
 
@@ -878,6 +973,7 @@ Bool Function BootstrapTick()
                     Globals.SyncAll(p, bguid)
                 endif
                 SyncBootstrapDynamicAssets(p, bguid)
+                StartNativeGameplayWatchers(p, bguid, "bootstrap-timeout")
                 LogController(IronSoulConfig.LOG_INFO(), "BootstrapTick: GUID ready after bootstrap timeout; bootstrap complete (" + bguid + ")")
                 return False
             endif
@@ -899,6 +995,7 @@ Bool Function BootstrapTick()
         Globals.SyncAll(p, bguid)
     endif
     SyncBootstrapDynamicAssets(p, bguid)
+    StartNativeGameplayWatchers(p, bguid, "bootstrap")
     LogController(IronSoulConfig.LOG_INFO(), "BootstrapTick: GUID ready; bootstrap complete (" + bguid + ")")
 
     return False
@@ -914,9 +1011,24 @@ Function SyncBootstrapDynamicAssets(Actor player, String guid)
     LogController(IronSoulConfig.LOG_DBG(), "SyncBootstrapDynamicAssets: tier=" + tier, True)
 EndFunction
 
+Function StartNativeGameplayWatchers(Actor player, String guid, String reason)
+    if !player || guid == ""
+        return
+    endif
+
+    if Tiers
+        Tiers.StartDragonSoulWatcher(player, guid, reason)
+    endif
+    if Luck
+        Luck.RefreshRegenState(player, guid, reason, True)
+    endif
+    if DragonSoulRevive
+        DragonSoulRevive.SyncLimitState(player, guid, True)
+    endif
+EndFunction
+
 Function QueueUpdate(Float afDelay)
     ; Debounced single-update scheduler (soonest wins):
-    ; - Prevents RegisterForSingleUpdate spam
     ; - Allows urgent jobs to "upgrade" a previously queued slower tick
     if afDelay < 0.0
         afDelay = 0.0
@@ -926,9 +1038,12 @@ Function QueueUpdate(Float afDelay)
         if _updateQueuedDelay <= 0.0 || afDelay < _updateQueuedDelay
             LogController(IronSoulConfig.LOG_DBG(), "QueueUpdate: upgrading queued delay from " + _updateQueuedDelay + " -> " + afDelay, True)
             _updateQueuedDelay = afDelay
-            ; Cancel prior schedule and re-register the sooner one.
-            UnregisterForUpdate()
-            RegisterForSingleUpdate(afDelay)
+            ; Cancel prior schedule and queue the sooner one.
+            CancelQueuedRuntimeUpdate("queue-upgrade")
+            if !QueueRuntimeUpdateNative(afDelay, "controller-update")
+                _updateQueued = False
+                _updateQueuedDelay = 0.0
+            endif
         else
             LogController(IronSoulConfig.LOG_DBG(), "QueueUpdate: skipped; already queued sooner/equal. queued=" + _updateQueuedDelay + " req=" + afDelay, True)
         endif
@@ -936,7 +1051,29 @@ Function QueueUpdate(Float afDelay)
     endif
     _updateQueued = True
     _updateQueuedDelay = afDelay
-    RegisterForSingleUpdate(afDelay)
+    if !QueueRuntimeUpdateNative(afDelay, "controller-update")
+        _updateQueued = False
+        _updateQueuedDelay = 0.0
+    endif
+EndFunction
+
+Bool Function QueueRuntimeUpdateNative(Float afDelay, String reason = "controller-update")
+    Int token = IronSoulNative.QueueRuntimeUpdate(afDelay, reason)
+    if token > 0
+        _updateQueuedNativeToken = token
+        return True
+    endif
+
+    _updateQueuedNativeToken = 0
+    LogController(IronSoulConfig.LOG_ERR(), "QueueRuntimeUpdateNative: native queue failed reason=" + reason + " delay=" + afDelay)
+    return False
+EndFunction
+
+Function CancelQueuedRuntimeUpdate(String reason = "cancel-runtime-update")
+    if _updateQueuedNativeToken > 0
+        IronSoulNative.CancelRuntimeUpdate(_updateQueuedNativeToken, reason)
+        _updateQueuedNativeToken = 0
+    endif
 EndFunction
 
 Function RescheduleIfJobsRemain()
@@ -956,7 +1093,7 @@ EndFunction
 Function StopRuntimeUpdates()
     _updateQueued = False
     _updateQueuedDelay = 0.0
-    UnregisterForUpdate()
+    CancelQueuedRuntimeUpdate("stop-runtime-updates")
 EndFunction
 
 
@@ -987,14 +1124,11 @@ Function FinalizeAndQuit(Float preQuitDelay = 1.0)
     endif
 
     _isQuitting = True
-    _updateQueued = False
+    StopRuntimeUpdates()
     IronSoulNative.BeginMenuBlock("quit-desktop", False)
     IronSoulNative.StopHealthMonitor()
     ; Flush Luck timing cache (write-gated) before quitting.
     Luck.FlushDirtyCache()
-
-    UnregisterForUpdate()
-
     if preQuitDelay > 0.0
         Utility.Wait(preQuitDelay)
     endif
@@ -1010,12 +1144,11 @@ Function FinalizeAndQuitMainMenu(Float preQuitDelay = 1.0)
     endif
 
     _isQuitting = True
-    _updateQueued = False
+    StopRuntimeUpdates()
     IronSoulNative.BeginMenuBlock("quit-main-menu", True)
     IronSoulNative.StopHealthMonitor()
     ; Flush Luck timing cache (write-gated) before quitting.
     Luck.FlushDirtyCache()
-    UnregisterForUpdate()
 
     ; Restore music before returning to the main menu so terminal no-restore flows do not leave it muted.
     if Presentation
