@@ -19,6 +19,7 @@ Scriptname IronSoulCleanup extends Quest
 ; RemoveGuidTrackedData()
 ; ResetCurrentCharacterData()
 ; PurgeHistoricalCharacterData()
+; PurgeHistoricalTestCharacterData()
 
 ; --- Safe Uninstall ---
 ; ----------------------
@@ -208,6 +209,7 @@ Int Function PurgeHistoricalCharacterData(String currentGuid)
                 seen = seen + cand + "|"
                 RemoveGuidTrackedData(None, cand, True, False)
                 Controller.Identity.DeleteIdentitySnapshotKeys(cand)
+                Controller.Identity.DeleteTestCharacterMarker(cand)
                 Controller.Identity.DeleteGuidMarker(cand)
                 purgedCount += 1
             endif
@@ -215,6 +217,79 @@ Int Function PurgeHistoricalCharacterData(String currentGuid)
     endwhile
 
     Controller.Identity.KeepOnlyGuidInIndex(currentGuid)
+    IronSoulNative.DataFlushIfDirty()
+    return purgedCount
+EndFunction
+
+Int Function PurgeHistoricalTestCharacterData(String currentGuid)
+    if !Controller || currentGuid == ""
+        return 0
+    endif
+    if !Controller.Identity
+        return 0
+    endif
+
+    String idx = Controller.Identity.GetGuidIndex()
+    if idx == ""
+        Controller.Identity.EnsureGuidMarker(currentGuid)
+        IronSoulNative.DataFlushIfDirty()
+        return 0
+    endif
+
+    Int purgedCount = 0
+    String keepIndex = ""
+    String seen = "|"
+    Int i = 0
+    Int len = StringUtil.GetLength(idx)
+    While i < len
+        Int j = StringUtil.Find(idx, "|", i)
+        String cand = ""
+        if j == -1
+            cand = StringUtil.Substring(idx, i)
+            i = len
+        else
+            cand = StringUtil.Substring(idx, i, j - i)
+            i = j + 1
+        endif
+
+        if cand != ""
+            String needle = "|" + cand + "|"
+            if StringUtil.Find(seen, needle) == -1
+                seen = seen + cand + "|"
+                if cand == currentGuid
+                    if keepIndex == ""
+                        keepIndex = cand
+                    else
+                        keepIndex = keepIndex + "|" + cand
+                    endif
+                elseif Controller.Identity.IsHistoricalTestCharacterGuid(cand)
+                    RemoveGuidTrackedData(None, cand, True, False)
+                    Controller.Identity.DeleteIdentitySnapshotKeys(cand)
+                    Controller.Identity.DeleteTestCharacterMarker(cand)
+                    Controller.Identity.DeleteGuidMarker(cand)
+                    purgedCount += 1
+                else
+                    if keepIndex == ""
+                        keepIndex = cand
+                    else
+                        keepIndex = keepIndex + "|" + cand
+                    endif
+                endif
+            endif
+        endif
+    endwhile
+
+    String currentNeedle = "|" + currentGuid + "|"
+    if StringUtil.Find("|" + keepIndex + "|", currentNeedle) == -1
+        if keepIndex == ""
+            keepIndex = currentGuid
+        else
+            keepIndex = keepIndex + "|" + currentGuid
+        endif
+    endif
+
+    IronSoulNative.DataSetStringIfChanged("G.U.INDEX", keepIndex)
+    Controller.Identity.EnsureGuidMarker(currentGuid)
     IronSoulNative.DataFlushIfDirty()
     return purgedCount
 EndFunction

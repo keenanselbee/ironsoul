@@ -513,15 +513,17 @@ String Function ResolveKnownDataBase(String keyText, String guid) Global
         return "I.L"
     elseif keyText == "IdentityLastSeenGameDay" || keyText == "identitylastseengameday" || keyText == "I.D"
         return "I.D"
+    elseif keyText == "IdentityTestCharacter" || keyText == "identitytestcharacter" || keyText == "TestCharacter" || keyText == "testcharacter" || keyText == "I.T"
+        return "I.T"
     elseif keyText == "CurrentDeaths" || keyText == "currentdeaths" || keyText == "IS_8155"
         return "IS_8155"
     elseif keyText == "LifetimeDeaths" || keyText == "lifetimedeaths" || keyText == "IS_9132"
         return "IS_9132"
     elseif keyText == "DraugnarokOverride" || keyText == "draugnarokoverride" || keyText == "IS_7341"
         return "IS_7341"
-    elseif keyText == "LuckLastRealSecond" || keyText == "lucklastrealsecond" || keyText == "IS_7314"
+    elseif keyText == "LuckLastActiveSecond" || keyText == "lucklastactivesecond" || keyText == "LuckLastRealSecond" || keyText == "lucklastrealsecond" || keyText == "IS_7314"
         return "IS_7314"
-    elseif keyText == "LuckPlayedToken" || keyText == "luckplayedtoken" || keyText == "IS_7315"
+    elseif keyText == "LuckPlayedSeconds" || keyText == "luckplayedseconds" || keyText == "LuckPlayedToken" || keyText == "luckplayedtoken" || keyText == "IS_7315"
         return "IS_7315"
     elseif keyText == "LuckNotificationTier" || keyText == "lucknotificationtier" || keyText == "IS_7316"
         return "IS_7316"
@@ -555,7 +557,7 @@ String Function ResolveKnownDataBase(String keyText, String guid) Global
         return "SH.U"
     elseif IsSunderheartUsedDataKey(keyText)
         return keyText
-    elseif keyText == "DragonSoulReviveLimitLastRealSecond" || keyText == "dragonsoulrevivelimitlastrealsecond" || keyText == "IS_8201"
+    elseif keyText == "DragonSoulReviveLimitLastActiveSecond" || keyText == "dragonsoulrevivelimitlastactivesecond" || keyText == "DragonSoulReviveLimitLastRealSecond" || keyText == "dragonsoulrevivelimitlastrealsecond" || keyText == "IS_8201"
         return "IS_8201"
     elseif keyText == "DragonSoulReviveLimitPlayedSeconds" || keyText == "dragonsoulrevivelimitplayedseconds" || keyText == "IS_8202"
         return "IS_8202"
@@ -595,7 +597,7 @@ EndFunction
 Int Function KnownDataValueType(String keyBase) Global
     if keyBase == "CharacterGuid" || keyBase == "I.N" || keyBase == "G.U.INDEX"
         return 2
-    elseif keyBase == "G.U.CURRENT" || keyBase == "I.R" || keyBase == "I.L" || keyBase == "I.D" \
+    elseif keyBase == "G.U.CURRENT" || keyBase == "I.R" || keyBase == "I.L" || keyBase == "I.D" || keyBase == "I.T" \
         || keyBase == "IS_8155" || keyBase == "IS_9132" || keyBase == "IS_7341" \
         || keyBase == "IS_7314" || keyBase == "IS_7315" || keyBase == "IS_7316" \
         || keyBase == "IS_8597" || keyBase == "IS_9921" || keyBase == "IS_4797" || keyBase == "IS_4513" \

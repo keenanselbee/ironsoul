@@ -35,10 +35,14 @@ Scriptname IronSoulIdentity extends Quest
 ; EnsureGuidInIndex()
 ; GetGuidIndex()
 ; KeepOnlyGuidInIndex()
+; MarkTestCharacterGuid()
+; IsHistoricalTestCharacterGuid()
 ; DeleteIdentitySnapshotKeys()
+; DeleteTestCharacterMarker()
 ; DeleteGuidMarker()
 ; WriteIdentitySnapshotStatic()
 ; WriteIdentitySnapshotLastSeen()
+; HandleNewTestCharacterGuid()
 
 ; --- Identity Recovery ---
 ; -------------------------
@@ -53,6 +57,7 @@ IronSoulController Property Controller Auto
 
 ; Identity (player-scoped co-save slot)
 String Property characterGuid = "IS_9975" AutoReadOnly
+String Property testCharacterMarker = "I.T" AutoReadOnly
 
 ; Pipe-delimited global GUID index used only for rare co-save recovery.
 String Property _guidIndexKey = "G.U.INDEX" Auto Hidden
@@ -117,6 +122,12 @@ EndFunction
 
 Bool Function IsCurrentCharacterTest(Actor player)
     if !player
+        return False
+    endif
+    if !HasCoreRuntime()
+        return False
+    endif
+    if !Controller.Config.IsPrisonerTestCharactersEnabled()
         return False
     endif
 
@@ -344,15 +355,13 @@ String Function EnsureGuid(Actor player)
     endif
 
     CommitGuid(player, guid, pn)
+    HandleNewTestCharacterGuid(guid, pn)
 
     LogIdentity(IronSoulConfig.LOG_INFO(), "EnsureGuid: GUID FINALIZED (" + guid + ", name=" + pn + ")")
 
     Bool shouldScheduleIronIntro = _bootstrapStartedAt > 0.0 && player.GetLevel() <= 1
     if shouldScheduleIronIntro && Controller && Controller.Config && Controller.Presentation
         Float introDelay = Controller.Config.GetIronSoulIntroDelaySeconds() as Float
-        if IsPlaceholderName(pn)
-            introDelay += 5.0
-        endif
         Float elapsed = Utility.GetCurrentRealTime() - _bootstrapStartedAt
         if elapsed < 0.0
             elapsed = 0.0
@@ -431,6 +440,27 @@ Function KeepOnlyGuidInIndex(String guid)
     IronSoulNative.DataSetStringIfChanged(_guidIndexKey, guid)
 EndFunction
 
+Function MarkTestCharacterGuid(String guid)
+    if guid == ""
+        return
+    endif
+
+    IronSoulNative.DataSetIntIfChanged(IronSoulPersistence.MakeKey(testCharacterMarker, guid), 1)
+EndFunction
+
+Bool Function IsHistoricalTestCharacterGuid(String guid)
+    if guid == ""
+        return False
+    endif
+
+    if IronSoulNative.DataGetInt(IronSoulPersistence.MakeKey(testCharacterMarker, guid), 0) == 1
+        return True
+    endif
+
+    String savedName = IronSoulNative.DataGetString(IronSoulPersistence.MakeKey("I.N", guid), "")
+    return IsTestCharacterName(savedName)
+EndFunction
+
 Function DeleteIdentitySnapshotKeys(String guid)
     if guid == ""
         return
@@ -440,6 +470,14 @@ Function DeleteIdentitySnapshotKeys(String guid)
     IronSoulNative.DataDeleteKey(IronSoulPersistence.MakeKey("I.R", guid))
     IronSoulNative.DataDeleteKey(IronSoulPersistence.MakeKey("I.L", guid))
     IronSoulNative.DataDeleteKey(IronSoulPersistence.MakeKey("I.D", guid))
+EndFunction
+
+Function DeleteTestCharacterMarker(String guid)
+    if guid == ""
+        return
+    endif
+
+    IronSoulNative.DataDeleteKey(IronSoulPersistence.MakeKey(testCharacterMarker, guid))
 EndFunction
 
 Function DeleteGuidMarker(String guid)
@@ -482,6 +520,30 @@ Function WriteIdentitySnapshotLastSeen(String guid, Actor player)
     Int dayNow = Utility.GetCurrentGameTime() as Int
     IronSoulNative.DataSetIntIfChanged(IronSoulPersistence.MakeKey("I.L", guid), levelNow)
     IronSoulNative.DataSetIntIfChanged(IronSoulPersistence.MakeKey("I.D", guid), dayNow)
+EndFunction
+
+Function HandleNewTestCharacterGuid(String guid, String playerName)
+    if guid == "" || playerName == ""
+        return
+    endif
+    if !HasCoreRuntime()
+        return
+    endif
+    if !Controller.Config.IsPrisonerTestCharactersEnabled()
+        return
+    endif
+    if !IsTestCharacterName(playerName)
+        return
+    endif
+
+    MarkTestCharacterGuid(guid)
+    Int purgedCount = 0
+    if Controller.Cleanup
+        purgedCount = Controller.Cleanup.PurgeHistoricalTestCharacterData(guid)
+    else
+        IronSoulNative.DataFlushIfDirty()
+    endif
+    LogIdentity(IronSoulConfig.LOG_INFO(), "HandleNewTestCharacterGuid: marked Prisoner test GUID '" + guid + "' and purged " + purgedCount + " older test character GUID(s)")
 EndFunction
 
 
@@ -855,6 +917,7 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
 
         _guidMintRetryAt = 0.0
         CommitGuid(player, newGuid, pn)
+        HandleNewTestCharacterGuid(newGuid, pn)
 
         LogIdentity(IronSoulConfig.LOG_ERR(), "TryRestoreGuidTamperedCosave: suspicious co-save GUID '" + cosaveGuid + "' had no strong unique match; minted new GUID '" + newGuid + "'")
         if !_guidTamperMintNotified
