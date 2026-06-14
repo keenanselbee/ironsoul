@@ -15,6 +15,7 @@ Scriptname IronSoulDeath extends Quest
 ; ResetTransientState()
 ; PlayDeathInitialImod()
 ; PlayDeathImod()
+; PlayDeathFarsightOverlay()
 ; PlayPermadeathImod()
 ; PlayLoadTransitionImodAndWait()
 ; PlayLoadPermadeathSequence()
@@ -56,6 +57,28 @@ ImageSpaceModifier Property DeathImod Auto
 ImageSpaceModifier Property PermadeathImod Auto
 ImageSpaceModifier Property BlackScreenImod Auto
 
+VisualEffect Property FXFarsightCamAttachEffect1 Auto
+VisualEffect Property FXFarsightCamAttachEffect2 Auto
+VisualEffect Property FXFarsightCamAttachEffect3 Auto
+VisualEffect Property FXFarsightCamAttachEffect4 Auto
+VisualEffect Property FXFarsightCamAttachEffect5 Auto
+VisualEffect Property FXFarsightCamAttachEffect6 Auto
+VisualEffect Property FXFarsightCamAttachEffect7 Auto
+VisualEffect Property FXFarsightCamAttachEffect8 Auto
+VisualEffect Property FXFarsightCamAttachEffect9 Auto
+VisualEffect Property FXFarsightCamAttachEffect10 Auto
+VisualEffect Property FXFarsightCamAttachEffect11 Auto
+VisualEffect Property FXFarsightCamAttachEffect12 Auto
+VisualEffect Property FXFarsightCamAttachEffect13 Auto
+VisualEffect Property FXFarsightCamAttachEffect14 Auto
+VisualEffect Property FXFarsightCamAttachEffect15 Auto
+VisualEffect Property FXFarsightCamAttachEffect16 Auto
+VisualEffect Property FXFarsightCamAttachEffect17 Auto
+VisualEffect Property FXFarsightCamAttachEffect18 Auto
+VisualEffect Property FXFarsightCamAttachEffect19 Auto
+VisualEffect Property FXFarsightCamAttachEffect20 Auto
+VisualEffect Property FXFarsightCamAttachEffectCHIM Auto
+
 ; Brawl exception.
 Quest Property brawlQuest Auto
 
@@ -68,6 +91,11 @@ String Property totalDeathCount = "IS_9132" AutoReadOnly ; Lifetime death counte
 ; - Respawn clears it after recovery, death-before-recovery, or watchdog fallback.
 Bool _deathEventLocked = False
 Float _deathInitialImodStartedAt = 0.0
+Actor _deathFarsightOverlayPlayer = None
+VisualEffect _deathFarsightOverlayCurrent = None
+Bool[] _deathFarsightOverlayActiveSteps
+Int DEATH_FARSIGHT_CHIM_STEP = 21
+Int DEATH_FARSIGHT_TOTAL_STEPS = 21
 
 ; Permanent death counter AV (unused vanilla actor value; exposed for UI mods).
 String _deathAVName = "DEPRECATED05"
@@ -118,11 +146,12 @@ EndFunction
 Function ResetTransientState()
     _deathEventLocked = False
     _deathInitialImodStartedAt = 0.0
+    ClearDeathFarsightOverlay("reset")
     ImageSpaceModifier.RemoveCrossFade(0.75)
 EndFunction
 
 Function PlayDeathInitialImod()
-    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+    if !HasCoreRuntime() || !Controller.Config.IsTintOverlayEnabled()
         return
     endif
 
@@ -138,7 +167,7 @@ Function PlayDeathInitialImod()
 EndFunction
 
 Bool Function PlayDeathImod()
-    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+    if !HasCoreRuntime() || !Controller.Config.IsTintOverlayEnabled()
         return False
     endif
 
@@ -153,8 +182,176 @@ Bool Function PlayDeathImod()
     return False
 EndFunction
 
+VisualEffect Function ResolveDeathFarsightOverlay(Int step)
+    if step == 1
+        return FXFarsightCamAttachEffect1
+    elseif step == 2
+        return FXFarsightCamAttachEffect2
+    elseif step == 3
+        return FXFarsightCamAttachEffect3
+    elseif step == 4
+        return FXFarsightCamAttachEffect4
+    elseif step == 5
+        return FXFarsightCamAttachEffect5
+    elseif step == 6
+        return FXFarsightCamAttachEffect6
+    elseif step == 7
+        return FXFarsightCamAttachEffect7
+    elseif step == 8
+        return FXFarsightCamAttachEffect8
+    elseif step == 9
+        return FXFarsightCamAttachEffect9
+    elseif step == 10
+        return FXFarsightCamAttachEffect10
+    elseif step == 11
+        return FXFarsightCamAttachEffect11
+    elseif step == 12
+        return FXFarsightCamAttachEffect12
+    elseif step == 13
+        return FXFarsightCamAttachEffect13
+    elseif step == 14
+        return FXFarsightCamAttachEffect14
+    elseif step == 15
+        return FXFarsightCamAttachEffect15
+    elseif step == 16
+        return FXFarsightCamAttachEffect16
+    elseif step == 17
+        return FXFarsightCamAttachEffect17
+    elseif step == 18
+        return FXFarsightCamAttachEffect18
+    elseif step == 19
+        return FXFarsightCamAttachEffect19
+    elseif step == 20
+        return FXFarsightCamAttachEffect20
+    elseif step == DEATH_FARSIGHT_CHIM_STEP
+        return FXFarsightCamAttachEffectCHIM
+    endif
+
+    return None
+EndFunction
+
+Int Function ResolveDeathFarsightOverlayStep(Int presentationMode, Int deathsNow, Int soulTier)
+    if presentationMode <= 0
+        return 0
+    endif
+
+    ; CHIM deaths use the dedicated white overlay, but CHIM transitions use the red threshold endpoints.
+    if HasCoreRuntime() && presentationMode == 3 && soulTier == Controller.Tiers.TIER_CHIM
+        return DEATH_FARSIGHT_CHIM_STEP
+    endif
+
+    Bool simpleMode = HasCoreRuntime() && Controller.Config.GetFarsightOverlayMode() == 2
+
+    if HasCoreRuntime() && soulTier == Controller.Tiers.TIER_DEFIANT
+        if deathsNow >= 20
+            return 20
+        elseif deathsNow >= 11
+            if simpleMode
+                return 11
+            endif
+            return deathsNow
+        endif
+        return 10
+    endif
+
+    if deathsNow >= 10
+        return 10
+    elseif deathsNow >= 1
+        if simpleMode
+            return 1
+        endif
+        return deathsNow
+    endif
+    return 1
+EndFunction
+
+Bool Function PlayDeathFarsightOverlayStep(Int step, Float playSeconds)
+    if !_deathFarsightOverlayPlayer
+        return False
+    endif
+
+    VisualEffect nextOverlay = ResolveDeathFarsightOverlay(step)
+    if !nextOverlay
+        LogDeath(IronSoulConfig.LOG_ERR(), "PlayDeathFarsightOverlayStep: missing Farsight overlay property step=" + step)
+        return False
+    endif
+
+    _deathFarsightOverlayCurrent = nextOverlay
+    if !_deathFarsightOverlayActiveSteps || _deathFarsightOverlayActiveSteps.Length != DEATH_FARSIGHT_TOTAL_STEPS
+        _deathFarsightOverlayActiveSteps = new Bool[21]
+    endif
+    _deathFarsightOverlayActiveSteps[step - 1] = True
+
+    if playSeconds > 0.0
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathFarsightOverlayStep: playing step=" + step + " seconds=" + playSeconds + " t=" + Utility.GetCurrentRealTime(), True)
+        nextOverlay.Play(_deathFarsightOverlayPlayer, playSeconds)
+    else
+        LogDeath(IronSoulConfig.LOG_INFO(), "PlayDeathFarsightOverlayStep: playing step=" + step + " indefinitely t=" + Utility.GetCurrentRealTime(), True)
+        nextOverlay.Play(_deathFarsightOverlayPlayer)
+    endif
+    return True
+EndFunction
+
+Bool Function PlayDeathFarsightOverlay(Actor player, Int step)
+    if !player
+        return False
+    endif
+    if step <= 0 || step > DEATH_FARSIGHT_TOTAL_STEPS
+        return False
+    endif
+    if !HasCoreRuntime() || !Controller.Config.IsFarsightOverlayEnabled()
+        ClearDeathFarsightOverlay("disabled")
+        return False
+    endif
+    if !ResolveDeathFarsightOverlay(step)
+        LogDeath(IronSoulConfig.LOG_ERR(), "PlayDeathFarsightOverlay: missing Farsight overlay property step=" + step)
+        ClearDeathFarsightOverlay("missing-step")
+        return False
+    endif
+
+    UnregisterForUpdate()
+    ClearDeathFarsightOverlay("restart")
+    _deathFarsightOverlayPlayer = player
+    _deathFarsightOverlayCurrent = None
+    _deathFarsightOverlayActiveSteps = new Bool[21]
+
+    Controller.SFX.Play(Controller.SFX.SFXFarsight, player)
+
+    Bool playedAny = PlayDeathFarsightOverlayStep(step, 0.0)
+    if playedAny
+        Utility.Wait(1.0)
+    endif
+
+    if !playedAny
+        ClearDeathFarsightOverlay("start-failed")
+    endif
+    return playedAny
+EndFunction
+
+Function ClearDeathFarsightOverlay(String reason = "")
+    UnregisterForUpdate()
+    if _deathFarsightOverlayPlayer
+        Int step = 1
+        while step <= DEATH_FARSIGHT_TOTAL_STEPS
+            if _deathFarsightOverlayActiveSteps && _deathFarsightOverlayActiveSteps.Length == DEATH_FARSIGHT_TOTAL_STEPS && _deathFarsightOverlayActiveSteps[step - 1]
+                VisualEffect overlay = ResolveDeathFarsightOverlay(step)
+                if overlay
+                    overlay.Stop(_deathFarsightOverlayPlayer)
+                endif
+            endif
+            step += 1
+        endwhile
+
+        LogDeath(IronSoulConfig.LOG_INFO(), "ClearDeathFarsightOverlay: stopped reason=" + reason + " t=" + Utility.GetCurrentRealTime(), True)
+    endif
+
+    _deathFarsightOverlayPlayer = None
+    _deathFarsightOverlayCurrent = None
+    _deathFarsightOverlayActiveSteps = new Bool[21]
+EndFunction
+
 Bool Function PlayPermadeathImod()
-    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+    if !HasCoreRuntime() || !Controller.Config.IsTintOverlayEnabled()
         return False
     endif
 
@@ -193,7 +390,7 @@ Function PlayLoadPermadeathSequence(Actor player, String menuName, Sound sfx, St
 EndFunction
 
 Bool Function PlayBlackScreenImod(Float fadeSeconds = 2.0)
-    if !HasCoreRuntime() || !Controller.Config.IsRedTintOnDeathEnabled()
+    if !HasCoreRuntime() || !Controller.Config.IsTintOverlayEnabled()
         return False
     endif
     if fadeSeconds <= 0.0
@@ -471,7 +668,9 @@ Function HandleDeathAndQuit(Actor player)
         endif
     endif
 
-    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Outcome resolved mode=" + presentationMode + " menu=" + presentationMenu + " quitToMainMenu=" + quitToMainMenu + " committedTier=" + committedTier + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+    Int farsightOverlayStep = ResolveDeathFarsightOverlayStep(presentationMode, deathsNow, soulTierTD)
+
+    LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Outcome resolved mode=" + presentationMode + " menu=" + presentationMenu + " quitToMainMenu=" + quitToMainMenu + " committedTier=" + committedTier + " farsightStep=" + farsightOverlayStep + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
 
     if presentationMode == 1 || presentationMode == 2 || presentationMode == 4
         PlayPermadeathImod()
@@ -549,19 +748,25 @@ Function HandleDeathAndQuit(Actor player)
     player.GetActorBase().SetEssential(False)
 
     if presentationMode == 1
+        PlayDeathFarsightOverlay(player, farsightOverlayStep)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening Defiant transition menu t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         tiers.PlayDefiantTransitionSWF(soulTierTD, False)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: Defiant transition menu returned t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+        PlayBlackScreenImod(1.9)
     elseif presentationMode == 2
+        PlayDeathFarsightOverlay(player, farsightOverlayStep)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening CHIM transition menu t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         tiers.PlayCHIMTransitionSWF(soulTierTD, False)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: CHIM transition menu returned t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
+        PlayBlackScreenImod(1.9)
     elseif presentationMode == 3
+        PlayDeathFarsightOverlay(player, farsightOverlayStep)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening death menu=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         presentation.OpenTimedMessageSWF_SFX(presentationMenu, 6.0, sfx.SFXDeath, player, False)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: death menu returned=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         PlayBlackScreenImod(1.9)
     elseif presentationMode == 4
+        PlayDeathFarsightOverlay(player, farsightOverlayStep)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: opening permadeath menu=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)
         presentation.OpenTimedMessageSWF_KeyDismiss_SFX(presentationMenu, 55.0, 27.0, sfx.SFXPermadeath, player, False)
         LogDeath(IronSoulConfig.LOG_INFO(), "HandleDeathAndQuit: permadeath menu returned=" + presentationMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - deathQuitStartedAt), True)

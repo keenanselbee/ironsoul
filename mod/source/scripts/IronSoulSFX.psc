@@ -41,6 +41,7 @@ SoundCategory Property AudioCategoryIronSoul Auto
 Sound Property SFXIronIntro Auto
 Sound Property SFXIronIntroPrisoner Auto
 Sound Property SFXDeath Auto
+Sound Property SFXFarsight Auto
 Sound Property SFXPermadeath Auto
 Sound Property SFXRespawn Auto
 Sound Property SFXLuckFailure Auto
@@ -78,14 +79,14 @@ Function Play(Sound sfx, Actor source)
     if !CanPlayConfiguredSFX(sfx, source)
         return
     endif
-    sfx.Play(source)
+    IronSoulNative.AudioPlay(sfx, source, 1.0, "shared-sfx")
 EndFunction
 
 Int Function PlayInstance(Sound sfx, Actor source)
     if !CanPlayConfiguredSFX(sfx, source)
         return -1
     endif
-    return sfx.Play(source)
+    return IronSoulNative.AudioPlayTracked(sfx, source, 1.0, "shared-sfx-tracked")
 EndFunction
 
 Function FadeOutInstance(Int instanceId, Float seconds = 1.0)
@@ -93,22 +94,11 @@ Function FadeOutInstance(Int instanceId, Float seconds = 1.0)
         return
     endif
     if seconds <= 0.0
-        Sound.StopInstance(instanceId)
+        IronSoulNative.AudioStopTracked(instanceId, "shared-sfx-stop")
         return
     endif
 
-    Int steps = 10
-    Float stepCount = steps as Float
-    Float stepTime = seconds / stepCount
-    Int i = steps
-    while i > 0
-        Float volume = ((i - 1) as Float) / stepCount
-        Sound.SetInstanceVolume(instanceId, volume)
-        Utility.Wait(stepTime)
-        i -= 1
-    endwhile
-
-    Sound.StopInstance(instanceId)
+    IronSoulNative.AudioFadeOutTracked(instanceId, seconds, "shared-sfx-fade")
 EndFunction
 
 Sound Function PickHeavyBreathingForPlayer(Actor player)
@@ -137,6 +127,8 @@ Bool Function IsOwnedSFXEnabled(Sound sfx)
         return Controller.Config.IsIronIntroSFXEnabled()
     elseif sfx == SFXDeath
         return Controller.Config.IsDeathSFXEnabled()
+    elseif sfx == SFXFarsight
+        return Controller.Config.IsFarsightSFXEnabled()
     elseif sfx == SFXPermadeath
         return Controller.Config.IsPermadeathSFXEnabled()
     elseif sfx == SFXRespawn
