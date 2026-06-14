@@ -17,7 +17,9 @@ Scriptname IronSoulLuck extends Quest
 ; IsRuntimeAvailable()
 ; GetMaxForTier()
 ; GetCurrentMax()
-; TickRegen()
+; RefreshRegenState()
+; IsActiveGameplayAlarmToken()
+; HandleActiveGameplayAlarm()
 ; RollOutcomeNow()
 ; PlayRollPresentation()
 ; PerformRoll()
@@ -31,6 +33,8 @@ Scriptname IronSoulLuck extends Quest
 ; EnsureLoaded()
 ; MarkDirty()
 ; PersistIfDue()
+; CancelRegenAlarm()
+; ArmRegenAlarm()
 ; ForcePersistNow()
 ; FlushDirtyCache()
 ; GetValue()
@@ -50,8 +54,8 @@ Scriptname IronSoulLuck extends Quest
 ; ComputeLuckRollD20()
 ; LuckTier()
 
-; --- Luck Persistence Encoding ---
-; ---------------------------------
+; --- Luck Persistence Helpers ---
+; -------------------------------
 ; DecodePlayed()
 ; EncodePlayed()
 
@@ -61,22 +65,23 @@ Scriptname IronSoulLuck extends Quest
 
 IronSoulController Property Controller Auto
 
-String Property luckLastSec = "IS_7314" AutoReadOnly ; Luck: last real-time second anchor
-String Property luckPlayedToken = "IS_7315" AutoReadOnly ; Luck: played-seconds token (encoded)
+String Property luckLastSec = "IS_7314" AutoReadOnly ; Luck: last active-time second anchor
+String Property luckPlayedToken = "IS_7315" AutoReadOnly ; Luck: played seconds
 String Property luckNotifiedTier = "IS_7316" AutoReadOnly ; Luck: last notified threshold tier
 
 Int Property LUCK_REGEN_SECONDS = 3600 AutoReadOnly ; Luck 0->maxLuck duration (60 minutes)
 Int _luckPersistGateSeconds = 60
 
-Float _luckTickAt = 0.0
 Bool _suppressLuckNotify = True
 
 String _luckGuid = ""
 Int _luckLastSec = 0
-Int _luckPlayedTok = 0
+Int _luckPlayedSec = 0
 Int _luckNextPersistAt = 0
+Int _luckAlarmToken = 0
 Bool _luckLoaded = False
 Bool _luckDirty = False
+Bool _luckFreshState = False
 
 Int _lastLuckRoll = 0
 Int _lastLuckValue = 0
@@ -125,15 +130,17 @@ EndFunction
 ; ====================
 
 Function ResetTransientState()
-    _luckTickAt = 0.0
+    CancelRegenAlarm("reset")
     _suppressLuckNotify = True
 
     _luckGuid = ""
     _luckLastSec = 0
-    _luckPlayedTok = 0
+    _luckPlayedSec = 0
     _luckNextPersistAt = 0
+    _luckAlarmToken = 0
     _luckLoaded = False
     _luckDirty = False
+    _luckFreshState = False
 
     _lastLuckRoll = 0
     _lastLuckValue = 0
@@ -146,7 +153,9 @@ String Function GetCacheSnapshot()
     return "Loaded=" + _luckLoaded \
         + " Dirty=" + _luckDirty \
         + " LastSec=" + _luckLastSec \
-        + " NextPersistAt=" + _luckNextPersistAt
+        + " PlayedSec=" + _luckPlayedSec \
+        + " NextPersistAt=" + _luckNextPersistAt \
+        + " Alarm=" + _luckAlarmToken
 EndFunction
 
 Bool Function IsRuntimeAvailable()
@@ -202,50 +211,38 @@ Int Function GetCurrentMax(Actor player, String guid)
     return GetMaxForTier(tierNow)
 EndFunction
 
-Function TickRegen(Actor player, String guid)
-    ; Uses real-time seconds but pauses while menus are open.
+Function RefreshRegenState(Actor player, String guid, String reason = "luck-refresh", Bool rebaselineClock = False)
     if !HasCoreRuntime() || !player || guid == "" || !IsRuntimeAvailable()
         return
     endif
 
-    Float nowRT = Utility.GetCurrentRealTime()
-    if nowRT < _luckTickAt
-        _luckTickAt = nowRT
-    endif
-    if (nowRT - _luckTickAt) < 1.0
-        return
-    endif
-    _luckTickAt = nowRT
-
-    Int nowSec = nowRT as Int
+    Int nowSec = IronSoulNative.GetActiveGameplaySeconds()
     EnsureLoaded(player, guid, nowSec)
 
     Int lastSec = _luckLastSec
-    Int playedTok = _luckPlayedTok
-    Int played = DecodePlayed(playedTok)
+    Int played = _luckPlayedSec
 
     ; A fresh character starts at tier max.
-    if lastSec <= 0 || playedTok <= 0
+    if _luckFreshState
         Int initialMaxLuck = GetCurrentMax(player, guid)
         played = LUCK_REGEN_SECONDS
-        _luckPlayedTok = EncodePlayed(nowSec, played)
+        _luckPlayedSec = played
         _luckLastSec = nowSec
+        _luckFreshState = False
         MarkDirty()
         Controller.Persistence.SetGuidInt(player, guid, luckNotifiedTier, 4, True)
         PersistIfDue(player, guid, nowSec, True)
         if Controller.Globals
             Controller.Globals.SyncLuckValues(initialMaxLuck, initialMaxLuck)
         endif
+        ArmRegenAlarm(player, guid, nowSec, reason + "-fresh")
         return
     endif
 
-    if Utility.IsInMenuMode()
-        if nowSec != lastSec
-            _luckLastSec = nowSec
-            MarkDirty()
-        endif
-        PersistIfDue(player, guid, nowSec, False)
-        return
+    if rebaselineClock
+        _luckLastSec = nowSec
+        lastSec = nowSec
+        MarkDirty()
     endif
 
     Int maxLuck = GetCurrentMax(player, guid)
@@ -254,8 +251,6 @@ Function TickRegen(Actor player, String guid)
     Int delta = nowSec - lastSec
     if delta < 0
         delta = 0
-    elseif delta > 60
-        delta = 60
     endif
 
     if delta > 0
@@ -263,7 +258,7 @@ Function TickRegen(Actor player, String guid)
         if played > LUCK_REGEN_SECONDS
             played = LUCK_REGEN_SECONDS
         endif
-        _luckPlayedTok = EncodePlayed(nowSec, played)
+        _luckPlayedSec = played
         _luckLastSec = nowSec
         MarkDirty()
     elseif nowSec != lastSec
@@ -271,7 +266,7 @@ Function TickRegen(Actor player, String guid)
         MarkDirty()
     endif
 
-    PersistIfDue(player, guid, nowSec, False)
+    PersistIfDue(player, guid, nowSec, rebaselineClock)
 
     Int luckNow = GetValueFromPlayedSeconds(played, maxLuck)
     MaybeNotifyThreshold(player, guid, luckNow, maxLuck)
@@ -279,8 +274,23 @@ Function TickRegen(Actor player, String guid)
         Controller.Globals.SyncLuckValues(luckNow, maxLuck)
     endif
     if luckNow < maxLuck
-        LogLuck(IronSoulConfig.LOG_DBG(), "TickLuckRegen: Luck=" + luckNow + "/" + maxLuck + " (" + played + "/" + LUCK_REGEN_SECONDS + "s)", True)
+        LogLuck(IronSoulConfig.LOG_DBG(), "RefreshLuckRegen: Luck=" + luckNow + "/" + maxLuck + " (" + played + "/" + LUCK_REGEN_SECONDS + "s) reason=" + reason, True)
     endif
+    ArmRegenAlarm(player, guid, nowSec, reason)
+EndFunction
+
+Bool Function IsActiveGameplayAlarmToken(Int token)
+    return token > 0 && token == _luckAlarmToken
+EndFunction
+
+Function HandleActiveGameplayAlarm(Actor player, String guid, Int token)
+    if !IsActiveGameplayAlarmToken(token)
+        LogLuck(IronSoulConfig.LOG_DBG(), "HandleActiveGameplayAlarm: ignored stale token=" + token + " current=" + _luckAlarmToken, True)
+        return
+    endif
+
+    _luckAlarmToken = 0
+    RefreshRegenState(player, guid, "luck-active-alarm")
 EndFunction
 
 Bool Function PerformRoll(Actor player, String guid)
@@ -304,8 +314,7 @@ Bool Function RollOutcomeNow(Actor player, String guid)
         return False
     endif
 
-    Int nowSec = Utility.GetCurrentRealTime() as Int
-    EnsureLoaded(player, guid, nowSec)
+    RefreshRegenState(player, guid, "luck-roll")
 
     Int luck = GetValue(player, guid)
     if luck < 0
@@ -461,13 +470,28 @@ Function EnsureLoaded(Actor player, String guid, Int nowSec)
         return
     endif
     if !_luckLoaded || _luckGuid != guid
+        String lastKey = IronSoulPersistence.GetKey(luckLastSec, guid)
+        String playedKey = IronSoulPersistence.GetKey(luckPlayedToken, guid)
+        Bool hasLastKey = IronSoulNative.DataHasKey(lastKey)
+        Bool hasPlayedKey = IronSoulNative.DataHasKey(playedKey)
+
         _luckGuid = guid
         _luckLastSec = Controller.Persistence.GetGuidInt(player, guid, luckLastSec, 0)
-        _luckPlayedTok = Controller.Persistence.GetGuidInt(player, guid, luckPlayedToken, 0)
+        _luckPlayedSec = DecodePlayed(Controller.Persistence.GetGuidInt(player, guid, luckPlayedToken, 0))
+        _luckDirty = False
+        if _luckPlayedSec < 0
+            _luckPlayedSec = 0
+        elseif _luckPlayedSec > LUCK_REGEN_SECONDS
+            _luckPlayedSec = LUCK_REGEN_SECONDS
+        endif
+        _luckFreshState = !hasLastKey && !hasPlayedKey
+        if _luckLastSec < 0 || _luckLastSec > nowSec
+            _luckLastSec = nowSec
+            MarkDirty()
+        endif
         _luckNextPersistAt = nowSec + _luckPersistGateSeconds
         _luckLoaded = True
-        _luckDirty = False
-        LogLuck(IronSoulConfig.LOG_DBG(), "LuckEnsureLoaded: Loaded state for GUID=" + guid + " (lastSec=" + _luckLastSec + ", playedTok=" + _luckPlayedTok + ")")
+        LogLuck(IronSoulConfig.LOG_DBG(), "LuckEnsureLoaded: Loaded state for GUID=" + guid + " (lastSec=" + _luckLastSec + ", playedSec=" + _luckPlayedSec + ", fresh=" + _luckFreshState + ")")
     endif
 EndFunction
 
@@ -489,16 +513,72 @@ Function PersistIfDue(Actor player, String guid, Int nowSec, Bool force)
         return
     endif
 
-    Controller.Persistence.SetGuidInt(player, guid, luckPlayedToken, _luckPlayedTok, True)
+    Controller.Persistence.SetGuidInt(player, guid, luckPlayedToken, _luckPlayedSec, True)
     Controller.Persistence.SetGuidInt(player, guid, luckLastSec, _luckLastSec, True)
 
     _luckDirty = False
     _luckNextPersistAt = nowSec + _luckPersistGateSeconds
 EndFunction
 
+Function CancelRegenAlarm(String reason = "luck-cancel")
+    if _luckAlarmToken > 0
+        IronSoulNative.CancelActiveGameplayAlarm(_luckAlarmToken, reason)
+        _luckAlarmToken = 0
+    endif
+EndFunction
+
+Bool Function ArmRegenAlarm(Actor player, String guid, Int nowSec, String reason = "luck-arm")
+    CancelRegenAlarm("luck-rearm")
+    if !HasCoreRuntime() || !player || guid == "" || !_luckLoaded || _luckGuid != guid
+        return False
+    endif
+    if !IsRuntimeAvailable()
+        return False
+    endif
+
+    Int maxLuck = GetCurrentMax(player, guid)
+    if maxLuck <= 0 || _luckPlayedSec >= LUCK_REGEN_SECONDS
+        return False
+    endif
+
+    Int luckNow = GetValueFromPlayedSeconds(_luckPlayedSec, maxLuck)
+    Int nextLuck = luckNow + 1
+    if nextLuck > maxLuck
+        nextLuck = maxLuck
+    endif
+
+    Int nextPlayed = ((nextLuck * LUCK_REGEN_SECONDS) + maxLuck - 1) / maxLuck
+    if nextPlayed <= _luckPlayedSec
+        nextPlayed = _luckPlayedSec + 1
+    endif
+    if nextPlayed > LUCK_REGEN_SECONDS
+        nextPlayed = LUCK_REGEN_SECONDS
+    endif
+
+    Int targetSecond = nowSec + (nextPlayed - _luckPlayedSec)
+    if _luckDirty
+        if _luckNextPersistAt <= nowSec
+            targetSecond = nowSec
+        elseif _luckNextPersistAt < targetSecond
+            targetSecond = _luckNextPersistAt
+        endif
+    endif
+
+    Int token = IronSoulNative.QueueActiveGameplayAlarm(targetSecond, "luck-active-alarm")
+    if token <= 0
+        LogLuck(IronSoulConfig.LOG_DBG(), "ArmRegenAlarm: native alarm unavailable reason=" + reason, True)
+        return False
+    endif
+
+    _luckAlarmToken = token
+    return True
+EndFunction
+
 Function ForcePersistNow(Actor player, String guid)
-    Int nowSec = Utility.GetCurrentRealTime() as Int
+    Int nowSec = IronSoulNative.GetActiveGameplaySeconds()
+    EnsureLoaded(player, guid, nowSec)
     PersistIfDue(player, guid, nowSec, True)
+    ArmRegenAlarm(player, guid, nowSec, "force-persist")
     IronSoulNative.DataFlushIfDirty()
 EndFunction
 
@@ -509,8 +589,9 @@ Function FlushDirtyCache()
 
     Actor player = Game.GetPlayer()
     if player
-        Int nowSec = Utility.GetCurrentRealTime() as Int
+        Int nowSec = IronSoulNative.GetActiveGameplaySeconds()
         PersistIfDue(player, _luckGuid, nowSec, True)
+        ArmRegenAlarm(player, _luckGuid, nowSec, "flush-dirty")
     endif
 EndFunction
 
@@ -527,18 +608,19 @@ Int Function GetValue(Actor player, String guid)
         return maxLuck
     endif
 
-    Int playedTok = 0
+    Int playedSec = 0
     if _luckLoaded && _luckGuid == guid
-        playedTok = _luckPlayedTok
+        playedSec = _luckPlayedSec
     else
-        playedTok = Controller.Persistence.GetGuidInt(player, guid, luckPlayedToken, 0)
+        playedSec = DecodePlayed(Controller.Persistence.GetGuidInt(player, guid, luckPlayedToken, 0))
     endif
 
-    if playedTok == 0
-        return maxLuck
+    if playedSec < 0
+        playedSec = 0
+    elseif playedSec > LUCK_REGEN_SECONDS
+        playedSec = LUCK_REGEN_SECONDS
     endif
 
-    Int playedSec = DecodePlayed(playedTok)
     return GetValueFromPlayedSeconds(playedSec, maxLuck)
 EndFunction
 
@@ -547,7 +629,7 @@ Int Function SetValue(Actor player, String guid, Int targetLuck)
         return -1
     endif
 
-    Int nowSec = Utility.GetCurrentRealTime() as Int
+    Int nowSec = IronSoulNative.GetActiveGameplaySeconds()
     EnsureLoaded(player, guid, nowSec)
 
     Int maxLuck = GetCurrentMax(player, guid)
@@ -570,12 +652,14 @@ Int Function SetValue(Actor player, String guid, Int targetLuck)
 
     _luckGuid = guid
     _luckLastSec = nowSec
-    _luckPlayedTok = EncodePlayed(nowSec, playedSec)
+    _luckPlayedSec = EncodePlayed(nowSec, playedSec)
     _luckLoaded = True
     _luckDirty = True
+    _luckFreshState = False
     _luckNextPersistAt = nowSec + _luckPersistGateSeconds
 
     PersistIfDue(player, guid, nowSec, True)
+    ArmRegenAlarm(player, guid, nowSec, "set-value")
 
     Int tierNow = LuckTier(clampedLuck, maxLuck)
     Controller.Persistence.SetGuidInt(player, guid, luckNotifiedTier, tierNow, True)
@@ -591,15 +675,17 @@ Function ResetValue(Actor player, String guid)
         return
     endif
 
-    Int nowSec = Utility.GetCurrentRealTime() as Int
+    Int nowSec = IronSoulNative.GetActiveGameplaySeconds()
     _luckGuid = guid
     _luckLastSec = nowSec
-    _luckPlayedTok = EncodePlayed(nowSec, 0)
+    _luckPlayedSec = EncodePlayed(nowSec, 0)
     _luckLoaded = True
     _luckDirty = True
+    _luckFreshState = False
     _luckNextPersistAt = nowSec + _luckPersistGateSeconds
 
     PersistIfDue(player, guid, nowSec, True)
+    ArmRegenAlarm(player, guid, nowSec, "reset-value")
     LogLuck(IronSoulConfig.LOG_INFO(), "ResetLuck: Luck set to 0; regen timer armed (played=0/" + LUCK_REGEN_SECONDS + "s)")
     Controller.Persistence.SetGuidInt(player, guid, luckNotifiedTier, 0, True)
     if Controller.Globals
@@ -718,25 +804,25 @@ Int Function LuckTier(Int luck, Int maxLuck) Global
 EndFunction
 
 
-; --- Luck Persistence Encoding ---
-; =================================
+; --- Luck Persistence Helpers ---
+; ================================
 
 Int Function DecodePlayed(Int token) Global
-    if token < 8192
-        return token
+    if token < 0
+        return 0
     endif
-    return token - ((token / 8192) * 8192)
+    if token > 3600
+        return 3600
+    endif
+    return token
 EndFunction
 
 Int Function EncodePlayed(Int nowSec, Int playedSec) Global
     if playedSec < 0
         playedSec = 0
 
-    elseif playedSec > 8191
-        playedSec = 8191
+    elseif playedSec > 3600
+        playedSec = 3600
     endif
-    Int epochMod = 262144
-    Int chunks = nowSec / epochMod
-    Int trimmedNow = nowSec - (chunks * epochMod)
-    return (trimmedNow * 8192) + playedSec
+    return playedSec
 EndFunction
