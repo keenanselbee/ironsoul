@@ -19,6 +19,12 @@ Scriptname IronSoulTiers extends Quest
 ; RemoveTrackedData()
 ; Tick()
 ; Heartbeat()
+; StartDragonSoulWatcher()
+; StopDragonSoulWatcher()
+; IsDragonSoulWatcherToken()
+; IsDragonSoulWatcherCurrent()
+; HandleDragonSoulWatcherUpdate()
+; SyncDragonSoulsLive()
 ; RequiresFastPolling()
 ; LogSnapshot()
 
@@ -188,8 +194,13 @@ Float CHIM_TRANSITION_SECONDS = 49.0
 Float DEFIANT_RESTORE_SECONDS = 11.0
 Float TRANSITION_KEY_DISMISS_SECONDS = 7.0
 Float DEFIANT_RESTORE_KEY_DISMISS_SECONDS = 7.0
+Float FEAT_UNLOCK_SFX_DELAY_SECONDS = 4.0
+Float FEAT_UNLOCK_MENU_DELAY_SECONDS = 4.0
 
 Bool _pendingDragonSoulsRebaseline = False
+Int _dragonSoulWatcherToken = 0
+String _dragonSoulWatcherGuid = ""
+Int _dragonSoulWatcherBaseline = -1
 Bool _pendingFeats = False
 Float _featsAt = 0.0
 Sound _pendingFeatUnlockSFX = None
@@ -255,7 +266,10 @@ EndFunction
 ; =========================
 
 Function ResetTransientState()
+    StopDragonSoulWatcher("reset")
     _pendingDragonSoulsRebaseline = False
+    _dragonSoulWatcherGuid = ""
+    _dragonSoulWatcherBaseline = -1
     _pendingFeats = False
     _featsAt = 0.0
     _pendingFeatUnlockSFX = None
@@ -266,6 +280,9 @@ EndFunction
 
 Function SetPendingDragonSoulsRebaseline(Bool pending)
     _pendingDragonSoulsRebaseline = pending
+    if pending
+        StopDragonSoulWatcher("pending-rebaseline")
+    endif
 EndFunction
 
 Function RemoveTrackedData(Actor player, String guid, Bool deleteMainData = True, Bool unsetCosave = False)
@@ -307,6 +324,74 @@ Function Heartbeat(Actor player, String guid)
         return
     endif
 
+    PollBossDefeatLatches(player, guid)
+    TryScheduleFeats(player)
+EndFunction
+
+Function StartDragonSoulWatcher(Actor player, String guid, String reason = "dragon-souls-watch")
+    if !HasCoreRuntime() || !player || guid == ""
+        return
+    endif
+
+    Int baseline = Controller.Persistence.GetGuidInt(player, guid, dragonSoulsLastSeen, -1)
+    if baseline < 0
+        baseline = player.GetActorValue("DragonSouls") as Int
+        Controller.Persistence.SetGuidInt(player, guid, dragonSoulsLastSeen, baseline, True)
+    endif
+
+    if IsDragonSoulWatcherCurrent(guid, baseline)
+        return
+    endif
+
+    StopDragonSoulWatcher("restart-" + reason)
+    Int token = IronSoulNative.BeginDragonSoulWatcher(baseline, 0.5, "dragon-souls-changed")
+    if token > 0
+        _dragonSoulWatcherToken = token
+        _dragonSoulWatcherGuid = guid
+        _dragonSoulWatcherBaseline = baseline
+    else
+        _dragonSoulWatcherToken = 0
+        _dragonSoulWatcherGuid = ""
+        _dragonSoulWatcherBaseline = -1
+        LogTiers(IronSoulConfig.LOG_DBG(), "StartDragonSoulWatcher: native watcher unavailable; live Dragon Soul watcher inactive reason=" + reason, True)
+    endif
+EndFunction
+
+Function StopDragonSoulWatcher(String reason = "dragon-souls-stop")
+    if _dragonSoulWatcherToken > 0
+        IronSoulNative.EndDragonSoulWatcher(_dragonSoulWatcherToken, reason)
+        _dragonSoulWatcherToken = 0
+        _dragonSoulWatcherGuid = ""
+        _dragonSoulWatcherBaseline = -1
+    endif
+EndFunction
+
+Bool Function IsDragonSoulWatcherToken(Int token)
+    return token > 0 && token == _dragonSoulWatcherToken
+EndFunction
+
+Bool Function IsDragonSoulWatcherCurrent(String guid, Int baseline)
+    return _dragonSoulWatcherToken > 0 && _dragonSoulWatcherGuid == guid && _dragonSoulWatcherBaseline == baseline
+EndFunction
+
+Function HandleDragonSoulWatcherUpdate(Actor player, String guid, Int token)
+    if !IsDragonSoulWatcherToken(token)
+        LogTiers(IronSoulConfig.LOG_DBG(), "HandleDragonSoulWatcherUpdate: ignored stale token=" + token + " current=" + _dragonSoulWatcherToken, True)
+        return
+    endif
+
+    StopDragonSoulWatcher("callback")
+    SyncDragonSoulsLive(player, guid, "watcher")
+EndFunction
+
+Bool Function SyncDragonSoulsLive(Actor player, String guid, String reason = "dragon-souls-sync")
+    if !HasCoreRuntime() || !player || guid == ""
+        return False
+    endif
+    if player.IsDead() || player.IsBleedingOut() || Utility.IsInMenuMode()
+        return False
+    endif
+
     Int curSouls = player.GetActorValue("DragonSouls") as Int
     if _pendingDragonSoulsRebaseline
         RebaselineDragonSoulsLastSeen(player, guid, curSouls)
@@ -319,7 +404,8 @@ Function Heartbeat(Actor player, String guid)
         Int lastSouls = Controller.Persistence.GetGuidInt(player, guid, dragonSoulsLastSeen, -1)
         if lastSouls == -1
             RebaselineDragonSoulsLastSeen(player, guid, curSouls)
-            return
+            StartDragonSoulWatcher(player, guid, reason + "-missing-baseline")
+            return False
         endif
 
         Int delta = curSouls - lastSouls
@@ -330,16 +416,7 @@ Function Heartbeat(Actor player, String guid)
 
         Int accepted = 0
         if delta > 0
-            if !Controller.Config.IsAnticheatEnabled()
-                accepted = delta
-            else
-                if delta > 3 && Controller.Config.IsDragonSoulNotificationEnabled()
-                    Debug.Notification("[Iron Soul] Unusual Dragon Soul increase detected (D=" + delta + ")")
-                endif
-                if delta <= 3
-                    accepted = delta
-                endif
-            endif
+            accepted = delta
         endif
 
         if accepted > 0
@@ -373,12 +450,12 @@ Function Heartbeat(Actor player, String guid)
         RebaselineDragonSoulsLastSeen(player, guid, curSouls)
     endif
 
-    PollBossDefeatLatches(player, guid)
-    TryScheduleFeats(player)
+    StartDragonSoulWatcher(player, guid, reason)
+    return True
 EndFunction
 
 Bool Function RequiresFastPolling()
-    return _pendingFeatUnlockSFX != None
+    return _pendingFeats || _pendingFeatUnlockSFX != None
 EndFunction
 
 Function LogSnapshot()
@@ -898,7 +975,7 @@ EndFunction
 ; --- Soul Feats ---
 ; ==================
 
-Function ScheduleFeatUnlockSFX(Sound sfx, Float nowRT)
+Function ScheduleFeatUnlockSFX(Sound sfx, Float playAtRT)
     if !sfx
         _pendingFeatUnlockSFX = None
         _featUnlockSFXAt = 0.0
@@ -906,16 +983,23 @@ Function ScheduleFeatUnlockSFX(Sound sfx, Float nowRT)
     endif
 
     _pendingFeatUnlockSFX = sfx
-    _featUnlockSFXAt = nowRT + 2.2
+    _featUnlockSFXAt = playAtRT
 EndFunction
 
 Function ScheduleFeatCheck(Float nowRT, Sound sfx = None, Bool scheduleSFX = True)
     _pendingFeats = True
-    if _featsAt < (nowRT + 4.0)
-        _featsAt = nowRT + 4.0
+    Float sfxAt = nowRT + FEAT_UNLOCK_SFX_DELAY_SECONDS
+    Float menuAt = nowRT + FEAT_UNLOCK_SFX_DELAY_SECONDS
+    if scheduleSFX && sfx
+        menuAt = sfxAt + FEAT_UNLOCK_MENU_DELAY_SECONDS
     endif
-    if scheduleSFX
-        ScheduleFeatUnlockSFX(sfx, nowRT)
+    if _featsAt < menuAt
+        _featsAt = menuAt
+    endif
+    if scheduleSFX && sfx
+        ScheduleFeatUnlockSFX(sfx, sfxAt)
+    else
+        ScheduleFeatUnlockSFX(None, 0.0)
     endif
 EndFunction
 
@@ -923,10 +1007,15 @@ Function HandleFeatUnlockSFX(Actor player)
     if !_pendingFeatUnlockSFX
         return
     endif
-    if Utility.GetCurrentRealTime() < _featUnlockSFXAt
+    Float nowRT = Utility.GetCurrentRealTime()
+    if nowRT < _featUnlockSFXAt
         return
     endif
     if !player
+        return
+    endif
+    if Utility.IsInMenuMode() || player.IsDead() || player.IsBleedingOut()
+        _featUnlockSFXAt = nowRT + 1.0
         return
     endif
 
@@ -934,6 +1023,11 @@ Function HandleFeatUnlockSFX(Actor player)
     _pendingFeatUnlockSFX = None
     _featUnlockSFXAt = 0.0
     PlayTierSFX(sfx, player)
+
+    Float menuAt = nowRT + FEAT_UNLOCK_MENU_DELAY_SECONDS
+    if _featsAt < menuAt
+        _featsAt = menuAt
+    endif
 EndFunction
 
 Function TryScheduleFeats(Actor player)
@@ -1423,7 +1517,7 @@ Function PlayTierSFX(Sound sfx, Actor source)
         return
     endif
     if CanPlayTierSFX(sfx)
-        sfx.Play(source)
+        IronSoulNative.AudioPlay(sfx, source, 1.0, "tier-sfx")
     endif
 EndFunction
 
@@ -1432,7 +1526,7 @@ Int Function PlayTierSFXInstance(Sound sfx, Actor source)
         return -1
     endif
     if CanPlayTierSFX(sfx)
-        return sfx.Play(source)
+        return IronSoulNative.AudioPlayTracked(sfx, source, 1.0, "tier-sfx-tracked")
     endif
     return -1
 EndFunction
