@@ -645,8 +645,8 @@ Bool Function WaitKeyDismissMenu(Float maxDuration = 6.0, Float minDismissSecond
         RegisterForAllKeys()
 
         while remaining > 0.0 && !_keyDismissPressed
-            Utility.WaitMenuMode(0.10)
-            remaining -= 0.10
+            Utility.WaitMenuMode(0.20)
+            remaining -= 0.20
         endwhile
 
         _keyDismissActive = False
@@ -965,12 +965,6 @@ Event OnMusicFadeSetVolume(String eventName, String strArg, Float numArg, Form s
     if kind == "final" || kind == "recovery"
         MarkMusicFadeFinalVolumeApplied(token)
     endif
-
-    LogUI(IronSoulConfig.LOG_DBG(), "Music fade volume applied: token=" + token \
-        + " phase=" + phase \
-        + " kind=" + kind \
-        + " step=" + step \
-        + " volume=" + volume, True)
 EndEvent
 
 Event OnMusicFadeComplete(String eventName, String strArg, Float numArg, Form sender)

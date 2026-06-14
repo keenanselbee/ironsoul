@@ -1924,7 +1924,7 @@ Function PlaySunderheartSFX(Actor player)
         return
     endif
     if IronSoulSFX.CanPlaySFX(Controller.Config.IsSFXEnabled(), Controller.Config.IsUninstallMode(), Controller.IsModDisabled()) && Controller.Config.IsSunderheartAbsorbSFXEnabled()
-        SFXSunderheartAbsorb.Play(player)
+        IronSoulNative.AudioPlay(SFXSunderheartAbsorb, player, 1.0, "sunderheart-absorb-sfx")
     endif
 EndFunction
 
