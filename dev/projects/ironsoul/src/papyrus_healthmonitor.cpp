@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "audio_util.h"
 #include "papyrus_healthmonitor.h"
 #include "papyrus_common.h"
 #include "config.h"
@@ -183,12 +184,6 @@ namespace
             return;
         }
 
-        auto* audioMgr = RE::BSAudioManager::GetSingleton();
-        if (!audioMgr) {
-            logger::warn("DeathSlowMoSFX: BSAudioManager unavailable");
-            return;
-        }
-
         RE::BGSSoundDescriptorForm* descriptor = nullptr;
         {
             std::scoped_lock lock(g_slowMoSfx.lock);
@@ -202,17 +197,10 @@ namespace
         }
 
         RE::BSSoundHandle handle{};
-        if (!audioMgr->BuildSoundDataFromDescriptor(handle, descriptor, 0x1A)) {
-            logger::warn("DeathSlowMoSFX: BuildSoundDataFromDescriptor failed");
-            return;
-        }
-        if (!handle.IsValid()) {
-            logger::warn("DeathSlowMoSFX: invalid sound handle");
-            return;
-        }
-        if (!handle.Play()) {
-            logger::warn("DeathSlowMoSFX: Play failed");
-        }
+        IronSoul::Audio::SoundBuildOptions options;
+        options.owner = "DeathSlowMoSFX";
+        options.reason = "death-slowmo";
+        (void)IronSoul::Audio::BuildAndPlayDescriptor(handle, descriptor, descriptor->GetFormID(), options);
     }
 
     // --- Health Monitor Runtime ---

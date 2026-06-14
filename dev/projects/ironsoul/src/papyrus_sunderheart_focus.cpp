@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "audio_util.h"
 #include "papyrus_sunderheart_focus.h"
 #include "papyrus_itemselect.h"
 #include "papyrus_common.h"
@@ -29,7 +30,6 @@ namespace
     constexpr float kUseIntentPendingMaxAgeSeconds = 0.85F;
     constexpr float kFadeStepSeconds = 0.03F;
     constexpr float kVolumeEpsilon = 0.001F;
-    constexpr std::uint32_t kFocusSoundFlags = 0x1A;
     constexpr const char* kInventoryMenuName = "InventoryMenu";
     constexpr std::array<float, 5> kInventoryHoverTierVolumes{
         0.2F,
@@ -121,11 +121,6 @@ namespace
     void ValidateHoverLease(std::uint64_t a_token);
     void StopInventoryHoverPolling(std::string a_reason, bool a_clearHover);
 
-    float Clamp01(float a_value)
-    {
-        return std::clamp(a_value, 0.0F, 1.0F);
-    }
-
     bool NearlyEqual(float a_left, float a_right)
     {
         return std::fabs(a_left - a_right) <= kVolumeEpsilon;
@@ -151,29 +146,20 @@ namespace
     float ResolveDesiredVolumeLocked()
     {
         if (g_focus.use.active) {
-            return Clamp01(g_focus.use.volume);
+            return IronSoul::Audio::ClampVolume(g_focus.use.volume);
         }
         if (g_focus.action.active) {
-            return Clamp01(g_focus.action.volume);
+            return IronSoul::Audio::ClampVolume(g_focus.action.volume);
         }
         if (g_focus.hover.active) {
-            return Clamp01(g_focus.hover.volume);
+            return IronSoul::Audio::ClampVolume(g_focus.hover.volume);
         }
         return 0.0F;
     }
 
     bool QueueTask(auto a_task, const char* a_operation)
     {
-        auto* task = SKSE::GetTaskInterface();
-        if (!task) {
-            if (!g_focus.warnedMissingTask.exchange(true)) {
-                logger::warn("SunderheartFocus: task interface unavailable operation={}", a_operation ? a_operation : "unknown");
-            }
-            return false;
-        }
-
-        task->AddTask(std::move(a_task));
-        return true;
+        return IronSoul::Audio::QueueTask(std::move(a_task), "SunderheartFocus", a_operation ? a_operation : "", &g_focus.warnedMissingTask);
     }
 
     bool IsInventoryMenuOpen()
@@ -421,36 +407,20 @@ namespace
         }
 
         auto* sound = RE::TESForm::LookupByID<RE::TESSound>(g_focus.focusLoopFormID);
-        auto* descriptor = sound ? sound->descriptor : nullptr;
-        if (!descriptor) {
+        if (!sound) {
             if (!g_focus.warnedMissingSound.exchange(true)) {
                 logger::warn("SunderheartFocus: sound descriptor lookup failed soundFormID={:08X}", g_focus.focusLoopFormID);
             }
             return false;
         }
 
-        auto* audioManager = RE::BSAudioManager::GetSingleton();
-        if (!audioManager) {
-            if (!g_focus.warnedMissingAudio.exchange(true)) {
-                logger::warn("SunderheartFocus: BSAudioManager unavailable");
-            }
-            return false;
-        }
-
-        if (!audioManager->BuildSoundDataFromDescriptor(g_focus.handle, descriptor, kFocusSoundFlags)) {
-            logger::warn("SunderheartFocus: BuildSoundDataFromDescriptor failed soundFormID={:08X}", g_focus.focusLoopFormID);
-            ResetHandleLocked();
-            return false;
-        }
-        if (!g_focus.handle.IsValid()) {
-            logger::warn("SunderheartFocus: invalid sound handle soundFormID={:08X}", g_focus.focusLoopFormID);
-            ResetHandleLocked();
-            return false;
-        }
-
-        g_focus.handle.SetVolume(0.0F);
-        if (!g_focus.handle.Play()) {
-            logger::warn("SunderheartFocus: Play failed soundFormID={:08X}", g_focus.focusLoopFormID);
+        IronSoul::Audio::SoundBuildOptions options;
+        options.owner = "SunderheartFocus";
+        options.reason = "focus-loop";
+        options.volume = 0.0F;
+        options.missingDescriptorWarned = &g_focus.warnedMissingSound;
+        options.missingAudioWarned = &g_focus.warnedMissingAudio;
+        if (!IronSoul::Audio::BuildAndPlaySound(g_focus.handle, sound, options)) {
             ResetHandleLocked();
             return false;
         }
@@ -483,7 +453,7 @@ namespace
 
     void QueueApplyVolume(std::uint64_t a_token, float a_volume, bool a_ensurePlaying, bool a_stopAfterFade, std::string a_reason)
     {
-        const float volume = Clamp01(a_volume);
+        const float volume = IronSoul::Audio::ClampVolume(a_volume);
         QueueTask([a_token, volume, a_ensurePlaying, a_stopAfterFade, reason = std::move(a_reason)]() {
             std::scoped_lock lock(g_focus.lock);
             if (g_focus.fadeToken.load() != a_token) {
@@ -514,7 +484,7 @@ namespace
 
     void StartFadeLocked(float a_targetVolume, float a_seconds, bool a_stopAfterFade, std::string a_reason)
     {
-        float target = Clamp01(a_targetVolume);
+        float target = IronSoul::Audio::ClampVolume(a_targetVolume);
         if (!FocusSfxEnabled() && target > 0.0F) {
             target = 0.0F;
             a_stopAfterFade = true;
@@ -526,7 +496,7 @@ namespace
         }
 
         const std::uint64_t token = g_focus.fadeToken.fetch_add(1) + 1;
-        const float startVolume = Clamp01(g_focus.currentVolume);
+        const float startVolume = IronSoul::Audio::ClampVolume(g_focus.currentVolume);
         g_focus.targetVolume = target;
 
         if (InfoLoggingEnabled()) {
@@ -544,22 +514,17 @@ namespace
             return;
         }
 
-        int steps = static_cast<int>(std::ceil(a_seconds / kFadeStepSeconds));
-        if (steps < 1) {
-            steps = 1;
-        }
-        const auto sleepDuration = std::chrono::duration<float>(a_seconds / static_cast<float>(steps));
+        const auto fadePlan = IronSoul::Audio::MakeFadePlan(a_seconds, kFadeStepSeconds);
         QueueApplyVolume(token, startVolume, target > kVolumeEpsilon, false, a_reason);
 
-        std::thread([token, startVolume, target, steps, sleepDuration, stopAfterFade = a_stopAfterFade, reason = std::move(a_reason)]() {
+        std::thread([token, startVolume, target, steps = fadePlan.steps, sleepDuration = fadePlan.stepDuration, stopAfterFade = a_stopAfterFade, reason = std::move(a_reason)]() {
             for (int step = 1; step <= steps; ++step) {
                 std::this_thread::sleep_for(sleepDuration);
                 if (g_focus.fadeToken.load() != token) {
                     return;
                 }
 
-                const float progress = static_cast<float>(step) / static_cast<float>(steps);
-                const float volume = startVolume + ((target - startVolume) * progress);
+                const float volume = IronSoul::Audio::LinearFadeVolume(startVolume, target, step, steps);
                 QueueApplyVolume(token, volume, target > kVolumeEpsilon, stopAfterFade && step == steps && target <= kVolumeEpsilon, reason);
             }
         }).detach();
@@ -588,7 +553,7 @@ namespace
 
     void SetImmediateTarget(FocusTarget& a_target, float a_volume, std::string a_reason)
     {
-        const float volume = Clamp01(a_volume);
+        const float volume = IronSoul::Audio::ClampVolume(a_volume);
         const bool active = volume > kVolumeEpsilon;
         {
             std::scoped_lock lock(g_focus.lock);
@@ -635,7 +600,7 @@ namespace
     {
         const std::uint64_t token = g_focus.hoverToken.fetch_add(1) + 1;
         CancelHoverLease();
-        const float volume = a_active ? Clamp01(a_volume) : 0.0F;
+        const float volume = a_active ? IronSoul::Audio::ClampVolume(a_volume) : 0.0F;
         const float delaySeconds = a_active ? kHoverMatchDebounceSeconds : kHoverClearDebounceSeconds;
         {
             std::scoped_lock lock(g_focus.lock);
@@ -680,7 +645,7 @@ namespace
 
     void CommitInventoryHoverLocked(RE::FormID a_formID, float a_volume)
     {
-        const float volume = Clamp01(a_volume);
+        const float volume = IronSoul::Audio::ClampVolume(a_volume);
         if (volume <= kVolumeEpsilon) {
             ResetInventoryHoverSelectionLocked();
             ClearHoverLocked("native-hover-clear");
@@ -1089,7 +1054,7 @@ namespace
 
     static void SunderheartFocusSetHoverTarget(RE::StaticFunctionTag*, float a_volume)
     {
-        const float volume = Clamp01(a_volume);
+        const float volume = IronSoul::Audio::ClampVolume(a_volume);
         if (volume <= kVolumeEpsilon) {
             ClearHoverImmediate("hover-clear");
             return;

@@ -22,7 +22,6 @@ namespace IronSoul
         EbonFeatVariant,
         PlatinumFeatVariant,
         LuckNotificationTier,
-        PlayedToken,
         DsrUse,
         RaceFormId
     };
@@ -53,13 +52,14 @@ namespace IronSoul
         { "identity", "I.R", "IdentityRaceFormId", CharacterDataValueFormat::RaceFormId },
         { "identity", "I.L", "IdentityLastSeenLevel", CharacterDataValueFormat::Plain },
         { "identity", "I.D", "IdentityLastSeenGameDay", CharacterDataValueFormat::Plain },
+        { "identity", "I.T", "IdentityTestCharacter", CharacterDataValueFormat::Bool },
 
         { "core", "IS_8155", "CurrentDeaths", CharacterDataValueFormat::Plain },
         { "core", "IS_9132", "LifetimeDeaths", CharacterDataValueFormat::Plain },
         { "core", "IS_7341", "DraugnarokOverride", CharacterDataValueFormat::DraugnarokOverride },
 
-        { "luck", "IS_7314", "LuckLastRealSecond", CharacterDataValueFormat::Plain },
-        { "luck", "IS_7315", "LuckPlayedToken", CharacterDataValueFormat::PlayedToken },
+        { "luck", "IS_7314", "LuckLastActiveSecond", CharacterDataValueFormat::Plain },
+        { "luck", "IS_7315", "LuckPlayedSeconds", CharacterDataValueFormat::Plain },
         { "luck", "IS_7316", "LuckNotificationTier", CharacterDataValueFormat::LuckNotificationTier },
 
         { "ui", "IS_8597", "IronIntroShown", CharacterDataValueFormat::Bool },
@@ -76,7 +76,7 @@ namespace IronSoul
         { "soul", "IS_9646", "DragonSoulsStoredTotal", CharacterDataValueFormat::Plain },
         { "soul", "IS_7440", "DragonSoulsLastSeenLive", CharacterDataValueFormat::Plain },
 
-        { "dsr", "IS_8201", "DragonSoulReviveLimitLastRealSecond", CharacterDataValueFormat::Plain },
+        { "dsr", "IS_8201", "DragonSoulReviveLimitLastActiveSecond", CharacterDataValueFormat::Plain },
         { "dsr", "IS_8202", "DragonSoulReviveLimitPlayedSeconds", CharacterDataValueFormat::Plain },
         { "dsr", "IS_8203", "DragonSoulReviveRecentUse1", CharacterDataValueFormat::DsrUse },
         { "dsr", "IS_8204", "DragonSoulReviveRecentUse2", CharacterDataValueFormat::DsrUse },
@@ -326,16 +326,6 @@ namespace IronSoul
         return std::to_string(value) + "(0x" + hex + ")";
     }
 
-    static std::string FormatPlayedToken(std::int32_t value)
-    {
-        if (value < 0) {
-            return std::to_string(value);
-        }
-
-        const std::int32_t played = value < 8192 ? value : value - ((value / 8192) * 8192);
-        return std::to_string(value) + "(played=" + std::to_string(played) + "s)";
-    }
-
     static std::string FormatDsrUse(std::int32_t value)
     {
         if (value < 0) {
@@ -365,8 +355,6 @@ namespace IronSoul
             return LabeledInt(value, PlatinumFeatVariantLabel(value));
         case CharacterDataValueFormat::LuckNotificationTier:
             return LabeledInt(value, LuckNotificationTierLabel(value));
-        case CharacterDataValueFormat::PlayedToken:
-            return FormatPlayedToken(value);
         case CharacterDataValueFormat::DsrUse:
             return FormatDsrUse(value);
         case CharacterDataValueFormat::RaceFormId:

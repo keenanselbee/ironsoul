@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "papyrusbindings.h"
+#include "papyrus_audio.h"
 #include "papyrus_common.h"
 #include "papyrus_config.h"
 #include "papyrus_core.h"
@@ -13,6 +14,7 @@
 #include "papyrus_menublocker.h"
 #include "papyrus_musicfade.h"
 #include "papyrus_runtime.h"
+#include "papyrus_runtimepulse.h"
 #include "papyrus_sunderheart_focus.h"
 
 namespace IronSoul::Papyrus
@@ -36,7 +38,9 @@ namespace IronSoul::Papyrus
             Core::RegisterIdentity(a_vm);
             Config::Register(a_vm);
             DynamicAssets::Register(a_vm);
+            Audio::Register(a_vm);
             MusicFade::Register(a_vm);
+            RuntimePulse::Register(a_vm);
             HealthMonitor::Register(a_vm);
             Cursor::Register(a_vm);
             MenuBlocker::Register(a_vm);

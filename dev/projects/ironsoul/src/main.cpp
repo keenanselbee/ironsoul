@@ -3,9 +3,12 @@
 #include "pathutil.h"
 #include "papyrusbindings.h"
 #include "config.h"
+#include "console_guard.h"
 #include "datastore.h"
 #include "menu_blocker.h"
+#include "papyrus_audio.h"
 #include "papyrus_musicfade.h"
+#include "papyrus_runtimepulse.h"
 #include "papyrus_sunderheart_focus.h"
 
 namespace fs = std::filesystem;
@@ -79,9 +82,12 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::EnsureDirectories();
 
 	IronSoul::Config::Load();
+	IronSoul::ConsoleGuard::Install();
 	IronSoul::DataStore::Initialize();
+	IronSoul::Papyrus::RuntimePulse::StartDataFlushHeartbeat();
 	IronSoul::MenuBlocker::RegisterSinks();
 	IronSoul::MenuBlocker::RegisterLifecycleHooks();
+	IronSoul::Papyrus::Audio::RegisterLifecycleHooks();
 	IronSoul::Papyrus::MusicFade::RegisterLifecycleHooks();
 	IronSoul::Papyrus::SunderheartFocus::RegisterLifecycleHooks();
 

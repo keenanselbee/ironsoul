@@ -17,8 +17,7 @@ Scriptname IronSoulNative Hidden
 ; - MirrorData is used only when MirrorDataBackup=1.
 ; - Files are transactional, FNV-1a checked, size capped, and sequence numbered.
 ; - On load, the newest valid store wins; equal-sequence divergence prefers MainData.
-; - Dirty data flushes on SKSE save callback or explicit DataFlushIfDirty().
-; - There is no periodic flush thread.
+; - Dirty data flushes on SKSE save callback, explicit DataFlushIfDirty(), or native runtime flush heartbeat.
 ;
 ; Key contract:
 ; - DataStore keys are flat strings with Int or String values.
@@ -90,6 +89,14 @@ Scriptname IronSoulNative Hidden
 ; MusicFadeOut()
 ; MusicFadeIn()
 
+; --- Native Audio ---
+; --------------------
+; AudioPlay()
+; AudioPlayTracked()
+; AudioFadeOutTracked()
+; AudioStopTracked()
+; AudioStopAllTracked()
+
 ; --- Sunderheart Focus Audio ---
 ; --------------------------------
 ; SunderheartFocusConfigure()
@@ -124,6 +131,18 @@ Scriptname IronSoulNative Hidden
 ; StartTimeMultiplierRamp()
 ; ClearTimeMultiplierRamp()
 ; KillPlayerImmediate()
+
+; --- Runtime Pulse ---
+; ---------------------
+; QueueRuntimeUpdate()
+; CancelRuntimeUpdate()
+; BeginRespawnStateMonitor()
+; EndRespawnStateMonitor()
+; GetActiveGameplaySeconds()
+; QueueActiveGameplayAlarm()
+; CancelActiveGameplayAlarm()
+; BeginDragonSoulWatcher()
+; EndDragonSoulWatcher()
 
 ; --- Sunderheart Enhancement ---
 ; ------------------------------
@@ -281,6 +300,21 @@ Function MusicFadeOut(SoundCategory musicCategory, Float seconds = 2.0, Float me
 Function MusicFadeIn(SoundCategory musicCategory, Float seconds = 2.0, Float fallbackMenuVolume = -1.0) Global Native
 
 
+; --- NATIVE AUDIO ---
+; ====================
+
+; Plays a Sound through the native descriptor path. Returns false when the descriptor cannot be built or played.
+Bool Function AudioPlay(Sound sfx, ObjectReference source, Float volume = 1.0, String reason = "") Global Native
+
+; Plays a Sound through the native descriptor path and stores a transient runtime handle. Returns -1 on failure.
+Int Function AudioPlayTracked(Sound sfx, ObjectReference source, Float volume = 1.0, String reason = "") Global Native
+
+; Fades and stops a tracked native audio token. Tokens are transient and are cleared across load/new-game boundaries.
+Bool Function AudioFadeOutTracked(Int token, Float seconds = 1.0, String reason = "") Global Native
+Bool Function AudioStopTracked(Int token, String reason = "") Global Native
+Function AudioStopAllTracked(String reason = "") Global Native
+
+
 ; --- SUNDERHEART FOCUS AUDIO ---
 ; ===============================
 
@@ -347,6 +381,29 @@ Function ClearDeathSlowMo(String reason = "") Global Native
 Function StartTimeMultiplierRamp(Float fromMultiplier = 1.0, Float toMultiplier = 1.0, Float seconds = 0.0, String reason = "") Global Native
 Function ClearTimeMultiplierRamp(String reason = "") Global Native
 Bool Function KillPlayerImmediate(Bool ragdollInstant = True, String reason = "") Global Native
+
+
+; --- RUNTIME PULSE ---
+; =====================
+;
+; Queues/cancels native timer wakeups that dispatch IronSoul_RuntimeUpdate.
+Int Function QueueRuntimeUpdate(Float delaySeconds, String reason = "") Global Native
+Function CancelRuntimeUpdate(Int token = 0, String reason = "") Global Native
+
+; Starts/stops a native monitor that wakes Papyrus when respawn recovery/death/watchdog state changes.
+Int Function BeginRespawnStateMonitor(Float watchdogSeconds = 30.0, String reason = "") Global Native
+Function EndRespawnStateMonitor(Int token = 0, String reason = "") Global Native
+
+; Native active gameplay seconds count only while normal gameplay is running.
+Int Function GetActiveGameplaySeconds() Global Native
+
+; Queues/cancels one-shot active gameplay alarms that dispatch IronSoul_RuntimeUpdate.
+Int Function QueueActiveGameplayAlarm(Int targetSecond, String reason = "") Global Native
+Function CancelActiveGameplayAlarm(Int token = 0, String reason = "") Global Native
+
+; Starts/stops native DragonSouls polling; Papyrus owns all accounting.
+Int Function BeginDragonSoulWatcher(Int baselineDragonSouls = -1, Float pollSeconds = 0.5, String reason = "") Global Native
+Function EndDragonSoulWatcher(Int token = 0, String reason = "") Global Native
 
 
 ; --- SUNDERHEART ENHANCEMENT ---
