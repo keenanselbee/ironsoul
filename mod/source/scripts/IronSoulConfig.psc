@@ -10,6 +10,7 @@ Scriptname IronSoulConfig extends Quest
 ; [Sound] 
 ; CHIMTransitionSFX = 1
 ; DeathSFX = 1
+; FarsightSFX = 1
 ; DefiantRestoreSFX = 1
 ; DefiantTransitionSFX = 1
 ; DragonSoulReviveCastSFX = 1
@@ -55,7 +56,9 @@ Scriptname IronSoulConfig extends Quest
 ; IsCharacterSheetCompatibilityEnabled()
 ; IsRequiemCompatibilityEnabled()
 ; IsCosaveRecoveryBackupEnabled()
-; IsRedTintOnDeathEnabled()
+; IsTintOverlayEnabled()
+; IsFarsightOverlayEnabled()
+; GetFarsightOverlayMode()
 ; IsIronSoulIntroEnabled()
 ; GetIronSoulIntroDelaySeconds()
 ; IsSunderheartMenuEnabled()
@@ -66,6 +69,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsMusicFadeEnabled()
 ; IsIronIntroSFXEnabled()
 ; IsDeathSFXEnabled()
+; IsFarsightSFXEnabled()
 ; IsPermadeathSFXEnabled()
 ; IsRespawnSFXEnabled()
 ; IsDefiantTransitionSFXEnabled()
@@ -85,6 +89,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsAnticheatEnabled()
 ; IsLuckReminderNotificationEnabled()
 ; IsLoadNotificationEnabled()
+; IsPrisonerTestCharactersEnabled()
 ; IsUninstallMode()
 ; IsPermadeathEnabled()
 ; GetIronSoulPreset()
@@ -141,7 +146,9 @@ Bool _luckRollMenuEnabled = True
 Bool _enableCharacterSheetCompatibility = False
 Bool _requiemCompatibilityEnabled = True
 Bool _cosaveRecoveryBackupEnabled = True
-Bool _redTintOnDeathEnabled = True
+Bool _tintOverlayEnabled = True
+Bool _farsightOverlayEnabled = True
+Int _farsightOverlayMode = 1
 Bool _ironSoulIntroEnabled = True
 Int _ironSoulIntroDelaySeconds = 27
 Bool _sunderheartMenuEnabled = True
@@ -152,6 +159,7 @@ Bool _sfxEnabled = True
 Bool _musicFadeEnabled = True
 Bool _ironIntroSFXEnabled = True
 Bool _deathSFXEnabled = True
+Bool _farsightSFXEnabled = True
 Bool _permadeathSFXEnabled = True
 Bool _respawnSFXEnabled = True
 Bool _defiantTransitionSFXEnabled = True
@@ -173,6 +181,7 @@ Bool _anticheatEnabled = True
 
 Bool _luckReminderNotificationEnabled = True
 Bool _loadNotificationEnabled = True
+Bool _prisonerTestCharactersEnabled = True
 
 Bool _uninstallMode = False
 Bool _permadeathEnabled = True
@@ -205,7 +214,9 @@ Function ResetDefaults()
     _enableCharacterSheetCompatibility = False
     _requiemCompatibilityEnabled = True
     _cosaveRecoveryBackupEnabled = True
-    _redTintOnDeathEnabled = True
+    _tintOverlayEnabled = True
+    _farsightOverlayEnabled = True
+    _farsightOverlayMode = 1
     _dragonSoulReviveEnabled = True
     _dragonSoulReviveTransformEnabled = True
     _dragonSoulReviveLimit = 3
@@ -220,6 +231,7 @@ Function ResetDefaults()
     _luckLevel = 5
     _loadNotificationEnabled = True
     _luckRollMenuEnabled = True
+    _prisonerTestCharactersEnabled = True
 
     ; Feats
     _defiantSoulEnabled = True
@@ -232,6 +244,7 @@ Function ResetDefaults()
     _musicFadeEnabled = True
     _ironIntroSFXEnabled = True
     _deathSFXEnabled = True
+    _farsightSFXEnabled = True
     _permadeathSFXEnabled = True
     _respawnSFXEnabled = True
     _defiantTransitionSFXEnabled = True
@@ -294,13 +307,16 @@ Function LoadFromIni()
     _enableCharacterSheetCompatibility = ReadBool("EnableCharacterSheetCompatibility", _enableCharacterSheetCompatibility)
     _requiemCompatibilityEnabled = ReadFeatureEnabled("RequiemCompatibility", True)
     _cosaveRecoveryBackupEnabled = ReadFeatureEnabled("CosaveRecoveryBackup", True)
-    _redTintOnDeathEnabled = ReadFeatureEnabled("RedTintOnDeath", True)
+    _tintOverlayEnabled = ReadFeatureEnabled("TintOverlay", True)
+    _farsightOverlayEnabled = ReadFeatureEnabled("FarsightOverlay", True)
+    _farsightOverlayMode = ReadIntRange("FarsightOverlayMode", _farsightOverlayMode, 1, 2)
 
     Bool iniPermadeath = ReadFeatureEnabled("Permadeath", True)
 
     _luckReminderNotificationEnabled = ReadFeatureEnabled("LuckReminderNotification", True)
     _loadNotificationEnabled = ReadFeatureEnabled("LoadNotification", True)
     _luckRollMenuEnabled = ReadFeatureEnabled("LuckRollMenu", True)
+    _prisonerTestCharactersEnabled = ReadFeatureEnabled("PrisonerTestCharacters", True)
 
     Bool iniDefiantSoul = ReadFeatureEnabled("DefiantSoul", True)
     ApplyPresetCoreSettings(iniPermadeath, iniDefiantSoul)
@@ -313,6 +329,7 @@ Function LoadFromIni()
     _musicFadeEnabled = ReadFeatureEnabled("MusicFade", True)
     _ironIntroSFXEnabled = ReadFeatureEnabled("IronIntroSFX", True)
     _deathSFXEnabled = ReadFeatureEnabled("DeathSFX", True)
+    _farsightSFXEnabled = ReadFeatureEnabled("FarsightSFX", True)
     _permadeathSFXEnabled = ReadFeatureEnabled("PermadeathSFX", True)
     _respawnSFXEnabled = ReadFeatureEnabled("RespawnSFX", True)
     _defiantTransitionSFXEnabled = ReadFeatureEnabled("DefiantTransitionSFX", True)
@@ -409,8 +426,16 @@ Bool Function IsCosaveRecoveryBackupEnabled()
     return _cosaveRecoveryBackupEnabled
 EndFunction
 
-Bool Function IsRedTintOnDeathEnabled()
-    return _redTintOnDeathEnabled
+Bool Function IsTintOverlayEnabled()
+    return _tintOverlayEnabled
+EndFunction
+
+Bool Function IsFarsightOverlayEnabled()
+    return _farsightOverlayEnabled
+EndFunction
+
+Int Function GetFarsightOverlayMode()
+    return _farsightOverlayMode
 EndFunction
 
 Bool Function IsIronSoulIntroEnabled()
@@ -451,6 +476,10 @@ EndFunction
 
 Bool Function IsDeathSFXEnabled()
     return _deathSFXEnabled
+EndFunction
+
+Bool Function IsFarsightSFXEnabled()
+    return _farsightSFXEnabled
 EndFunction
 
 Bool Function IsPermadeathSFXEnabled()
@@ -527,6 +556,10 @@ EndFunction
 
 Bool Function IsLoadNotificationEnabled()
     return _loadNotificationEnabled
+EndFunction
+
+Bool Function IsPrisonerTestCharactersEnabled()
+    return _prisonerTestCharactersEnabled
 EndFunction
 
 Bool Function IsUninstallMode()
@@ -623,6 +656,10 @@ Function LogSnapshot()
         + " Notify=" + _enableLogNotifications \
         + " Preset=" + _ironSoulPresetOrdinal \
         + " Permadeath=" + _permadeathEnabled \
+        + " PrisonerTestCharacters=" + _prisonerTestCharactersEnabled \
+        + " TintOverlay=" + _tintOverlayEnabled \
+        + " FarsightOverlay=" + _farsightOverlayEnabled \
+        + " FarsightOverlayMode=" + _farsightOverlayMode \
         + " UninstallMode=" + _uninstallMode)
 
     LogComponentSnapshot("Config", LOG_INFO(), "Config Sunderhearts: SunderheartMenu=" + _sunderheartMenuEnabled \
@@ -645,6 +682,7 @@ Function LogSnapshot()
         + " MusicFade=" + _musicFadeEnabled \
         + " IronIntroSFX=" + _ironIntroSFXEnabled \
         + " DeathSFX=" + _deathSFXEnabled \
+        + " FarsightSFX=" + _farsightSFXEnabled \
         + " PermadeathSFX=" + _permadeathSFXEnabled \
         + " RespawnSFX=" + _respawnSFXEnabled)
 
