@@ -17,6 +17,8 @@ Scriptname IronSoulDragonSoulRevive extends Quest
 ; IsAvailable()
 ; HandleRevive()
 ; SyncLimitState()
+; IsActiveGameplayAlarmToken()
+; HandleActiveGameplayAlarm()
 ; ResolveMenu()
 ; RemoveTrackedData()
 
@@ -24,6 +26,9 @@ Scriptname IronSoulDragonSoulRevive extends Quest
 ; ----------------------------------
 ; RefreshRollingLimitUses()
 ; RecordLimitUse()
+; CancelLimitAlarm()
+; ArmLimitAlarm()
+; GetEarliestRecentUse()
 ; ShaderParticleIntro()
 ; ShaderParticleOutro()
 ; PlayDragonSoulReviveSFX()
@@ -50,7 +55,7 @@ Spell Property DisSpell Auto
 Bool Property bDispel = True Auto
 ; Iron Soul-owned wind SFX for Cinematic Dragon Soul Absorb compatibility.
 Sound Property SFXDragonSoulReviveWind Auto
-Sound Property NPCDragonDeathSequenceExplosion Auto
+Sound Property SFXDragonSoulReviveExplosion Auto
 VisualEffect Property AbsorbEffect Auto
 VisualEffect Property AbsorbEffectTarget Auto
 Activator Property Marker Auto
@@ -71,6 +76,9 @@ Sound Property SFXDragonSoulRevive4 Auto
 
 ObjectReference MarkerRef
 Bool _imageSpaceIsFinishing = False
+Int _dsrLimitAlarmToken = 0
+Int _dsrLimitPersistGateSeconds = 60
+Int _dsrNextPersistAt = 0
 
 
 ; --- Component Helpers ---
@@ -116,8 +124,11 @@ EndFunction
 ; ==================================
 
 Function ResetTransientState()
+    CancelLimitAlarm("reset")
     MarkerRef = None
     _imageSpaceIsFinishing = False
+    _dsrLimitAlarmToken = 0
+    _dsrNextPersistAt = 0
 EndFunction
 
 Bool Function IsAvailable(Actor player, String guid)
@@ -236,14 +247,14 @@ Function HandleRevive(Actor target, Actor caster, String guid)
     endif
 
     if SFXDragonSoulReviveWind
-        SFXDragonSoulReviveWind.Play(target)
+        PlayDragonSoulReviveSFX(SFXDragonSoulReviveWind, target, True)
     else
         LogDragonSoulRevive(IronSoulConfig.LOG_ERR(), "HandleDragonSoulRevive: SFXDragonSoulReviveWind is None; skipping wind SFX")
     endif
-    if NPCDragonDeathSequenceExplosion
-        NPCDragonDeathSequenceExplosion.Play(target)
+    if SFXDragonSoulReviveExplosion
+        PlayDragonSoulReviveSFX(SFXDragonSoulReviveExplosion, target, False)
     else
-        LogDragonSoulRevive(IronSoulConfig.LOG_ERR(), "HandleDragonSoulRevive: NPCDragonDeathSequenceExplosion is None; skipping explosion SFX")
+        LogDragonSoulRevive(IronSoulConfig.LOG_ERR(), "HandleDragonSoulRevive: SFXDragonSoulReviveExplosion is None; skipping explosion SFX")
     endif
 
     Utility.Wait(1.0)
@@ -294,35 +305,64 @@ Function HandleRevive(Actor target, Actor caster, String guid)
     LogDragonSoulRevive(IronSoulConfig.LOG_DBG(), "HandleDragonSoulRevive: Cleanup finished")
 EndFunction
 
-Function SyncLimitState(Actor player, String guid)
+Function SyncLimitState(Actor player, String guid, Bool rebaselineClock = False)
     if !HasCoreRuntime() || !player || guid == "" || Controller.Config.GetDragonSoulReviveLimit() == 0
+        CancelLimitAlarm("limit-disabled")
         return
     endif
 
-    Int nowSec = Utility.GetCurrentRealTime() as Int
+    Int nowSec = IronSoulNative.GetActiveGameplaySeconds()
+    Bool hasLastSec = IronSoulNative.DataHasKey(IronSoulPersistence.GetKey(dsrLimitLastSec, guid))
     Int lastSec = Controller.Persistence.GetGuidInt(player, guid, dsrLimitLastSec, 0)
     Int playedSec = Controller.Persistence.GetGuidInt(player, guid, dsrLimitPlayedSec, 0)
 
-    if lastSec <= 0
+    if !hasLastSec
         Controller.Persistence.SetGuidInt(player, guid, dsrLimitLastSec, nowSec, True)
+        _dsrNextPersistAt = nowSec + _dsrLimitPersistGateSeconds
+        ArmLimitAlarm(player, guid, nowSec)
         return
+    endif
+
+    Bool persistedClock = False
+    if rebaselineClock || lastSec < 0 || lastSec > nowSec
+        lastSec = nowSec
+        Controller.Persistence.SetGuidInt(player, guid, dsrLimitLastSec, nowSec, True)
+        persistedClock = True
     endif
 
     Int delta = nowSec - lastSec
     if delta < 0
         delta = 0
-    elseif delta > 60
-        delta = 60
     endif
 
     if delta > 0
         playedSec += delta
         Controller.Persistence.SetGuidInt(player, guid, dsrLimitPlayedSec, playedSec, True)
+        persistedClock = True
     endif
 
     if nowSec != lastSec
         Controller.Persistence.SetGuidInt(player, guid, dsrLimitLastSec, nowSec, True)
+        persistedClock = True
     endif
+    if persistedClock || _dsrNextPersistAt <= nowSec
+        _dsrNextPersistAt = nowSec + _dsrLimitPersistGateSeconds
+    endif
+    ArmLimitAlarm(player, guid, nowSec)
+EndFunction
+
+Bool Function IsActiveGameplayAlarmToken(Int token)
+    return token > 0 && token == _dsrLimitAlarmToken
+EndFunction
+
+Function HandleActiveGameplayAlarm(Actor player, String guid, Int token)
+    if !IsActiveGameplayAlarmToken(token)
+        LogDragonSoulRevive(IronSoulConfig.LOG_DBG(), "HandleActiveGameplayAlarm: ignored stale token=" + token + " current=" + _dsrLimitAlarmToken, True)
+        return
+    endif
+
+    _dsrLimitAlarmToken = 0
+    SyncLimitState(player, guid)
 EndFunction
 
 String Function ResolveMenu(Actor player, String guid)
@@ -452,6 +492,77 @@ Function RecordLimitUse(Actor player, String guid, Int playedNow)
     Controller.Persistence.SetGuidInt(player, guid, dsrLimitUse1, use1, True)
     Controller.Persistence.SetGuidInt(player, guid, dsrLimitUse2, use2, True)
     Controller.Persistence.SetGuidInt(player, guid, dsrLimitUse3, use3, True)
+    Int nowSec = IronSoulNative.GetActiveGameplaySeconds()
+    _dsrNextPersistAt = nowSec + _dsrLimitPersistGateSeconds
+    ArmLimitAlarm(player, guid, nowSec)
+EndFunction
+
+Function CancelLimitAlarm(String reason = "dsr-limit-cancel")
+    if _dsrLimitAlarmToken > 0
+        IronSoulNative.CancelActiveGameplayAlarm(_dsrLimitAlarmToken, reason)
+        _dsrLimitAlarmToken = 0
+    endif
+    if reason != "dsr-limit-rearm"
+        _dsrNextPersistAt = 0
+    endif
+EndFunction
+
+Bool Function ArmLimitAlarm(Actor player, String guid, Int nowSec)
+    CancelLimitAlarm("dsr-limit-rearm")
+    if !HasCoreRuntime() || !player || guid == "" || Controller.Config.GetDragonSoulReviveLimit() == 0
+        return False
+    endif
+
+    Int playedNow = Controller.Persistence.GetGuidInt(player, guid, dsrLimitPlayedSec, 0)
+    Int recentUses = RefreshRollingLimitUses(player, guid, playedNow)
+    if recentUses <= 0
+        _dsrNextPersistAt = 0
+        return False
+    endif
+
+    Int earliestUse = GetEarliestRecentUse(player, guid)
+    if earliestUse < 0
+        return False
+    endif
+
+    Int targetPlayed = earliestUse + 600
+    Int targetSecond = nowSec + (targetPlayed - playedNow)
+    if targetSecond < nowSec
+        targetSecond = nowSec
+    endif
+    if _dsrNextPersistAt <= nowSec
+        _dsrNextPersistAt = nowSec + _dsrLimitPersistGateSeconds
+    endif
+    if _dsrNextPersistAt < targetSecond
+        targetSecond = _dsrNextPersistAt
+    endif
+
+    Int token = IronSoulNative.QueueActiveGameplayAlarm(targetSecond, "dsr-active-alarm")
+    if token <= 0
+        LogDragonSoulRevive(IronSoulConfig.LOG_DBG(), "ArmLimitAlarm: native alarm unavailable", True)
+        return False
+    endif
+
+    _dsrLimitAlarmToken = token
+    return True
+EndFunction
+
+Int Function GetEarliestRecentUse(Actor player, String guid)
+    Int earliest = -1
+    Int use1 = Controller.Persistence.GetGuidInt(player, guid, dsrLimitUse1, -1)
+    Int use2 = Controller.Persistence.GetGuidInt(player, guid, dsrLimitUse2, -1)
+    Int use3 = Controller.Persistence.GetGuidInt(player, guid, dsrLimitUse3, -1)
+
+    if use1 >= 0
+        earliest = use1
+    endif
+    if use2 >= 0 && (earliest < 0 || use2 < earliest)
+        earliest = use2
+    endif
+    if use3 >= 0 && (earliest < 0 || use3 < earliest)
+        earliest = use3
+    endif
+    return earliest
 EndFunction
 
 Function ShaderParticleIntro()
@@ -505,7 +616,7 @@ Function PlayDragonSoulReviveSFX(Sound sfx, Actor source, Bool castSFX)
     if !sfx || !source
         return
     endif
-    sfx.Play(source)
+    IronSoulNative.AudioPlay(sfx, source, 1.0, "dragon-soul-revive-sfx")
 EndFunction
 
 Function RestoreVitals(Actor target)
