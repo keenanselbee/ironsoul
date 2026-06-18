@@ -66,6 +66,26 @@ AutoHotkey / ExplorerFix Rules
 - Background hotkey scripts that defend against Explorer hangs must not call `Shell.Application.Windows` in the resident hotkey path; use a short-lived helper process with a timeout.
 
 
+SWF / Flash UI
+--------------
+
+- JPEXS Flash Decompiler lives at `C:\Google Drive\Apps\JPEXS Flash Decompiler\ffdec.exe`.
+- Use JPEXS Flash Decompiler to inspect, decompile, export, import, or modify SWF files when working on Flash UI assets.
+- Prefer `C:\Google Drive\Apps\JPEXS Flash Decompiler\ffdec-cli.exe` for terminal inspection. `ffdec.exe` is the GUI launcher and may not print useful CLI help.
+- Useful read-only inspection commands:
+  - `ffdec-cli.exe -help`
+  - `ffdec-cli.exe -header <swf>`
+  - `ffdec-cli.exe -dumpSWF <swf>`
+  - `ffdec-cli.exe -onerror ignore -export script,text,symbolClass <outdir> <swf>`
+  - `ffdec-cli.exe -onerror ignore -swf2xml <swf> <outfile.xml>`
+  - `ffdec-cli.exe -selectid <id> -format shape:svg -export shape <outdir> <swf>`
+- Keep JPEXS exports under `.codex-temp` unless the user explicitly asks to preserve them.
+- For SWF comparisons, start with header/hash/size checks, then compare exported symbol maps, text files, script hashes, tag counts, and targeted XML or SVG for changed character IDs.
+- Full-frame exports can look nearly blank for transparent/menu-component SWFs. If that happens, export the changed shape or sprite by ID instead of relying on the whole-frame PNG.
+- Treat FFDec XML as an inspection format, not a stable source format, unless the task is explicitly to round-trip XML with the same FFDec version.
+- External SWFs may be opened or used as read-only references. Modify only repo-local SWFs unless the user explicitly asks for an external write and the external-path rules in this file allow it.
+- When editing SWFs, prefer working on a repo-local copy or temporary staging copy, then copy only the intended finished SWF into `mod\interface` or `assets\interface`.
+
 xEdit / ESP Inspection
 ----------------------
 
