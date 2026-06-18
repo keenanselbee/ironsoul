@@ -2,6 +2,7 @@
 #include "config.h"
 #include "pathutil.h"
 #include <atomic>
+#include <cctype>
 #include <unordered_map>
 #include <vector>
 
@@ -18,6 +19,7 @@ namespace IronSoul::Config
 
 	// Store case-insensitive keys (lowercased). Values are int32.
 	static std::unordered_map<std::string, std::int32_t> g_ints;
+	static std::unordered_map<std::string, std::string> g_stringValues;
 	static std::int32_t g_effectiveDisplayPresetFamily = 0;
 	static std::int32_t g_effectiveDisplayRank = 0;
 
@@ -41,10 +43,12 @@ struct ConfigKeySpec
 	std::int32_t flags;
 };
 
-struct ConfigKeyAliasSpec
+struct StringConfigKeySpec
 {
-	const char* aliasKey;
 	const char* canonicalKey;
+	const char* displayName;
+	const char* sectionName;
+	const char* defaultValue;
 };
 
 static constexpr ConfigKeySpec kConfigKeySpecs[] = {
@@ -62,10 +66,9 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "deathmenu", "DeathMenu", "General", 1, true, 0, true, 1, 0 },
 	{ "deathquitmode", "DeathQuitMode", "General", 1, true, 1, true, 2, 0 },
 	{ "dragonsoulnotification", "DragonSoulNotification", "General", 1, true, 0, true, 1, 0 },
-	{ "farsightoverlay", "FarsightOverlay", "General", 1, true, 0, true, 1, 0 },
-	{ "farsightoverlaymode", "FarsightOverlayMode", "General", 1, true, 1, true, 2, 0 },
+	{ "farsightoverlaymode", "FarsightOverlayMode", "General", 1, true, 0, true, 2, 0 },
 	{ "ironsoulintro", "IronSoulIntro", "General", 1, true, 0, true, 1, 0 },
-	{ "ironsoulintrodelayseconds", "IronSoulIntroDelaySeconds", "General", 23, true, 0, true, 120, 0 },
+	{ "ironsoulintrotargetseconds", "IronSoulIntroTargetSeconds", "General", 15, true, 0, true, 120, 0 },
 	{ "loadnotification", "LoadNotification", "General", 1, true, 0, true, 1, 0 },
 	{ "prisonertestcharacters", "PrisonerTestCharacters", "General", 1, true, 0, true, 1, 0 },
 	{ "soulbonus", "SoulBonus", "General", 1, true, 0, true, 1, 0 },
@@ -117,6 +120,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "dynamiclevelwidget", "DynamicLevelWidget", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "dynamicsplash", "DynamicSplash", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "slowmoondeath", "SlowMoOnDeath", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "slowmoonfeat", "SlowMoOnFeat", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 
 	{ "musicvolumeoverride", "MusicVolumeOverride", "Sound", -1, true, -1, true, 100, 0 },
 	{ "musicfade", "MusicFade", "Sound", 1, true, 0, true, 1, 0 },
@@ -135,6 +139,7 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "dragonsoulrevivecastsfx", "DragonSoulReviveCastSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "dragonsoulrevivesfx", "DragonSoulReviveSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "featunlocksfx", "FeatUnlockSFX", "Sound", 1, true, 0, true, 1, 0 },
+	{ "luckimprovedsfx", "LuckImprovedSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "luckoutcomesfx", "LuckOutcomeSFX", "Sound", 1, true, 0, true, 1, 0 },
 	{ "respawnheavybreathingsfx", "RespawnHeavyBreathingSFX", "Sound", 1, true, 0, true, 1, 0 },
 
@@ -149,19 +154,17 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "uninstallmode", "UninstallMode", "Debug", 0, true, 0, true, 1, kConfigFlagUninstallMode },
 };
 
-static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
-	{ "dragonsoulanticheat", "anticheat" },
+static constexpr StringConfigKeySpec kStringConfigKeySpecs[] = {
+	{ "language", "Language", "General", "Auto" },
 };
+
+static constexpr std::string_view kAcceptedLanguageValues =
+	"Auto, English, French, German, Italian, Spanish, Polish, Russian, Japanese, or Chinese";
 
 	static bool IsInfoLoggingEnabledLocked()
 	{
 		const auto it = g_ints.find("enablelogging");
-		if (it != g_ints.end() && it->second == 1) {
-			return true;
-		}
-
-		const auto itLegacy = g_ints.find("logging.enablelogging");
-		return itLegacy != g_ints.end() && itLegacy->second == 1;
+		return it != g_ints.end() && it->second == 1;
 	}
 
 	static void RefreshInfoLoggingCacheLocked()
@@ -331,6 +334,12 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		std::string canonicalText;
 	};
 
+	struct ParsedStringConfigValue
+	{
+		std::string value;
+		std::string canonicalText;
+	};
+
 	static std::int32_t ClampInt(std::int32_t value, std::int32_t minValue, std::int32_t maxValue);
 	static std::int32_t GetConfigValueLocked(std::string_view canonicalKey, std::int32_t defaultValue);
 
@@ -435,6 +444,75 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		return out;
 	}
 
+	static std::string CompactLanguageToken(std::string_view valueText)
+	{
+		std::string text(valueText);
+		TrimInPlace(text);
+		UnquoteIfWrapped(text);
+		text = ToLowerCopy(text);
+
+		std::string out;
+		out.reserve(text.size());
+		for (unsigned char c : text) {
+			if (std::isalnum(c)) {
+				out.push_back(static_cast<char>(c));
+			}
+		}
+		return out;
+	}
+
+	static std::optional<std::string> NormalizeLanguageValue(std::string_view valueText)
+	{
+		const std::string token = CompactLanguageToken(valueText);
+		if (token == "auto") {
+			return "Auto";
+		}
+		if (token == "en" || token == "english") {
+			return "English";
+		}
+		if (token == "fr" || token == "french" || token == "francais") {
+			return "French";
+		}
+		if (token == "de" || token == "ger" || token == "german" || token == "deutsch") {
+			return "German";
+		}
+		if (token == "it" || token == "ita" || token == "italian" || token == "italiano") {
+			return "Italian";
+		}
+		if (token == "es" || token == "spa" || token == "spanish" || token == "spanishspain") {
+			return "Spanish";
+		}
+		if (token == "pl" || token == "pol" || token == "polish" || token == "polski") {
+			return "Polish";
+		}
+		if (token == "ru" || token == "rus" || token == "russian") {
+			return "Russian";
+		}
+		if (token == "ja" || token == "jp" || token == "jpn" || token == "japanese") {
+			return "Japanese";
+		}
+		if (token == "zh" || token == "chi" || token == "zho" || token == "chinese" ||
+			token == "tchinese" || token == "schinese" || token == "traditionalchinese" ||
+			token == "simplifiedchinese") {
+			return "Chinese";
+		}
+		return std::nullopt;
+	}
+
+	static std::optional<ParsedStringConfigValue> ParseStringConfigValueForKey(
+		const std::string& keyLower,
+		std::string_view valueText)
+	{
+		if (keyLower == "language") {
+			auto language = NormalizeLanguageValue(valueText);
+			if (!language.has_value()) {
+				return std::nullopt;
+			}
+			return ParsedStringConfigValue{ *language, *language };
+		}
+		return std::nullopt;
+	}
+
 	static std::optional<ParsedConfigValue> ParseConfigValueForKey(const std::string& keyLower, std::string_view valueText)
 	{
 		if (keyLower == "ironsoulpreset") {
@@ -525,19 +603,43 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 			return spec;
 		}
 
-		for (const ConfigKeyAliasSpec& alias : kConfigKeyAliases) {
-			if (alias.aliasKey == keyLower) {
-				return FindConfigKeySpecByCanonical(alias.canonicalKey);
+		return nullptr;
+	}
+
+	static const StringConfigKeySpec* FindStringConfigKeySpecByCanonical(std::string_view canonicalKey)
+	{
+		for (const StringConfigKeySpec& spec : kStringConfigKeySpecs) {
+			if (spec.canonicalKey == canonicalKey) {
+				return &spec;
 			}
 		}
+		return nullptr;
+	}
 
-		// Permit "section.key" forms by canonicalizing to "key".
-		const std::size_t dot = keyLower.rfind('.');
-		if (dot != std::string::npos && dot + 1 < keyLower.size()) {
-			return FindConfigKeySpec(std::string_view(keyLower).substr(dot + 1));
+	static const StringConfigKeySpec* FindStringConfigKeySpec(std::string_view key)
+	{
+		std::string keyLower = ToLowerCopy(key);
+		TrimInPlace(keyLower);
+		if (!IsValidConfigKey(keyLower)) {
+			return nullptr;
+		}
+
+		if (const StringConfigKeySpec* spec = FindStringConfigKeySpecByCanonical(keyLower)) {
+			return spec;
 		}
 
 		return nullptr;
+	}
+
+	static std::optional<std::string> CanonicalizeKnownKey(std::string_view key)
+	{
+		if (const ConfigKeySpec* spec = FindConfigKeySpec(key)) {
+			return std::string(spec->canonicalKey);
+		}
+		if (const StringConfigKeySpec* spec = FindStringConfigKeySpec(key)) {
+			return std::string(spec->canonicalKey);
+		}
+		return std::nullopt;
 	}
 
 	static std::optional<std::string> CanonicalizeAllowedKey(std::string_view key)
@@ -577,6 +679,15 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		auto it = g_ints.find(std::string(canonicalKey));
 		if (it == g_ints.end()) {
 			return defaultValue;
+		}
+		return it->second;
+	}
+
+	static std::string GetStringConfigValueLocked(std::string_view canonicalKey, std::string_view defaultValue)
+	{
+		auto it = g_stringValues.find(std::string(canonicalKey));
+		if (it == g_stringValues.end()) {
+			return std::string(defaultValue);
 		}
 		return it->second;
 	}
@@ -787,6 +898,15 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 			return std::string("Error: invalid INI key '") + EscapeForLog(keyText) + "'.";
 		}
 
+		const StringConfigKeySpec* stringSpec = FindStringConfigKeySpec(keyText);
+		if (stringSpec) {
+			if (!ParseStringConfigValueForKey(stringSpec->canonicalKey, valueText).has_value()) {
+				return std::string("Error: ") + stringSpec->displayName + " must be " +
+					std::string(kAcceptedLanguageValues) + ".";
+			}
+			return "";
+		}
+
 		const ConfigKeySpec* spec = FindConfigKeySpec(keyText);
 		if (!spec) {
 			return std::string("Error: unknown INI key '") + EscapeForLog(keyText) + "'.";
@@ -816,11 +936,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		bool wroteHeader = false;
 		int valuesOnLine = 0;
 
-		for (const ConfigKeySpec& spec : kConfigKeySpecs) {
-			if (std::string_view(spec.sectionName) != sectionName) {
-				continue;
-			}
-
+		auto appendValue = [&](std::string_view displayName, std::string_view value) {
 			if (!wroteHeader) {
 				if (!result.empty() && result.back() == '\n') {
 					result += "\n";
@@ -835,15 +951,29 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 				result += ", ";
 			}
 
-			result += spec.displayName;
+			result.append(displayName.data(), displayName.size());
 			result += "=";
-			result += std::to_string(GetConfigValueLocked(spec.canonicalKey, spec.defaultValue));
+			result.append(value.data(), value.size());
 
 			++valuesOnLine;
 			if (valuesOnLine >= 5) {
 				result += "\n";
 				valuesOnLine = 0;
 			}
+		};
+
+		for (const StringConfigKeySpec& spec : kStringConfigKeySpecs) {
+			if (std::string_view(spec.sectionName) != sectionName) {
+				continue;
+			}
+			appendValue(spec.displayName, GetStringConfigValueLocked(spec.canonicalKey, spec.defaultValue));
+		}
+
+		for (const ConfigKeySpec& spec : kConfigKeySpecs) {
+			if (std::string_view(spec.sectionName) != sectionName) {
+				continue;
+			}
+			appendValue(spec.displayName, std::to_string(GetConfigValueLocked(spec.canonicalKey, spec.defaultValue)));
 		}
 
 		if (wroteHeader && valuesOnLine != 0) {
@@ -869,6 +999,12 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		return NormalizePresetOrdinal(GetConfigValueLocked("ironsoulpreset", 0));
 	}
 
+	std::string GetLanguage()
+	{
+		std::lock_guard lock(g_mutex);
+		return GetStringConfigValueLocked("language", "Auto");
+	}
+
 	bool SetEffectiveDisplayDifficulty(std::int32_t presetFamily, std::int32_t displayRank)
 	{
 		std::lock_guard lock(g_mutex);
@@ -889,8 +1025,8 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 	std::string GetConfigKeyCanonical(std::string_view key)
 	{
 		std::lock_guard lock(g_mutex);
-		if (const ConfigKeySpec* spec = FindConfigKeySpec(key)) {
-			return spec->canonicalKey;
+		if (const auto canonicalKey = CanonicalizeKnownKey(key)) {
+			return *canonicalKey;
 		}
 		return "";
 	}
@@ -899,6 +1035,9 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 	{
 		std::lock_guard lock(g_mutex);
 		if (const ConfigKeySpec* spec = FindConfigKeySpec(key)) {
+			return spec->displayName;
+		}
+		if (const StringConfigKeySpec* spec = FindStringConfigKeySpec(key)) {
 			return spec->displayName;
 		}
 		return "";
@@ -959,13 +1098,11 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 	static void UpsertConfigValueLocked(const std::string& keyLower, const ParsedConfigValue& parsed)
 	{
 		g_ints[keyLower] = parsed.value;
-		for (auto& [k, v] : g_ints) {
-			if (k.size() > keyLower.size() + 1 &&
-				k.compare(k.size() - keyLower.size(), keyLower.size(), keyLower) == 0 &&
-				k[k.size() - keyLower.size() - 1] == '.') {
-				v = parsed.value;
-			}
-		}
+	}
+
+	static void UpsertStringConfigValueLocked(const std::string& keyLower, const ParsedStringConfigValue& parsed)
+	{
+		g_stringValues[keyLower] = parsed.value;
 	}
 
 	static bool ReplaceIniValueForExistingKey(const fs::path& iniPath, const std::string& targetKeyLower, const std::string& valueText)
@@ -1000,8 +1137,8 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 					TrimInPlace(keyPart);
 					if (!keyPart.empty()) {
 						std::string keyLower = ToLowerCopy(keyPart);
-						if (const ConfigKeySpec* spec = FindConfigKeySpec(keyLower)) {
-							keyLower = spec->canonicalKey;
+						if (const auto canonicalKey = CanonicalizeKnownKey(keyLower)) {
+							keyLower = *canonicalKey;
 						}
 						if (keyLower == targetKeyLower) {
 							std::string valuePart = line.substr(eq + 1);
@@ -1154,6 +1291,38 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 			return false;
 		}
 
+		if (const StringConfigKeySpec* stringSpec = FindStringConfigKeySpec(keyText)) {
+			const std::string keyLower = stringSpec->canonicalKey;
+			auto parsed = ParseStringConfigValueForKey(keyLower, value);
+			if (!parsed.has_value()) {
+				logger::warn(
+					"Iron Soul: SetString rejected invalid config value for key '{}' (raw='{}')",
+					EscapeForLog(keyText),
+					EscapeForLog(value)
+				);
+				return false;
+			}
+
+			if (!persistToIni) {
+				UpsertStringConfigValueLocked(keyLower, *parsed);
+				return true;
+			}
+
+			const fs::path iniPath = GetIniPath();
+			EnsureDirExists(iniPath);
+
+			if (!ReplaceIniValueForExistingKey(iniPath, keyLower, parsed->canonicalText)) {
+				return false;
+			}
+
+			UpsertStringConfigValueLocked(keyLower, *parsed);
+
+			if (ShouldEmitInfoLogLocked()) {
+				logger::info("Iron Soul: INI key updated {}={} ({})", keyLower, parsed->canonicalText, iniPath.string());
+			}
+			return true;
+		}
+
 		const ConfigKeySpec* spec = FindConfigKeySpec(keyText);
 		const std::string keyLower = spec ? spec->canonicalKey : "";
 		auto parsed = ParseConfigValueForKey(keyLower, value);
@@ -1197,6 +1366,7 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 	{
 		std::lock_guard lock(g_mutex);
 		g_ints.clear();
+		g_stringValues.clear();
 		ResetEffectiveDisplayDifficultyToPresetLocked();
 		RefreshInfoLoggingCacheLocked();
 
@@ -1214,7 +1384,6 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		}
 
 		std::string currentSection;            // original case
-		std::string currentSectionKeyLower;    // lower(section)
 
 		std::string line;
 		bool firstLine = true;
@@ -1222,9 +1391,9 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 		// Accurate accounting
 		std::size_t settingsParsed = 0;        // successful int settings (actual INI entries)
 		std::size_t insertedRaw = 0;
-		std::size_t insertedQualified = 0;
 		std::size_t dupRaw = 0;
-		std::size_t dupQualified = 0;
+		std::size_t stringSettingsParsed = 0;
+		std::size_t stringDupRaw = 0;
 
 		while (std::getline(in, line)) {
 
@@ -1246,7 +1415,6 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 				if (end != std::string::npos) {
 					currentSection = line.substr(start + 1, end - (start + 1));
 					TrimInPlace(currentSection);
-					currentSectionKeyLower = ToLowerCopy(currentSection);
 				}
 				continue;
 			}
@@ -1271,6 +1439,47 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 			std::string keyLower = ToLowerCopy(key);
 			if (const ConfigKeySpec* spec = FindConfigKeySpec(keyLower)) {
 				keyLower = spec->canonicalKey;
+			}
+
+			if (const StringConfigKeySpec* stringSpec = FindStringConfigKeySpec(keyLower)) {
+				keyLower = stringSpec->canonicalKey;
+				auto parsedString = ParseStringConfigValueForKey(keyLower, val);
+				if (!parsedString.has_value()) {
+					logger::warn(
+						"Iron Soul: invalid config value for key '{}' in ironsoul.ini (raw='{}'); using English",
+						key,
+						EscapeForLog(val)
+					);
+					parsedString = ParsedStringConfigValue{ "English", "English" };
+				}
+
+				++stringSettingsParsed;
+
+				if (ShouldEmitInfoLogLocked()) {
+					if (!currentSection.empty()) {
+						logger::info("Iron Soul: INI [{}] {}={}", currentSection, key, parsedString->canonicalText);
+					} else {
+						logger::info("Iron Soul: INI {}={}", key, parsedString->canonicalText);
+					}
+				}
+
+				{
+					auto [it, inserted] = g_stringValues.emplace(keyLower, parsedString->value);
+					if (!inserted) {
+						++stringDupRaw;
+						if (it->second != parsedString->value) {
+							logger::warn(
+								"Iron Soul: duplicate key '{}' overwrote previous value '{}' -> '{}'",
+								key,
+								EscapeForLog(it->second),
+								EscapeForLog(parsedString->value)
+							);
+							it->second = parsedString->value;
+						}
+					}
+				}
+
+				continue;
 			}
 
 			auto parsed = ParseConfigValueForKey(keyLower, val);
@@ -1324,22 +1533,6 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 				}
 			}
 
-			// Insert section-qualified key (lowercased) if a section exists:
-			if (!currentSectionKeyLower.empty()) {
-				std::string sectionKey;
-				sectionKey.reserve(currentSectionKeyLower.size() + 1 + keyLower.size());
-				sectionKey.append(currentSectionKeyLower).append(".").append(keyLower);
-
-				auto [it2, inserted2] = g_ints.emplace(sectionKey, parsed->value);
-				if (inserted2) {
-					++insertedQualified;
-				} else {
-					++dupQualified;
-					if (it2->second != parsed->value) {
-						it2->second = parsed->value;
-					}
-				}
-			}
 		}
 
 		RefreshInfoLoggingCacheLocked();
@@ -1347,13 +1540,19 @@ static constexpr ConfigKeyAliasSpec kConfigKeyAliases[] = {
 
 		// Accurate summary
 		if (ShouldEmitInfoLogLocked()) {
-			logger::info("Iron Soul: loaded {} int settings from ironsoul.ini", settingsParsed);
-			logger::info("Iron Soul: lookup keys inserted: raw={} qualified={} (total map entries={})",
-				insertedRaw, insertedQualified, g_ints.size());
+			logger::info(
+				"Iron Soul: loaded {} int settings and {} string settings from ironsoul.ini",
+				settingsParsed,
+				stringSettingsParsed);
+			logger::info("Iron Soul: int lookup keys inserted: raw={} (total map entries={})",
+				insertedRaw, g_ints.size());
 		}
 
-		if (dupRaw || dupQualified) {
-			logger::warn("Iron Soul: INI duplicates encountered: raw={} qualified={}", dupRaw, dupQualified);
+		if (dupRaw) {
+			logger::warn("Iron Soul: INI duplicates encountered: raw={}", dupRaw);
+		}
+		if (stringDupRaw) {
+			logger::warn("Iron Soul: INI string duplicates encountered: raw={}", stringDupRaw);
 		}
 
 		if (ShouldEmitInfoLogLocked()) {

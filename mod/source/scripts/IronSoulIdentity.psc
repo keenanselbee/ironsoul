@@ -226,6 +226,9 @@ EndFunction
 String Function GetTickGuid(Actor player)
     ; Returns the cached GUID. If not cached, compute lazily and cache only when non-empty.
     if _tickGuidValid
+        if Controller && Controller.Presentation
+            Controller.Presentation.MarkPendingIronIntroShown(player, _tickGuid)
+        endif
         return _tickGuid
     endif
 
@@ -233,6 +236,9 @@ String Function GetTickGuid(Actor player)
     if g != ""
         _tickGuid = g
         _tickGuidValid = True
+        if Controller && Controller.Presentation
+            Controller.Presentation.MarkPendingIronIntroShown(player, g)
+        endif
         return g
     endif
 
@@ -359,19 +365,6 @@ String Function EnsureGuid(Actor player)
 
     LogIdentity(IronSoulConfig.LOG_INFO(), "EnsureGuid: GUID FINALIZED (" + guid + ", name=" + pn + ")")
 
-    Bool shouldScheduleIronIntro = _bootstrapStartedAt > 0.0 && player.GetLevel() <= 1
-    if shouldScheduleIronIntro && Controller && Controller.Config && Controller.Presentation
-        Float introDelay = Controller.Config.GetIronSoulIntroDelaySeconds() as Float
-        Float elapsed = Utility.GetCurrentRealTime() - _bootstrapStartedAt
-        if elapsed < 0.0
-            elapsed = 0.0
-        endif
-        introDelay -= elapsed
-        if introDelay < 0.0
-            introDelay = 0.0
-        endif
-        Controller.Presentation.ScheduleIronIntroAfterGuidFinalize(player, guid, introDelay)
-    endif
     _bootstrapStartedAt = 0.0
 
     if Controller && Controller.Effects
@@ -922,7 +915,7 @@ String Function TryRestoreGuidTamperedCosave(Actor player, String pn, String cos
         LogIdentity(IronSoulConfig.LOG_ERR(), "TryRestoreGuidTamperedCosave: suspicious co-save GUID '" + cosaveGuid + "' had no strong unique match; minted new GUID '" + newGuid + "'")
         if !_guidTamperMintNotified
             _guidTamperMintNotified = True
-            Debug.Notification("[Iron Soul] Character identity could not be safely verified. A new identity was created.")
+            Debug.Notification(IronSoulNative.TextGet("Notification.IdentityNew"))
         endif
 
         return newGuid

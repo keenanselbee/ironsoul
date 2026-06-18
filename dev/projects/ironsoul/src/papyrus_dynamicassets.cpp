@@ -9,6 +9,7 @@
 #include <fstream>
 #include <limits>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace IronSoul::Papyrus::DynamicAssets
@@ -43,13 +44,16 @@ namespace
         }
     }
 
-    static std::int32_t NormalizeDynamicSplashPreset(std::int32_t a_presetId)
+    static std::int32_t ResolveDynamicSplashPresetBank(std::int32_t a_presetId)
     {
-        if (a_presetId == 1 || a_presetId == 2 || a_presetId == 3) {
-            return a_presetId;
+        switch (a_presetId) {
+        case 2:
+            return 1;
+        case 3:
+            return 2;
+        default:
+            return 0;
         }
-
-        return 0;
     }
 
     static std::optional<std::wstring> ResolveDynamicSplashFile(std::int32_t a_tierId, std::int32_t a_presetId)
@@ -60,39 +64,15 @@ namespace
         }
 
         std::wstring file = L"splash_";
-        auto preset = NormalizeDynamicSplashPreset(a_presetId);
-        if (a_tierId == 9 && preset > 1) {
-            preset = 0;
+        auto bank = ResolveDynamicSplashPresetBank(a_presetId);
+        if (a_tierId == 9) {
+            bank = 0;
         }
-        file += std::to_wstring(preset);
+        file += std::to_wstring(bank);
         file += *token;
         file += L".png";
 
         return file;
-    }
-
-    static std::optional<const wchar_t*> ResolveDynamicLevelWidgetFile(std::int32_t a_tierId)
-    {
-        switch (a_tierId) {
-        case 0:
-            return L"lvlWidget_0_defiant.swf";
-        case 1:
-            return L"lvlWidget_1_iron.swf";
-        case 2:
-            return L"lvlWidget_2_silver.swf";
-        case 3:
-            return L"lvlWidget_3_gold.swf";
-        case 4:
-            return L"lvlWidget_4_ebon.swf";
-        case 5:
-            return L"lvlWidget_5_platinum.swf";
-        case 6:
-            return L"lvlWidget_6_devour.swf";
-        case 9:
-            return L"lvlWidget_9_chim.swf";
-        default:
-            return std::nullopt;
-        }
     }
 
     static DynamicAssetVariants GetDynamicSplashVariants(const std::filesystem::path& a_variantDir)
@@ -104,18 +84,6 @@ namespace
                 if (file) {
                     variants.push_back(a_variantDir / std::filesystem::path(*file));
                 }
-            }
-        }
-        return variants;
-    }
-
-    static DynamicAssetVariants GetDynamicLevelWidgetVariants(const std::filesystem::path& a_variantDir)
-    {
-        DynamicAssetVariants variants;
-        for (const auto tier : kDynamicAssetTiers) {
-            const auto file = ResolveDynamicLevelWidgetFile(tier);
-            if (file) {
-                variants.push_back(a_variantDir / *file);
             }
         }
         return variants;
@@ -165,6 +133,237 @@ namespace
         }
 
         return 1;
+    }
+
+    static constexpr std::string_view kLevelWidgetMenuName = "lvlWidget";
+    static constexpr const char* kSetIronSoulTierPath = "_root.widget.setIronSoulTier";
+
+    class LevelWidgetMenuSink :
+        public RE::BSTEventSink<RE::MenuOpenCloseEvent>
+    {
+    public:
+        RE::BSEventNotifyControl ProcessEvent(
+            const RE::MenuOpenCloseEvent* a_event,
+            RE::BSTEventSource<RE::MenuOpenCloseEvent>*) override;
+    };
+
+    struct LevelWidgetState
+    {
+        std::mutex lock;
+        std::int32_t desiredTier{ 1 };
+        bool hasDesiredTier{ false };
+        bool menuSinkRegistered{ false };
+        bool warnedInvalidTier{ false };
+        bool warnedMissingUI{ false };
+        bool warnedMissingMovie{ false };
+        bool warnedMissingMethod{ false };
+    };
+
+    LevelWidgetState g_levelWidgetState;
+    LevelWidgetMenuSink g_levelWidgetMenuSink;
+
+    static bool IsCanonicalDynamicLevelWidgetTier(std::int32_t a_tierId)
+    {
+        for (const auto tier : kDynamicAssetTiers) {
+            if (a_tierId == tier) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static std::int32_t NormalizeDynamicLevelWidgetMode()
+    {
+        return IronSoul::Config::GetInt("DynamicLevelWidget", 1) == 0 ? 0 : 1;
+    }
+
+    static void WarnInvalidDynamicLevelWidgetTier(std::int32_t a_tierId)
+    {
+        bool shouldWarn = false;
+        {
+            std::scoped_lock lock(g_levelWidgetState.lock);
+            if (!g_levelWidgetState.warnedInvalidTier) {
+                g_levelWidgetState.warnedInvalidTier = true;
+                shouldWarn = true;
+            }
+        }
+
+        if (shouldWarn) {
+            logger::warn("ApplyDynamicLevelWidget: invalid tierId={}, clamped to Iron tier 1", a_tierId);
+        }
+    }
+
+    static std::int32_t ResolveDynamicLevelWidgetTier(std::int32_t a_tierId, std::int32_t a_mode)
+    {
+        if (a_mode == 0) {
+            return 1;
+        }
+
+        if (IsCanonicalDynamicLevelWidgetTier(a_tierId)) {
+            return a_tierId;
+        }
+
+        WarnInvalidDynamicLevelWidgetTier(a_tierId);
+        return 1;
+    }
+
+    static void CacheDesiredDynamicLevelWidgetTier(std::int32_t a_tierId)
+    {
+        std::scoped_lock lock(g_levelWidgetState.lock);
+        g_levelWidgetState.desiredTier = a_tierId;
+        g_levelWidgetState.hasDesiredTier = true;
+    }
+
+    static void WarnMissingLevelWidgetUI(const char* a_source)
+    {
+        bool shouldWarn = false;
+        {
+            std::scoped_lock lock(g_levelWidgetState.lock);
+            if (!g_levelWidgetState.warnedMissingUI) {
+                g_levelWidgetState.warnedMissingUI = true;
+                shouldWarn = true;
+            }
+        }
+
+        if (shouldWarn) {
+            logger::warn("ApplyDynamicLevelWidget: UI singleton unavailable during {}; cached tier will replay when lvlWidget opens", a_source);
+        }
+    }
+
+    static void WarnMissingLevelWidgetMovie(const char* a_source)
+    {
+        bool shouldWarn = false;
+        {
+            std::scoped_lock lock(g_levelWidgetState.lock);
+            if (!g_levelWidgetState.warnedMissingMovie) {
+                g_levelWidgetState.warnedMissingMovie = true;
+                shouldWarn = true;
+            }
+        }
+
+        if (shouldWarn) {
+            logger::warn("ApplyDynamicLevelWidget: lvlWidget movie unavailable during {}; cached tier will replay on menu open", a_source);
+        }
+    }
+
+    static void WarnMissingLevelWidgetMethod(const char* a_source)
+    {
+        bool shouldWarn = false;
+        {
+            std::scoped_lock lock(g_levelWidgetState.lock);
+            if (!g_levelWidgetState.warnedMissingMethod) {
+                g_levelWidgetState.warnedMissingMethod = true;
+                shouldWarn = true;
+            }
+        }
+
+        if (shouldWarn) {
+            logger::warn("ApplyDynamicLevelWidget: {} is missing during {}; another lvlWidget.swf may be overriding Iron Soul's packaged widget", kSetIronSoulTierPath, a_source);
+        }
+    }
+
+    static void ClearLevelWidgetApplyWarnings()
+    {
+        std::scoped_lock lock(g_levelWidgetState.lock);
+        g_levelWidgetState.warnedMissingUI = false;
+        g_levelWidgetState.warnedMissingMovie = false;
+        g_levelWidgetState.warnedMissingMethod = false;
+    }
+
+    static void EnsureLevelWidgetMenuSinkRegistered()
+    {
+        {
+            std::scoped_lock lock(g_levelWidgetState.lock);
+            if (g_levelWidgetState.menuSinkRegistered) {
+                return;
+            }
+        }
+
+        auto* ui = RE::UI::GetSingleton();
+        if (!ui) {
+            WarnMissingLevelWidgetUI("sink registration");
+            return;
+        }
+
+        {
+            std::scoped_lock lock(g_levelWidgetState.lock);
+            if (g_levelWidgetState.menuSinkRegistered) {
+                return;
+            }
+
+            ui->AddEventSink<RE::MenuOpenCloseEvent>(
+                static_cast<RE::BSTEventSink<RE::MenuOpenCloseEvent>*>(&g_levelWidgetMenuSink));
+            g_levelWidgetState.menuSinkRegistered = true;
+            g_levelWidgetState.warnedMissingUI = false;
+        }
+
+        if (InfoLoggingEnabled()) {
+            logger::info("ApplyDynamicLevelWidget: lvlWidget menu sink registered");
+        }
+    }
+
+    static bool TryApplyDynamicLevelWidgetTier(std::int32_t a_tierId, const char* a_source)
+    {
+        auto* ui = RE::UI::GetSingleton();
+        if (!ui) {
+            WarnMissingLevelWidgetUI(a_source);
+            return false;
+        }
+
+        auto movie = ui->GetMovieView(kLevelWidgetMenuName.data());
+        auto* movieView = movie.get();
+        if (!movieView) {
+            WarnMissingLevelWidgetMovie(a_source);
+            return false;
+        }
+
+        RE::GFxValue args[1];
+        args[0].SetNumber(static_cast<double>(a_tierId));
+        RE::GFxValue result;
+        if (!movieView->Invoke(kSetIronSoulTierPath, &result, args, 1)) {
+            WarnMissingLevelWidgetMethod(a_source);
+            return false;
+        }
+
+        ClearLevelWidgetApplyWarnings();
+        if (InfoLoggingEnabled()) {
+            RE::GFxValue readbackTier;
+            const bool hasReadbackTier =
+                movieView->GetVariable(&readbackTier, "_root.widget.ironSoulTier") && readbackTier.IsNumber();
+            const std::string readbackTierText =
+                hasReadbackTier ? std::to_string(readbackTier.GetNumber()) : "missing/non-number";
+
+            RE::GFxValue iconFrame;
+            const bool hasIconFrame =
+                movieView->GetVariable(&iconFrame, "_root.widget.ironSoulTierIcon._currentframe") && iconFrame.IsNumber();
+            const std::string iconFrameText =
+                hasIconFrame ? std::to_string(iconFrame.GetNumber()) : "missing/non-number";
+
+            logger::info(
+                "ApplyDynamicLevelWidget: live applied tierId={} via {}; readbackTier={} iconFrame={}",
+                a_tierId,
+                a_source,
+                readbackTierText,
+                iconFrameText);
+        }
+        return true;
+    }
+
+    static bool ApplyCachedDynamicLevelWidgetTier(const char* a_source)
+    {
+        std::int32_t tier = 1;
+        bool hasTier = false;
+        {
+            std::scoped_lock lock(g_levelWidgetState.lock);
+            tier = g_levelWidgetState.desiredTier;
+            hasTier = g_levelWidgetState.hasDesiredTier;
+        }
+
+        if (!hasTier) {
+            return false;
+        }
+
+        return TryApplyDynamicLevelWidgetTier(tier, a_source);
     }
 
     struct NumberedBackup
@@ -533,64 +732,31 @@ namespace
         }
     }
 
-    static bool DynamicLevelWidgetAssetsPresent()
+    RE::BSEventNotifyControl LevelWidgetMenuSink::ProcessEvent(
+        const RE::MenuOpenCloseEvent* a_event,
+        RE::BSTEventSource<RE::MenuOpenCloseEvent>*)
     {
-        namespace fs = std::filesystem;
-        const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
-        const fs::path widgetDir = ifaceDir / L"lvlWidget";
+        if (!a_event || !a_event->opening) {
+            return RE::BSEventNotifyControl::kContinue;
+        }
 
-        // Require the base destination to exist to confirm the user has the widget mod installed.
-        // We still overwrite it, but its presence is used as the install signal.
-        if (!fs::exists(ifaceDir / L"lvlWidget.swf")) {
-            return false;
+        const std::string_view menuName{ a_event->menuName.c_str() ? a_event->menuName.c_str() : "" };
+        if (menuName == kLevelWidgetMenuName) {
+            ApplyCachedDynamicLevelWidgetTier("menu-open replay");
         }
-        const auto variants = GetDynamicLevelWidgetVariants(widgetDir);
-        for (const auto& variant : variants) {
-            if (!fs::exists(variant)) {
-                return false;
-            }
-        }
-        return true;
+
+        return RE::BSEventNotifyControl::kContinue;
     }
 
     static void ApplyDynamicLevelWidget(RE::StaticFunctionTag*, std::int32_t a_tierId)
     {
         try {
-            namespace fs = std::filesystem;
-            const fs::path ifaceDir = IronSoul::PathUtil::GetDataRoot() / L"Interface";
-            const fs::path widgetDir = ifaceDir / L"lvlWidget";
+            EnsureLevelWidgetMenuSinkRegistered();
 
-            const wchar_t* file = L"lvlWidget_1_iron.swf";
-            const std::int32_t mode = NormalizeDynamicAssetMode(IronSoul::Config::GetInt("DynamicLevelWidget", 1));
-            if (mode == 1) {
-                if (!DynamicLevelWidgetAssetsPresent()) {
-                    return;
-                }
-
-                const auto resolved = ResolveDynamicLevelWidgetFile(a_tierId);
-                if (!resolved) {
-                    logger::warn("ApplyDynamicLevelWidget: invalid tierId={}", a_tierId);
-                    return;
-                }
-                file = *resolved;
-            }
-
-            const fs::path src = widgetDir / file;
-            const fs::path dst = ifaceDir / L"lvlWidget.swf";
-            const auto knownVariants = GetDynamicLevelWidgetVariants(widgetDir);
-
-            if (mode == 0) {
-                RestoreBackupIfPresent(dst, "ApplyDynamicLevelWidget");
-                return;
-            }
-
-            if (!CopyVariantWithBackup(src, dst, knownVariants, "ApplyDynamicLevelWidget")) {
-                return;
-            }
-
-            if (InfoLoggingEnabled()) {
-                logger::info("ApplyDynamicLevelWidget: applied tierId={} mode={} ('{}' -> '{}')", a_tierId, mode, src.string(), dst.string());
-            }
+            const std::int32_t mode = NormalizeDynamicLevelWidgetMode();
+            const std::int32_t tier = ResolveDynamicLevelWidgetTier(a_tierId, mode);
+            CacheDesiredDynamicLevelWidgetTier(tier);
+            TryApplyDynamicLevelWidgetTier(tier, mode == 0 ? "static mode" : "direct request");
         }
         catch (const std::exception& e) {
             logger::error("ApplyDynamicLevelWidget: exception: {}", e.what());

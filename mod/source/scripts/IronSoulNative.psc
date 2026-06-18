@@ -9,11 +9,12 @@ Scriptname IronSoulNative Hidden
 ; Native services:
 ; - DataStore persistence and journal file writes.
 ; - INI config cache, validation, and optional INI persistence.
+; - Text catalog lookup for Iron Soul-owned runtime strings.
 ; - GUID minting, dynamic asset swaps, cursor control, music fades, and slow motion.
 ;
 ; Storage contract:
-; - MainData: Data\SKSE\plugins\ironsoul-character-data.dat
-; - MirrorData: Data\SKSE\plugins\ironsoul-character-mirror-data.dat
+; - MainData: Data\SKSE\plugins\ironsoul\ironsoul-character-data.dat
+; - MirrorData: Data\SKSE\plugins\ironsoul\ironsoul-character-mirror-data.dat
 ; - MirrorData is used only when MirrorDataBackup=1.
 ; - Files are transactional, FNV-1a checked, size capped, and sequence numbered.
 ; - On load, the newest valid store wins; equal-sequence divergence prefers MainData.
@@ -36,7 +37,18 @@ Scriptname IronSoulNative Hidden
 
 ; --- Journal Logging ---
 ; -----------------------
-; LogJournalEntry()
+; JournalLogEvent()
+; JournalLogDefeatOutcome()
+; JournalLogDefeatLuckOutcome()
+; JournalLogTrueDeathOutcome()
+; JournalLogDefiantFatigueOutcome()
+; JournalLogLuckOutcome()
+; JournalLogDragonSoulAbsorbed()
+; JournalLogSoulFeat()
+; JournalLogDefiantSoulFeat()
+; JournalLogDefiantRestore()
+; JournalLogDefiantAwakened()
+; JournalLogCHIMRealized()
 
 ; --- Config Access ---
 ; ---------------------
@@ -51,6 +63,14 @@ Scriptname IronSoulNative Hidden
 ; SetConfigInt()
 ; SetConfigString()
 ; ReloadConfig()
+
+; --- Text Catalog ---
+; --------------------
+; TextGet()
+; TextFormat1()
+; TextFormat2()
+; TextFormat3()
+; TextFormat4()
 
 ; --- Identity / GUID Utilities ---
 ; ---------------------------------
@@ -127,18 +147,28 @@ Scriptname IronSoulNative Hidden
 ; StopHealthMonitor()
 ; HoldDeathSlowMo()
 ; ReleaseDeathSlowMo()
+; ReleaseDeathSlowMoWithHold()
+; TransitionDeathSlowMoToHold()
 ; ClearDeathSlowMo()
 ; StartTimeMultiplierRamp()
 ; ClearTimeMultiplierRamp()
+; TryStartFeatUnlockSlowMo()
+; ReleaseFeatUnlockSlowMo()
+; ClearFeatUnlockSlowMo()
 ; KillPlayerImmediate()
 
 ; --- Runtime Pulse ---
 ; ---------------------
 ; QueueRuntimeUpdate()
 ; CancelRuntimeUpdate()
+; QueueFeatUnlockMenuAlarm()
+; CancelFeatUnlockMenuAlarm()
 ; BeginRespawnStateMonitor()
 ; EndRespawnStateMonitor()
 ; GetActiveGameplaySeconds()
+; GetWallClockSeconds()
+; EnsureNewGameIntroClockStarted()
+; GetNewGameIntroElapsedSeconds()
 ; QueueActiveGameplayAlarm()
 ; CancelActiveGameplayAlarm()
 ; BeginDragonSoulWatcher()
@@ -192,9 +222,21 @@ Bool Function DataStoreReady() Global Native
 ; --- JOURNAL LOGGING ---
 ; =======================
 
-; Appends a character journal line. Native prefixes "Name [D/H/A++] | ".
-; File: Data\SKSE\plugins\ironsoul-character-journal.log
-Function LogJournalEntry(String msg) Global Native
+; Builds "Day X: <event>", prefixes character context, appends to the journal, and returns success.
+Bool Function JournalLogEvent(String eventText, Int startDay, Int nowDay) Global Native
+
+; Native one-shot journal event builders and appenders.
+Bool Function JournalLogDefeatOutcome(Int deathsNow, Int maxLives, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefeatLuckOutcome(Int deathsNow, Int maxLives, Int roll, Int luck, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogTrueDeathOutcome(Int deathsNow, Int maxLives, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantFatigueOutcome(Int deathsNow, Int maxLives, Bool terminal, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogLuckOutcome(Int luck, Int roll, Int maxLuck, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDragonSoulAbsorbed(Int total, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogSoulFeat(Int soulTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantSoulFeat(Int totalDeaths, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantRestore(Int targetTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantAwakened(Int startDay, Int nowDay) Global Native
+Bool Function JournalLogCHIMRealized(Int startDay, Int nowDay) Global Native
 
 
 ; --- CONFIG ACCESS ---
@@ -216,6 +258,19 @@ Bool Function SetConfigString(String key, String value, Bool persistToIni = True
 Bool Function ReloadConfig() Global Native
 
 
+; --- TEXT CATALOG ---
+; ====================
+
+; Looks up a text catalog value. Missing keys return a visible marker.
+String Function TextGet(String key) Global Native
+
+; Looks up a text catalog value and replaces {token} placeholders.
+String Function TextFormat1(String key, String token1, String value1) Global Native
+String Function TextFormat2(String key, String token1, String value1, String token2, String value2) Global Native
+String Function TextFormat3(String key, String token1, String value1, String token2, String value2, String token3, String value3) Global Native
+String Function TextFormat4(String key, String token1, String value1, String token2, String value2, String token3, String value3, String token4, String value4) Global Native
+
+
 ; --- IDENTITY / GUID UTILITIES ---
 ; =================================
 
@@ -232,14 +287,14 @@ String Function GenerateGuidUnique(String playerName) Global Native
 ; --- DYNAMIC UI ---
 ; ==================
 ;
-; Immediately swaps global packaged assets; native stores no tier/preset state.
-; Modes: 0=restore backup, 1=dynamic, 2=static packaged source.
-; Public INI validation currently allows only modes 0 and 1.
+; Splash and draugr eyes swap packaged assets; native stores no tier/preset state for them.
+; Level widget art updates through the packaged lvlWidget.swf live Scaleform method.
+; Level widget modes: 0=static Iron icon, 1=live tier icon.
 ; Tiers: 0 Defiant, 1 Iron, 2 Silver, 3 Gold, 4 Ebon, 5 Platinum, 6 Devour, 9 CHIM.
 ; Splash presets: 0 normal, 1/2/3 preset-prefixed; CHIM falls back for 2/3.
 ; Draugr eye presets: 0 ORIGINAL, 1 BLUE, 2 PURPLE, 3 RED.
-; Non-Iron Soul live files get numbered BACKUP copies before replacement.
-; Missing files skip only the affected asset; UI caching may need reload/restart.
+; Non-Iron Soul splash/eye live files get numbered BACKUP copies before replacement.
+; Missing splash/eye files skip only the affected asset; the level widget tier caches until lvlWidget opens.
 Function ApplyDynamicSplash(Int tierId, Int presetId) Global Native
 Function ApplyDynamicLevelWidget(Int tierId) Global Native
 Function ApplyDynamicDraugrEyes(Int presetId) Global Native
@@ -377,9 +432,14 @@ Function StartHealthMonitor() Global Native
 Function StopHealthMonitor() Global Native
 Function HoldDeathSlowMo(String reason = "") Global Native
 Function ReleaseDeathSlowMo(Float recoverySeconds = 1.0, Float delaySeconds = 0.0, String reason = "") Global Native
+Function ReleaseDeathSlowMoWithHold(Float holdMultiplier = 0.5, Float holdSeconds = 5.0, Float recoverySeconds = 1.0, String reason = "") Global Native
+Function TransitionDeathSlowMoToHold(Float holdMultiplier = 0.6, Float transitionSeconds = 1.0, String reason = "") Global Native
 Function ClearDeathSlowMo(String reason = "") Global Native
 Function StartTimeMultiplierRamp(Float fromMultiplier = 1.0, Float toMultiplier = 1.0, Float seconds = 0.0, String reason = "") Global Native
 Function ClearTimeMultiplierRamp(String reason = "") Global Native
+Bool Function TryStartFeatUnlockSlowMo(Float seconds = 0.75, String reason = "") Global Native
+Function ReleaseFeatUnlockSlowMo(Float seconds = 2.0, String reason = "") Global Native
+Function ClearFeatUnlockSlowMo(String reason = "") Global Native
 Bool Function KillPlayerImmediate(Bool ragdollInstant = True, String reason = "") Global Native
 
 
@@ -390,12 +450,25 @@ Bool Function KillPlayerImmediate(Bool ragdollInstant = True, String reason = ""
 Int Function QueueRuntimeUpdate(Float delaySeconds, String reason = "") Global Native
 Function CancelRuntimeUpdate(Int token = 0, String reason = "") Global Native
 
+; Queues/cancels the dedicated wall-clock feat unlock menu wakeup.
+Int Function QueueFeatUnlockMenuAlarm(Float delaySeconds, String reason = "") Global Native
+Function CancelFeatUnlockMenuAlarm(Int token = 0, String reason = "") Global Native
+
 ; Starts/stops a native monitor that wakes Papyrus when respawn recovery/death/watchdog state changes.
 Int Function BeginRespawnStateMonitor(Float watchdogSeconds = 30.0, String reason = "") Global Native
 Function EndRespawnStateMonitor(Int token = 0, String reason = "") Global Native
 
 ; Native active gameplay seconds count only while normal gameplay is running.
 Int Function GetActiveGameplaySeconds() Global Native
+
+; Native wall-clock seconds from the plugin process; unaffected by SGTM.
+Float Function GetWallClockSeconds() Global Native
+
+; Starts the native intro clock when Papyrus OnInit confirms a fresh game and native VM revert did not already start it.
+Bool Function EnsureNewGameIntroClockStarted(String reason = "") Global Native
+
+; Returns non-menu seconds since native fresh-game detection, or -1.0 when no intro clock is active.
+Float Function GetNewGameIntroElapsedSeconds() Global Native
 
 ; Queues/cancels one-shot active gameplay alarms that dispatch IronSoul_RuntimeUpdate.
 Int Function QueueActiveGameplayAlarm(Int targetSecond, String reason = "") Global Native

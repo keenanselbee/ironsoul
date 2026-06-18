@@ -15,7 +15,9 @@
 #include "papyrus_musicfade.h"
 #include "papyrus_runtime.h"
 #include "papyrus_runtimepulse.h"
+#include "papyrus_slowmo.h"
 #include "papyrus_sunderheart_focus.h"
+#include "papyrus_text.h"
 
 namespace IronSoul::Papyrus
 {
@@ -30,18 +32,18 @@ namespace IronSoul::Papyrus
         Runtime::RefreshRuntimeConfigCaches();
 
         const bool ok = papyrus->Register([](RE::BSScript::IVirtualMachine* a_vm) {
-            // Keep LogJournalEntry between the core availability probe and
-            // identity helpers; item select owns the generic menu bridge.
             Core::RegisterAvailability(a_vm);
             ItemSelect::Register(a_vm);
             Journal::Register(a_vm);
             Core::RegisterIdentity(a_vm);
             Config::Register(a_vm);
+            Text::Register(a_vm);
             DynamicAssets::Register(a_vm);
             Audio::Register(a_vm);
             MusicFade::Register(a_vm);
             RuntimePulse::Register(a_vm);
             HealthMonitor::Register(a_vm);
+            SlowMo::Register(a_vm);
             Cursor::Register(a_vm);
             MenuBlocker::Register(a_vm);
             Data::Register(a_vm);

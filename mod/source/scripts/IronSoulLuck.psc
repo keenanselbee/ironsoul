@@ -46,6 +46,7 @@ Scriptname IronSoulLuck extends Quest
 ; ----------------------
 ; ConsumeDeathFrontDelay()
 ; ConsumeNextDeathJournalSuppression()
+; ConsumePendingFailureJournal()
 
 ; --- Luck Math Helpers ---
 ; -------------------------
@@ -88,6 +89,9 @@ Int _lastLuckValue = 0
 Bool _lastLuckRollValid = False
 Bool _deathFrontDelayConsumed = False
 Bool _suppressNextDeathJournal = False
+Bool _pendingLuckFailureJournal = False
+Int _pendingLuckFailureRoll = 0
+Int _pendingLuckFailureLuck = 0
 
 
 ; --- Component Helpers ---
@@ -147,6 +151,9 @@ Function ResetTransientState()
     _lastLuckRollValid = False
     _deathFrontDelayConsumed = False
     _suppressNextDeathJournal = False
+    _pendingLuckFailureJournal = False
+    _pendingLuckFailureRoll = 0
+    _pendingLuckFailureLuck = 0
 EndFunction
 
 String Function GetCacheSnapshot()
@@ -328,7 +335,6 @@ Bool Function RollOutcomeNow(Actor player, String guid)
 
     if !success
         ResetValue(player, guid)
-        ForcePersistNow(player, guid)
     endif
 
     _lastLuckRollValid = True
@@ -354,7 +360,7 @@ Function PlayRollPresentation(Actor player, Bool success)
     endif
 
     Float presentationStartedAt = Utility.GetCurrentRealTime()
-    Utility.Wait(0.5)
+    ;Utility.Wait(0.5)
 
     if !Controller.Config.IsLuckRollMenuEnabled()
         LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: LuckRollMenu disabled success=" + success + " roll100=" + _lastLuckRoll + " luck=" + _lastLuckValue, True)
@@ -371,9 +377,10 @@ Function PlayRollPresentation(Actor player, Bool success)
 
     UI.CloseCustomMenu()
     Int cursorToken = IronSoulNative.BeginCursorSuppress()
-    Utility.Wait(0.05)
 
     Controller.SFX.Play(resultSFX, player)
+    Utility.Wait(0.05)
+
     UI.OpenCustomMenu(rollMenu, 0)
     IronSoulNative.RefreshCursorSuppress()
     LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: Menu opened success=" + success + " menu=" + rollMenu + " roll100=" + _lastLuckRoll + " luck=" + _lastLuckValue + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - presentationStartedAt), True)
@@ -384,7 +391,7 @@ Function PlayRollPresentation(Actor player, Bool success)
     LogLuck(IronSoulConfig.LOG_INFO(), "PlayRollPresentation: Complete success=" + success + " menu=" + rollMenu + " t=" + Utility.GetCurrentRealTime() + " elapsed=" + (Utility.GetCurrentRealTime() - presentationStartedAt), True)
 EndFunction
 
-Function JournalLogOutcome(Bool survived, Actor player, String guid)
+Function JournalLogOutcome(Bool survived, Actor player, String guid, Bool deferFailure = False)
     if !HasCoreRuntime() || !Controller.Journal || !Controller.Config.IsCharacterJournalEnabled()
         return
     endif
@@ -394,12 +401,21 @@ Function JournalLogOutcome(Bool survived, Actor player, String guid)
 
     Int roll = _lastLuckRoll
     Int luck = _lastLuckValue
-    Int maxLuck = GetCurrentMax(player, guid)
 
     _lastLuckRollValid = False
 
     if survived
-        Controller.Journal.LogEventForGuid(player, guid, IronSoulJournal.JournalLuckOutcomeText(luck, roll, maxLuck))
+        Int maxLuck = GetCurrentMax(player, guid)
+        Controller.Journal.LogLuckOutcomeForGuid(player, guid, luck, roll, maxLuck)
+        return
+    endif
+
+    if deferFailure
+        _pendingLuckFailureJournal = True
+        _pendingLuckFailureRoll = roll
+        _pendingLuckFailureLuck = luck
+        _suppressNextDeathJournal = True
+        LogLuck(IronSoulConfig.LOG_INFO(), "JournalLogOutcome: Staged luck failure journal roll=" + roll + " luck=" + luck, True)
         return
     endif
 
@@ -408,7 +424,7 @@ Function JournalLogOutcome(Bool survived, Actor player, String guid)
     if Controller.Tiers
         cap = Controller.Tiers.GetEffectiveMaxLives(player, guid)
     endif
-    Controller.Journal.LogEventForGuid(player, guid, IronSoulJournal.DefeatLuckOutcomeText(deathsPred, cap, roll, luck))
+    Controller.Journal.LogDefeatLuckOutcomeForGuid(player, guid, deathsPred, cap, roll, luck)
     _suppressNextDeathJournal = True
 EndFunction
 
@@ -717,6 +733,33 @@ Bool Function ConsumeNextDeathJournalSuppression()
     Bool suppress = _suppressNextDeathJournal
     _suppressNextDeathJournal = False
     return suppress
+EndFunction
+
+Bool Function ConsumePendingFailureJournal(Actor player, String guid, Int deathsNow, Int cap)
+    if !_pendingLuckFailureJournal
+        return False
+    endif
+
+    Int roll = _pendingLuckFailureRoll
+    Int luck = _pendingLuckFailureLuck
+    _pendingLuckFailureJournal = False
+    _pendingLuckFailureRoll = 0
+    _pendingLuckFailureLuck = 0
+
+    if !HasCoreRuntime() || !Controller.Journal || !Controller.Config.IsCharacterJournalEnabled()
+        return False
+    endif
+    if !player || guid == ""
+        return False
+    endif
+
+    if cap <= 0
+        cap = 10
+    endif
+
+    Controller.Journal.LogDefeatLuckOutcomeForGuid(player, guid, deathsNow, cap, roll, luck)
+    LogLuck(IronSoulConfig.LOG_INFO(), "ConsumePendingFailureJournal: Logged luck failure journal deaths=" + deathsNow + " cap=" + cap + " roll=" + roll + " luck=" + luck, True)
+    return True
 EndFunction
 
 

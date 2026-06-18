@@ -40,12 +40,14 @@ SoundCategory Property AudioCategoryIronSoul Auto
 ; sounds. Tier and Dragon Soul Revive sounds stay with their owning components.
 Sound Property SFXIronIntro Auto
 Sound Property SFXIronIntroPrisoner Auto
+Sound Property SFXIronIntroClose Auto
 Sound Property SFXDeath Auto
 Sound Property SFXFarsight Auto
 Sound Property SFXPermadeath Auto
 Sound Property SFXRespawn Auto
 Sound Property SFXLuckFailure Auto
 Sound Property SFXLuckSuccess Auto
+Sound Property SFXLuckImproved Auto
 Sound Property SFXHeavyBreathing0 Auto ; MaleKhajiit
 Sound Property SFXHeavyBreathing1 Auto ; MaleOrc
 Sound Property SFXHeavyBreathing2 Auto ; MaleEvenToned
@@ -123,7 +125,7 @@ Bool Function IsOwnedSFXEnabled(Sound sfx)
         return False
     endif
 
-    if sfx == SFXIronIntro || sfx == SFXIronIntroPrisoner
+    if sfx == SFXIronIntro || sfx == SFXIronIntroPrisoner || sfx == SFXIronIntroClose
         return Controller.Config.IsIronIntroSFXEnabled()
     elseif sfx == SFXDeath
         return Controller.Config.IsDeathSFXEnabled()
@@ -135,6 +137,8 @@ Bool Function IsOwnedSFXEnabled(Sound sfx)
         return Controller.Config.IsRespawnSFXEnabled()
     elseif sfx == SFXLuckFailure || sfx == SFXLuckSuccess
         return Controller.Config.IsLuckOutcomeSFXEnabled()
+    elseif sfx == SFXLuckImproved
+        return Controller.Config.IsLuckImprovedSFXEnabled()
     elseif sfx == SFXHeavyBreathing0 || sfx == SFXHeavyBreathing1 || sfx == SFXHeavyBreathing2 || sfx == SFXHeavyBreathing3 || sfx == SFXHeavyBreathing4 || sfx == SFXHeavyBreathing5 || sfx == SFXHeavyBreathing6 || sfx == SFXHeavyBreathing7 || sfx == SFXHeavyBreathing8 || sfx == SFXHeavyBreathing9
         return Controller.Config.IsRespawnHeavyBreathingSFXEnabled()
     endif

@@ -33,4 +33,10 @@ namespace IronSoul::PathUtil
         static const fs::path cachedSksePluginsDir = GetDataRoot() / L"SKSE" / L"plugins";
         return cachedSksePluginsDir;
     }
+
+    fs::path GetIronSoulPluginDir()
+    {
+        static const fs::path cachedIronSoulPluginDir = GetSksePluginsDir() / L"ironsoul";
+        return cachedIronSoulPluginDir;
+    }
 }

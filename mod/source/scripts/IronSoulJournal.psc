@@ -9,6 +9,8 @@ Scriptname IronSoulJournal extends Quest
 ; HasCoreRuntime()
 ; HasPersistenceRuntime()
 ; LogJournal()
+; CanLogNativeForGuid()
+; FinishNativeJournalWrite()
 
 ; --- Journal Runtime ---
 ; -----------------------
@@ -19,22 +21,17 @@ Scriptname IronSoulJournal extends Quest
 ; EnsureOpenerLogged()
 ; EnsureStartDay()
 ; LogCHIMRealized()
-
-; --- Journal Text Helpers ---
-; ----------------------------
-; AppendTotalDeaths()
-; BuildDayLine()
-; BuildExternalEventText()
-; DefeatOutcomeText()
-; DefeatLuckOutcomeText()
-; TrueDeathOutcomeText()
-; DefiantFatigueOutcomeText()
-; JournalLuckOutcomeText()
-; DeathCountText()
-; PickDefeatFlavor()
-; PickNormalDefeatFlavor()
-; PickNearCapDefeatFlavor()
-
+; LogDefeatOutcomeForGuid()
+; LogDefeatLuckOutcomeForGuid()
+; LogTrueDeathOutcomeForGuid()
+; LogDefiantFatigueOutcomeForGuid()
+; LogLuckOutcomeForGuid()
+; LogDragonSoulAbsorbedForGuid()
+; LogSoulFeatForGuid()
+; LogDefiantSoulFeatForGuid()
+; LogDefiantRestoreForGuid()
+; LogDefiantAwakenedForGuid()
+; LogCHIMRealizedForGuid()
 
 ; --- Wired Dependencies & Persistence Keys ---
 ; =============================================
@@ -76,6 +73,32 @@ Function LogJournal(Int level, String msg, Bool suppressNotify = False)
     endif
 
     Debug.Trace("[IronSoul] [" + IronSoulConfig.LogLevelTag(level) + "] [Journal] " + msg)
+EndFunction
+
+Bool Function CanLogNativeForGuid(Actor player, String guid, String context)
+    if !HasCoreRuntime()
+        return False
+    endif
+    if !Controller.Config.IsCharacterJournalEnabled()
+        LogJournal(IronSoulConfig.LOG_DBG(), context + ": Skipped (CharacterJournal=0)")
+        return False
+    endif
+    if !player
+        LogJournal(IronSoulConfig.LOG_ERR(), context + ": Skipped (Player is None)")
+        return False
+    endif
+    if guid == ""
+        LogJournal(IronSoulConfig.LOG_DBG(), context + ": skipped (GUID empty). Name='" + IronSoulNative.GetPlayerName() + "' MenuMode=" + Utility.IsInMenuMode())
+        return False
+    endif
+    return True
+EndFunction
+
+Bool Function FinishNativeJournalWrite(String context, Bool success)
+    if !success
+        LogJournal(IronSoulConfig.LOG_ERR(), context + ": native write failed")
+    endif
+    return success
 EndFunction
 
 
@@ -148,16 +171,20 @@ Function LogEventForGuid(Actor player, String guid, String eventText)
     EnsureOpenerLogged(player, guid)
 
     Int nowDay = Utility.GetCurrentGameTime() as Int
-    String line = BuildDayLine(eventText, startDay, nowDay)
-    LogJournal(IronSoulConfig.LOG_DBG(), "JournalLogEvent: WRITE -> " + line)
-    IronSoulNative.LogJournalEntry(line)
+    LogJournal(IronSoulConfig.LOG_DBG(), "JournalLogEvent: WRITE event -> " + eventText)
+    if !IronSoulNative.JournalLogEvent(eventText, startDay, nowDay)
+        LogJournal(IronSoulConfig.LOG_ERR(), "JournalLogEvent: native write failed")
+    endif
 EndFunction
 
 Function LogExternalEvent(String source, String eventText)
-    String externalEvent = BuildExternalEventText(source, eventText)
-    if externalEvent != ""
-        LogEvent(externalEvent)
+    if eventText == ""
+        return
     endif
+    if source == ""
+        source = IronSoulNative.TextGet("Journal.ExternalSourceDefault")
+    endif
+    LogEvent(IronSoulNative.TextFormat2("Journal.ExternalEvent", "source", source, "event", eventText))
 EndFunction
 
 Function EnsureOpenerLogged(Actor player, String guid)
@@ -171,9 +198,12 @@ Function EnsureOpenerLogged(Actor player, String guid)
         return
     endif
 
-    IronSoulNative.LogJournalEntry("Day 1: Iron Soul awakened.")
-    LogJournal(IronSoulConfig.LOG_INFO(), "JournalEnsureOpenerLogged: Logged journal opener (one-shot)")
-    Controller.Persistence.SetGuidInt(player, guid, journalOpenerLogged, 1, True)
+    if IronSoulNative.JournalLogEvent(IronSoulNative.TextGet("Journal.Opener"), 0, 0)
+        LogJournal(IronSoulConfig.LOG_INFO(), "JournalEnsureOpenerLogged: Logged journal opener (one-shot)")
+        Controller.Persistence.SetGuidInt(player, guid, journalOpenerLogged, 1, True)
+    else
+        LogJournal(IronSoulConfig.LOG_ERR(), "JournalEnsureOpenerLogged: native write failed")
+    endif
 EndFunction
 
 Int Function EnsureStartDay(Actor player, String guid)
@@ -204,131 +234,133 @@ Function LogCHIMRealized(Actor player, String guid)
         return
     endif
 
-    if Controller.Config.IsCharacterJournalEnabled()
-        LogEventForGuid(player, guid, "CHIM realized: Death is merely an illusion, a cycle to be broken. Dream Soul awakened.")
+    if !Controller.Config.IsCharacterJournalEnabled()
+        Controller.Persistence.SetGuidInt(player, guid, journalCHIMLogged, 1, True)
+        return
     endif
-    Controller.Persistence.SetGuidInt(player, guid, journalCHIMLogged, 1, True)
+
+    if LogCHIMRealizedForGuid(player, guid)
+        Controller.Persistence.SetGuidInt(player, guid, journalCHIMLogged, 1, True)
+    endif
 EndFunction
 
-
-; --- Journal Text Helpers ---
-; ============================
-
-String Function AppendTotalDeaths(String baseText, Int totalDeaths) Global
-    if baseText == ""
-        return ""
+Bool Function LogDefeatOutcomeForGuid(Actor player, String guid, Int deathsNow, Int maxLives)
+    String context = "JournalLogDefeatOutcome"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return baseText + " Total Deaths: " + totalDeaths + "."
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefeatOutcome(deathsNow, maxLives, startDay, nowDay))
 EndFunction
 
-String Function BuildDayLine(String eventText, Int startDay, Int nowDay) Global
-    if eventText == ""
-        return ""
+Bool Function LogDefeatLuckOutcomeForGuid(Actor player, String guid, Int deathsNow, Int maxLives, Int roll, Int luck)
+    String context = "JournalLogDefeatLuckOutcome"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-
-    Int dayIdx = 1
-    if startDay != -1
-        dayIdx = (nowDay - startDay) + 1
-    endif
-    if dayIdx < 1
-        dayIdx = 1
-    endif
-    return "Day " + dayIdx + ": " + eventText
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefeatLuckOutcome(deathsNow, maxLives, roll, luck, startDay, nowDay))
 EndFunction
 
-String Function BuildExternalEventText(String source, String eventText) Global
-    if eventText == ""
-        return ""
+Bool Function LogTrueDeathOutcomeForGuid(Actor player, String guid, Int deathsNow, Int maxLives)
+    String context = "JournalLogTrueDeathOutcome"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    if source == ""
-        source = "External"
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogTrueDeathOutcome(deathsNow, maxLives, startDay, nowDay))
+EndFunction
+
+Bool Function LogDefiantFatigueOutcomeForGuid(Actor player, String guid, Int deathsNow, Int maxLives, Bool terminal)
+    String context = "JournalLogDefiantFatigueOutcome"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return source + ": " + eventText
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefiantFatigueOutcome(deathsNow, maxLives, terminal, startDay, nowDay))
 EndFunction
 
-String Function DefeatOutcomeText(Int deathsNow, Int maxLives) Global
-    return "Defeat. " + DeathCountText(deathsNow, maxLives) + " " + PickDefeatFlavor(deathsNow, maxLives)
-EndFunction
-
-String Function DefeatLuckOutcomeText(Int deathsPred, Int maxLives, Int roll, Int luck) Global
-    return DefeatOutcomeText(deathsPred, maxLives) + " Roll: " + roll + ". Luck: " + luck + "."
-EndFunction
-
-String Function TrueDeathOutcomeText(Int deathsNow, Int maxLives) Global
-    return "True Death. " + DeathCountText(deathsNow, maxLives) + " Sovngarde claims the fallen dead."
-EndFunction
-
-String Function DefiantFatigueOutcomeText(Int deathsNow, Int maxLives, Bool terminal) Global
-    if terminal
-        return "True Death. " + DeathCountText(deathsNow, maxLives) + " Soul fatigue overwhelms the body."
+Bool Function LogLuckOutcomeForGuid(Actor player, String guid, Int luck, Int roll, Int maxLuck)
+    String context = "JournalLogLuckOutcome"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return "Defeat. " + DeathCountText(deathsNow, maxLives) + " Soul fatigue overwhelms the body."
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogLuckOutcome(luck, roll, maxLuck, startDay, nowDay))
 EndFunction
 
-String Function JournalLuckOutcomeText(Int luck, Int roll, Int maxLuck) Global
-    Int tier = IronSoulLuck.LuckTier(luck, maxLuck)
-    if tier >= 4
-        return "Fate cheated. Roll: " + roll + ". Luck: " + luck + "."
-    elseif tier == 3
-        return "Death denied. Roll: " + roll + ". Luck: " + luck + "."
-    elseif tier == 2
-        return "Fortune favors the bold. Roll: " + roll + ". Luck: " + luck + "."
-    elseif tier == 1
-        return "Narrowly escaped death. Roll: " + roll + ". Luck: " + luck + "."
+Bool Function LogDragonSoulAbsorbedForGuid(Actor player, String guid, Int total)
+    String context = "JournalLogDragonSoulAbsorbed"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return "Barely clung to life. Roll: " + roll + ". Luck: " + luck + "."
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDragonSoulAbsorbed(total, startDay, nowDay))
 EndFunction
 
-String Function DeathCountText(Int deathsNow, Int maxLives) Global
-    if maxLives <= 0 || maxLives >= 2000000000
-        return "Death " + deathsNow + "."
+Bool Function LogSoulFeatForGuid(Actor player, String guid, Int soulTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled)
+    String context = "JournalLogSoulFeat"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return "Death " + deathsNow + " of " + maxLives + "."
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogSoulFeat(soulTier, totalDeaths, molagKilled, miraakKilled, alduinKilled, harkonKilled, startDay, nowDay))
 EndFunction
 
-String Function PickDefeatFlavor(Int deathsNow, Int maxLives) Global
-    if maxLives > 0 && maxLives < 2000000000 && deathsNow >= (maxLives - 1)
-        return PickNearCapDefeatFlavor()
+Bool Function LogDefiantSoulFeatForGuid(Actor player, String guid, Int totalDeaths)
+    String context = "JournalLogDefiantSoulFeat"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return PickNormalDefeatFlavor()
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefiantSoulFeat(totalDeaths, startDay, nowDay))
 EndFunction
 
-String Function PickNormalDefeatFlavor() Global
-    Int pick = Utility.RandomInt(1, 12)
-    if pick == 1
-        return "The body falls; the soul remembers."
-    elseif pick == 2
-        return "Another mark is carved into the cycle."
-    elseif pick == 3
-        return "The world goes quiet, but the tally remains."
-    elseif pick == 4
-        return "The breath fails. The debt remains."
-    elseif pick == 5
-        return "Steel, spell, and fate all find their due."
-    elseif pick == 6
-        return "The soul is dragged back from the edge, diminished."
-    elseif pick == 7
-        return "A life is spent. The ledger grows heavier."
-    elseif pick == 8
-        return "The dream tightens around the wound."
-    elseif pick == 9
-        return "The fallen dead are counted, not yet claimed."
-    elseif pick == 10
-        return "The road continues, but something was left behind."
-    elseif pick == 11
-        return "The soul staggers onward through the dark."
+Bool Function LogDefiantRestoreForGuid(Actor player, String guid, Int targetTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled)
+    String context = "JournalLogDefiantRestore"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return "One more death is written into the iron."
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefiantRestore(targetTier, totalDeaths, molagKilled, miraakKilled, alduinKilled, harkonKilled, startDay, nowDay))
 EndFunction
 
-String Function PickNearCapDefeatFlavor() Global
-    Int pick = Utility.RandomInt(1, 4)
-    if pick == 1
-        return "The last mercy grows thin."
-    elseif pick == 2
-        return "Sovngarde waits close enough to hear."
-    elseif pick == 3
-        return "The next death may be the final word."
+Bool Function LogDefiantAwakenedForGuid(Actor player, String guid)
+    String context = "JournalLogDefiantAwakened"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
     endif
-    return "The soul stands at the edge of the hall."
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefiantAwakened(startDay, nowDay))
+EndFunction
+
+Bool Function LogCHIMRealizedForGuid(Actor player, String guid)
+    String context = "JournalLogCHIMRealized"
+    if !CanLogNativeForGuid(player, guid, context)
+        return False
+    endif
+    Int startDay = EnsureStartDay(player, guid)
+    EnsureOpenerLogged(player, guid)
+    Int nowDay = Utility.GetCurrentGameTime() as Int
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogCHIMRealized(startDay, nowDay))
 EndFunction

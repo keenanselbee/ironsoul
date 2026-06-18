@@ -7,5 +7,5 @@ namespace Plugin
 {
     inline constexpr std::string_view NAME = "Iron Soul";
     // Synced with xmake.lua by tools/build-skse-plugin.ps1 refresh builds.
-    inline constexpr REL::Version VERSION{ 2, 6, 9, 0 };
+    inline constexpr REL::Version VERSION{ 2, 9, 7, 0 };
 }

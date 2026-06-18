@@ -1274,9 +1274,8 @@ namespace
                 }
             }
 
-            if (!g_focus.inputSinkRegistered) {
-                EnsureInputSinkRegisteredLocked("startup", true);
-            }
+            // BSInputDeviceManager is not reliably available this early. The
+            // input sink is registered on InventoryMenu open or use-intent begin.
         }
     }
 }

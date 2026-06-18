@@ -38,6 +38,7 @@ namespace
         std::atomic<std::uint32_t> dataFlushToken{ 0 };
         std::atomic<std::uint32_t> activeClockToken{ 0 };
         std::atomic<std::uint32_t> activeAlarmToken{ 0 };
+        std::atomic<std::uint32_t> featUnlockMenuAlarmToken{ 0 };
         std::atomic<std::uint32_t> dragonSoulWatcherToken{ 0 };
         std::atomic<int> dragonSoulWatcherBaseline{ -1 };
         std::atomic<bool> dataFlushStarted{ false };
@@ -47,6 +48,11 @@ namespace
         std::mutex activeClockLock;
         double activeGameplaySeconds{ 0.0 };
         std::chrono::steady_clock::time_point activeClockLastSample{};
+        bool newGameIntroClockActive{ false };
+        bool newGameIntroLoadInProgress{ false };
+        bool newGameIntroSawLoadBoundary{ false };
+        double newGameIntroSeconds{ 0.0 };
+        std::chrono::steady_clock::time_point newGameIntroLastSample{};
         std::unordered_map<std::uint32_t, ActiveGameplayAlarm> activeAlarms;
     };
 
@@ -54,6 +60,12 @@ namespace
 
     bool IsPlayerBleedingOut(RE::Actor* a_actor);
     void SendRuntimeUpdateEvent(const std::string& a_reason, std::uint32_t a_token);
+
+    float WallClockSeconds()
+    {
+        static const auto startedAt = std::chrono::steady_clock::now();
+        return std::chrono::duration<float>(std::chrono::steady_clock::now() - startedAt).count();
+    }
 
     std::uint32_t ClaimNextToken(std::atomic<std::uint32_t>& a_token)
     {
@@ -177,6 +189,21 @@ namespace
                 }
             }
 
+            if (g_runtimePulse.newGameIntroClockActive) {
+                if (g_runtimePulse.newGameIntroLastSample.time_since_epoch().count() == 0) {
+                    g_runtimePulse.newGameIntroLastSample = now;
+                } else {
+                    double elapsed = std::chrono::duration<double>(now - g_runtimePulse.newGameIntroLastSample).count();
+                    g_runtimePulse.newGameIntroLastSample = now;
+                    if (activeGameplay && elapsed > 0.0) {
+                        if (elapsed > kActiveClockMaxSampleSeconds) {
+                            elapsed = kActiveClockMaxSampleSeconds;
+                        }
+                        g_runtimePulse.newGameIntroSeconds += elapsed;
+                    }
+                }
+            }
+
             const int activeSecond = g_runtimePulse.activeGameplaySeconds > 0.0 ?
                 static_cast<int>(g_runtimePulse.activeGameplaySeconds) :
                 0;
@@ -227,6 +254,108 @@ namespace
             CancelToken(g_runtimePulse.activeClockToken, token);
             logger::error("RuntimePulse: failed to start active gameplay clock error={}", e.what());
         }
+    }
+
+    void StartNewGameIntroClockInternal(std::string_view a_source)
+    {
+        StartActiveGameplayClockInternal();
+
+        {
+            std::scoped_lock lock(g_runtimePulse.activeClockLock);
+            g_runtimePulse.newGameIntroClockActive = true;
+            g_runtimePulse.newGameIntroLoadInProgress = false;
+            g_runtimePulse.newGameIntroSawLoadBoundary = false;
+            g_runtimePulse.newGameIntroSeconds = 0.0;
+            g_runtimePulse.newGameIntroLastSample = std::chrono::steady_clock::now();
+        }
+
+        if (InfoLoggingEnabled()) {
+            logger::info("RuntimePulse: new-game intro clock started source={}", a_source);
+        }
+    }
+
+    bool EnsureNewGameIntroClockStartedInternal(std::string_view a_source)
+    {
+        StartActiveGameplayClockInternal();
+
+        bool started = false;
+        {
+            std::scoped_lock lock(g_runtimePulse.activeClockLock);
+            if (!g_runtimePulse.newGameIntroClockActive &&
+                !g_runtimePulse.newGameIntroLoadInProgress &&
+                !g_runtimePulse.newGameIntroSawLoadBoundary) {
+                g_runtimePulse.newGameIntroClockActive = true;
+                g_runtimePulse.newGameIntroSeconds = 0.0;
+                g_runtimePulse.newGameIntroLastSample = std::chrono::steady_clock::now();
+                started = true;
+            }
+        }
+
+        if (started && InfoLoggingEnabled()) {
+            logger::info("RuntimePulse: new-game intro clock started source={}", a_source);
+        }
+        return started;
+    }
+
+    void ResetNewGameIntroClockInternal(std::string_view a_reason, bool a_markLoadBoundary)
+    {
+        {
+            std::scoped_lock lock(g_runtimePulse.activeClockLock);
+            g_runtimePulse.newGameIntroClockActive = false;
+            if (a_markLoadBoundary) {
+                g_runtimePulse.newGameIntroSawLoadBoundary = true;
+            }
+            g_runtimePulse.newGameIntroSeconds = 0.0;
+            g_runtimePulse.newGameIntroLastSample = {};
+        }
+
+        if (InfoLoggingEnabled()) {
+            logger::info("RuntimePulse: new-game intro clock reset reason={}", a_reason);
+        }
+    }
+
+    void SetNewGameIntroLoadInProgress(bool a_inProgress)
+    {
+        std::scoped_lock lock(g_runtimePulse.activeClockLock);
+        g_runtimePulse.newGameIntroLoadInProgress = a_inProgress;
+        if (a_inProgress) {
+            g_runtimePulse.newGameIntroSawLoadBoundary = true;
+        }
+    }
+
+    float GetNewGameIntroElapsedSecondsSnapshot()
+    {
+        std::scoped_lock lock(g_runtimePulse.activeClockLock);
+        if (!g_runtimePulse.newGameIntroClockActive) {
+            return -1.0F;
+        }
+        if (g_runtimePulse.newGameIntroSeconds <= 0.0) {
+            return 0.0F;
+        }
+        return static_cast<float>(g_runtimePulse.newGameIntroSeconds);
+    }
+
+    void OnSKSEMessage(SKSE::MessagingInterface::Message* a_message)
+    {
+        if (!a_message) {
+            return;
+        }
+
+        if (a_message->type == SKSE::MessagingInterface::kPreLoadGame) {
+            SetNewGameIntroLoadInProgress(true);
+            ResetNewGameIntroClockInternal("pre-load", true);
+        } else if (a_message->type == SKSE::MessagingInterface::kPostLoadGame) {
+            SetNewGameIntroLoadInProgress(false);
+            ResetNewGameIntroClockInternal("post-load", true);
+        }
+    }
+
+    static bool EnsureNewGameIntroClockStarted(RE::StaticFunctionTag*, std::string a_reason)
+    {
+        if (a_reason.empty()) {
+            a_reason = "papyrus";
+        }
+        return EnsureNewGameIntroClockStartedInternal(a_reason);
     }
 
     void SendRuntimeUpdateEvent(const std::string& a_reason, std::uint32_t a_token)
@@ -290,6 +419,51 @@ namespace
     void CancelRuntimeUpdateInternal(std::uint32_t a_token)
     {
         CancelToken(g_runtimePulse.updateToken, a_token);
+    }
+
+    std::uint32_t QueueFeatUnlockMenuAlarmInternal(float a_delaySeconds, std::string a_reason)
+    {
+        if (!RuntimeEventDispatchAvailable("feat-unlock-menu-alarm")) {
+            return 0;
+        }
+
+        if (a_delaySeconds < 0.0F) {
+            a_delaySeconds = 0.0F;
+        }
+        if (a_reason.empty()) {
+            a_reason = "feat-unlock-menu";
+        }
+
+        const auto token = ClaimNextToken(g_runtimePulse.featUnlockMenuAlarmToken);
+        const auto logReason = a_reason;
+        try {
+            std::thread([token, delaySeconds = a_delaySeconds, reason = std::move(a_reason)]() {
+                if (delaySeconds > 0.0F) {
+                    std::this_thread::sleep_for(std::chrono::duration<float>(delaySeconds));
+                }
+                if (g_runtimePulse.featUnlockMenuAlarmToken.load() != token) {
+                    return;
+                }
+
+                QueueGameTask([token, reason]() {
+                    if (g_runtimePulse.featUnlockMenuAlarmToken.load() != token) {
+                        return;
+                    }
+                    SendRuntimeUpdateEvent(reason, token);
+                }, "feat-unlock-menu-alarm");
+            }).detach();
+        } catch (const std::exception& e) {
+            CancelToken(g_runtimePulse.featUnlockMenuAlarmToken, token);
+            logger::error("RuntimePulse: failed to queue feat unlock menu alarm reason={} error={}", logReason, e.what());
+            return 0;
+        }
+
+        return token;
+    }
+
+    void CancelFeatUnlockMenuAlarmInternal(std::uint32_t a_token)
+    {
+        CancelToken(g_runtimePulse.featUnlockMenuAlarmToken, a_token);
     }
 
     bool IsPlayerBleedingOut(RE::Actor* a_actor)
@@ -497,6 +671,16 @@ namespace
         CancelRuntimeUpdateInternal(a_token > 0 ? static_cast<std::uint32_t>(a_token) : 0U);
     }
 
+    static std::int32_t QueueFeatUnlockMenuAlarm(RE::StaticFunctionTag*, float a_delaySeconds, std::string a_reason)
+    {
+        return static_cast<std::int32_t>(QueueFeatUnlockMenuAlarmInternal(a_delaySeconds, std::move(a_reason)));
+    }
+
+    static void CancelFeatUnlockMenuAlarm(RE::StaticFunctionTag*, std::int32_t a_token, std::string)
+    {
+        CancelFeatUnlockMenuAlarmInternal(a_token > 0 ? static_cast<std::uint32_t>(a_token) : 0U);
+    }
+
     static std::int32_t BeginRespawnStateMonitor(RE::StaticFunctionTag*, float a_watchdogSeconds, std::string a_reason)
     {
         return static_cast<std::int32_t>(BeginRespawnStateMonitorInternal(a_watchdogSeconds, std::move(a_reason)));
@@ -511,6 +695,17 @@ namespace
     {
         StartActiveGameplayClockInternal();
         return static_cast<std::int32_t>(GetActiveGameplaySecondsSnapshot());
+    }
+
+    static float GetWallClockSeconds(RE::StaticFunctionTag*)
+    {
+        return WallClockSeconds();
+    }
+
+    static float GetNewGameIntroElapsedSeconds(RE::StaticFunctionTag*)
+    {
+        StartActiveGameplayClockInternal();
+        return GetNewGameIntroElapsedSecondsSnapshot();
     }
 
     static std::int32_t QueueActiveGameplayAlarm(RE::StaticFunctionTag*, std::int32_t a_targetSecond, std::string a_reason)
@@ -567,12 +762,49 @@ namespace
     {
         a_vm->RegisterFunction("QueueRuntimeUpdate", kScriptName, QueueRuntimeUpdate);
         a_vm->RegisterFunction("CancelRuntimeUpdate", kScriptName, CancelRuntimeUpdate);
+        a_vm->RegisterFunction("QueueFeatUnlockMenuAlarm", kScriptName, QueueFeatUnlockMenuAlarm);
+        a_vm->RegisterFunction("CancelFeatUnlockMenuAlarm", kScriptName, CancelFeatUnlockMenuAlarm);
         a_vm->RegisterFunction("BeginRespawnStateMonitor", kScriptName, BeginRespawnStateMonitor);
         a_vm->RegisterFunction("EndRespawnStateMonitor", kScriptName, EndRespawnStateMonitor);
         a_vm->RegisterFunction("GetActiveGameplaySeconds", kScriptName, GetActiveGameplaySeconds);
+        a_vm->RegisterFunction("GetWallClockSeconds", kScriptName, GetWallClockSeconds);
+        a_vm->RegisterFunction("EnsureNewGameIntroClockStarted", kScriptName, EnsureNewGameIntroClockStarted);
+        a_vm->RegisterFunction("GetNewGameIntroElapsedSeconds", kScriptName, GetNewGameIntroElapsedSeconds);
         a_vm->RegisterFunction("QueueActiveGameplayAlarm", kScriptName, QueueActiveGameplayAlarm);
         a_vm->RegisterFunction("CancelActiveGameplayAlarm", kScriptName, CancelActiveGameplayAlarm);
         a_vm->RegisterFunction("BeginDragonSoulWatcher", kScriptName, BeginDragonSoulWatcher);
         a_vm->RegisterFunction("EndDragonSoulWatcher", kScriptName, EndDragonSoulWatcher);
+    }
+
+    void RegisterLifecycleHooks()
+    {
+        auto* messaging = SKSE::GetMessagingInterface();
+        if (!messaging) {
+            logger::warn("RuntimePulse: messaging interface unavailable; new-game intro clock disabled");
+            return;
+        }
+
+        if (!messaging->RegisterListener(OnSKSEMessage)) {
+            logger::warn("RuntimePulse: failed to register lifecycle listener");
+            return;
+        }
+
+        logger::info("RuntimePulse: lifecycle listener registered");
+    }
+
+    void HandleSerializationRevert()
+    {
+        bool loadInProgress = false;
+        {
+            std::scoped_lock lock(g_runtimePulse.activeClockLock);
+            loadInProgress = g_runtimePulse.newGameIntroLoadInProgress;
+        }
+
+        if (loadInProgress) {
+            ResetNewGameIntroClockInternal("load-revert", true);
+            return;
+        }
+
+        StartNewGameIntroClockInternal("vm-revert");
     }
 }

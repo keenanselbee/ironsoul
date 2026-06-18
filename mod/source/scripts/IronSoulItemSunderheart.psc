@@ -13,9 +13,9 @@ Event OnEquipped(Actor akActor)
         if SunderheartBaseItem
             Controller.Sunderhearts.SubmitSunderheartUseIntent(Game.GetPlayer(), SunderheartBaseItem, SunderheartType, SunderheartTier, "item-equipped")
         else
-            Debug.MessageBox("Iron Soul Sunderheart item is not configured.")
+            Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartItemNotConfigured"))
         endif
     else
-        Debug.MessageBox("Iron Soul Sunderhearts are not configured.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartsNotConfigured"))
     endif
 EndEvent

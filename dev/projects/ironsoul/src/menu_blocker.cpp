@@ -80,6 +80,15 @@ namespace
         bool consoleEnabled{ true };
     };
 
+    struct TokenState
+    {
+        bool releaseOnMainMenu{ false };
+        bool allowWindowClose{ false };
+    };
+
+    void RestoreWindowHook();
+    LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_message, WPARAM a_wParam, LPARAM a_lParam);
+
     struct BlockerState
     {
         std::mutex lock;
@@ -91,19 +100,27 @@ namespace
         std::uint64_t loadBoundarySerial{ 0 };
         std::atomic<std::uint64_t> loadBoundaryWatchdogToken{ 0 };
         std::thread loadBoundaryWatchdog;
-        std::unordered_map<std::int32_t, bool> activeTokens;
+        std::unordered_map<std::int32_t, TokenState> activeTokens;
         ControlSnapshot controls;
         bool releaseOnMainMenu{ false };
+        bool allowWindowClose{ false };
         bool inputSinkRegistered{ false };
         bool menuSinkRegistered{ false };
+        bool windowHookInstalled{ false };
+        HWND gameWindow{ nullptr };
+        WNDPROC originalWndProc{ nullptr };
         bool warnedMissingTaskInterface{ false };
         bool warnedMissingControlMap{ false };
         bool warnedMissingInputManager{ false };
+        bool warnedMissingWindow{ false };
+        bool warnedWindowHookFailed{ false };
         double lastBlockedInputLogSec{ 0.0 };
         double lastBlockedMenuLogSec{ 0.0 };
+        double lastBlockedWindowLogSec{ 0.0 };
 
         ~BlockerState()
         {
+            RestoreWindowHook();
             loadBoundaryWatchdogToken.fetch_add(1);
             if (loadBoundaryWatchdog.joinable()) {
                 loadBoundaryWatchdog.join();
@@ -147,6 +164,11 @@ namespace
         return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
+    bool AllowsWindowCloseReason(std::string_view a_reason)
+    {
+        return a_reason == "quit-desktop";
+    }
+
     std::string_view ResolveReason(std::string_view a_reason)
     {
         return a_reason.empty() ? std::string_view{ "unknown" } : a_reason;
@@ -163,10 +185,36 @@ namespace
         return IsActiveLocked();
     }
 
+    void RecalculateTokenFlagsLocked()
+    {
+        g_state.releaseOnMainMenu = std::any_of(
+            g_state.activeTokens.begin(),
+            g_state.activeTokens.end(),
+            [](const auto& entry) {
+                return entry.second.releaseOnMainMenu;
+            });
+        g_state.allowWindowClose = std::any_of(
+            g_state.activeTokens.begin(),
+            g_state.activeTokens.end(),
+            [](const auto& entry) {
+                return entry.second.allowWindowClose;
+            });
+    }
+
     bool ShouldReleaseOnMainMenu()
     {
         std::scoped_lock lock(g_state.lock);
         return IsActiveLocked() && g_state.releaseOnMainMenu;
+    }
+
+    bool ShouldBlockWindowClose()
+    {
+        if (IronSoul::Config::GetAllowedInt("Anticheat", 1) != 1) {
+            return false;
+        }
+
+        std::scoped_lock lock(g_state.lock);
+        return IsActiveLocked() && !g_state.allowWindowClose;
     }
 
     std::string NormalizeEventName(std::string_view a_value)
@@ -248,6 +296,22 @@ namespace
         return true;
     }
 
+    bool ClaimBlockedWindowLog()
+    {
+        if (!DebugLoggingEnabled()) {
+            return false;
+        }
+
+        const double nowSec = NowSeconds();
+        std::scoped_lock lock(g_state.lock);
+        if ((nowSec - g_state.lastBlockedWindowLogSec) < kBlockedAttemptLogInterval.count()) {
+            return false;
+        }
+
+        g_state.lastBlockedWindowLogSec = nowSec;
+        return true;
+    }
+
     void LogBlockedInputAttempt(const RE::ButtonEvent& a_event, std::string_view a_userEvent)
     {
         if (!ClaimBlockedInputLog()) {
@@ -270,6 +334,18 @@ namespace
         logger::info("MenuBlocker: blocked menu open '{}'", a_menuName.empty() ? "unknown" : a_menuName);
     }
 
+    void LogBlockedWindowClose(UINT a_message, WPARAM a_wParam)
+    {
+        if (!ClaimBlockedWindowLog()) {
+            return;
+        }
+
+        logger::info(
+            "MenuBlocker: blocked window close message=0x{:X} wParam=0x{:X}",
+            static_cast<std::uint32_t>(a_message),
+            static_cast<std::uintptr_t>(a_wParam));
+    }
+
     void NeutralizeButton(RE::ButtonEvent& a_event)
     {
         a_event.userEvent = RE::BSFixedString("");
@@ -287,6 +363,170 @@ namespace
     bool IsMainMenu(std::string_view a_menuName)
     {
         return a_menuName == "Main Menu";
+    }
+
+    struct WindowSearch
+    {
+        DWORD processId{ 0 };
+        HWND window{ nullptr };
+    };
+
+    BOOL CALLBACK FindProcessWindowCallback(HWND a_hwnd, LPARAM a_lParam)
+    {
+        auto* search = reinterpret_cast<WindowSearch*>(a_lParam);
+        if (!search || search->window) {
+            return FALSE;
+        }
+
+        if (!IsWindowVisible(a_hwnd) || GetWindow(a_hwnd, GW_OWNER) != nullptr) {
+            return TRUE;
+        }
+
+        const auto exStyle = static_cast<LONG_PTR>(GetWindowLongPtrW(a_hwnd, GWL_EXSTYLE));
+        if ((exStyle & WS_EX_TOOLWINDOW) != 0) {
+            return TRUE;
+        }
+
+        DWORD windowProcessId = 0;
+        GetWindowThreadProcessId(a_hwnd, &windowProcessId);
+        if (windowProcessId != search->processId) {
+            return TRUE;
+        }
+
+        search->window = a_hwnd;
+        return FALSE;
+    }
+
+    HWND FindGameWindow()
+    {
+        WindowSearch search{ GetCurrentProcessId(), nullptr };
+        EnumWindows(FindProcessWindowCallback, reinterpret_cast<LPARAM>(&search));
+        return search.window;
+    }
+
+    WNDPROC GetOriginalWndProc()
+    {
+        std::scoped_lock lock(g_state.lock);
+        return g_state.originalWndProc;
+    }
+
+    void RestoreWindowHook()
+    {
+        std::scoped_lock lock(g_state.lock);
+        if (!g_state.windowHookInstalled) {
+            return;
+        }
+
+        if (g_state.gameWindow && IsWindow(g_state.gameWindow) && g_state.originalWndProc) {
+            const auto currentWndProc = reinterpret_cast<WNDPROC>(GetWindowLongPtrW(g_state.gameWindow, GWLP_WNDPROC));
+            if (currentWndProc == WindowProc) {
+                SetWindowLongPtrW(
+                    g_state.gameWindow,
+                    GWLP_WNDPROC,
+                    reinterpret_cast<LONG_PTR>(g_state.originalWndProc));
+            } else {
+                logger::warn("MenuBlocker: window proc changed after install; original proc not restored");
+            }
+        }
+
+        g_state.windowHookInstalled = false;
+        g_state.gameWindow = nullptr;
+        g_state.originalWndProc = nullptr;
+    }
+
+    void InstallWindowHook(bool a_warnMissing)
+    {
+        {
+            std::scoped_lock lock(g_state.lock);
+            if (g_state.windowHookInstalled && g_state.gameWindow && IsWindow(g_state.gameWindow)) {
+                return;
+            }
+
+            g_state.windowHookInstalled = false;
+            g_state.gameWindow = nullptr;
+            g_state.originalWndProc = nullptr;
+        }
+
+        HWND window = FindGameWindow();
+        if (!window) {
+            if (a_warnMissing) {
+                std::scoped_lock lock(g_state.lock);
+                if (!g_state.warnedMissingWindow) {
+                    g_state.warnedMissingWindow = true;
+                    logger::warn("MenuBlocker: Skyrim window unavailable; Alt+F4/window-close blocking will retry");
+                }
+            }
+            return;
+        }
+
+        std::scoped_lock lock(g_state.lock);
+        if (g_state.windowHookInstalled && g_state.gameWindow && IsWindow(g_state.gameWindow)) {
+            return;
+        }
+
+        SetLastError(ERROR_SUCCESS);
+        const auto originalWndProc = reinterpret_cast<WNDPROC>(
+            SetWindowLongPtrW(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowProc)));
+        const auto error = GetLastError();
+        if (!originalWndProc && error != ERROR_SUCCESS) {
+            if (!g_state.warnedWindowHookFailed) {
+                g_state.warnedWindowHookFailed = true;
+                logger::warn(
+                    "MenuBlocker: failed to install window proc hook error={}",
+                    static_cast<unsigned long>(error));
+            }
+            return;
+        }
+
+        g_state.windowHookInstalled = true;
+        g_state.gameWindow = window;
+        g_state.originalWndProc = originalWndProc;
+        g_state.warnedMissingWindow = false;
+        g_state.warnedWindowHookFailed = false;
+        logger::info("MenuBlocker: window proc hook installed hwnd=0x{:X}", reinterpret_cast<std::uintptr_t>(window));
+    }
+
+    bool IsAltF4(UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
+    {
+        if (a_message != WM_SYSKEYDOWN || a_wParam != VK_F4) {
+            return false;
+        }
+
+        constexpr LPARAM kAltDownBit = 1LL << 29;
+        return (a_lParam & kAltDownBit) != 0 || (GetKeyState(VK_MENU) & 0x8000) != 0;
+    }
+
+    bool IsWindowCloseMessage(UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
+    {
+        if (a_message == WM_CLOSE) {
+            return true;
+        }
+
+        if (a_message == WM_SYSCOMMAND && (a_wParam & 0xFFF0) == SC_CLOSE) {
+            return true;
+        }
+
+        return IsAltF4(a_message, a_wParam, a_lParam);
+    }
+
+    LRESULT CallOriginalWndProc(HWND a_hwnd, UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
+    {
+        const auto originalWndProc = GetOriginalWndProc();
+        if (originalWndProc) {
+            return CallWindowProcW(originalWndProc, a_hwnd, a_message, a_wParam, a_lParam);
+        }
+
+        return DefWindowProcW(a_hwnd, a_message, a_wParam, a_lParam);
+    }
+
+    LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
+    {
+        if (IsWindowCloseMessage(a_message, a_wParam, a_lParam) && ShouldBlockWindowClose()) {
+            LogBlockedWindowClose(a_message, a_wParam);
+            return 0;
+        }
+
+        return CallOriginalWndProc(a_hwnd, a_message, a_wParam, a_lParam);
     }
 
     void ApplyControlsOnGameThread()
@@ -494,21 +734,17 @@ namespace
 
             g_state.activeTokens.clear();
             if (preservedLoadBoundary) {
-                g_state.activeTokens[loadToken] = false;
+                g_state.activeTokens[loadToken] = {};
             } else {
                 g_state.loadBoundaryToken = 0;
                 ++g_state.loadBoundarySerial;
                 g_state.loadBoundaryWatchdogToken.fetch_add(1);
             }
             g_state.healthDepletedToken = 0;
-            g_state.releaseOnMainMenu = std::any_of(
-                g_state.activeTokens.begin(),
-                g_state.activeTokens.end(),
-                [](const auto& entry) {
-                    return entry.second;
-                });
+            RecalculateTokenFlagsLocked();
             g_state.lastBlockedInputLogSec = 0.0;
             g_state.lastBlockedMenuLogSec = 0.0;
+            g_state.lastBlockedWindowLogSec = 0.0;
             if (preservedLoadBoundary) {
                 shouldRestore = false;
             } else if (shouldRestore) {
@@ -716,6 +952,7 @@ namespace
     void RegisterSinks()
     {
         RegisterSinksInternal(false);
+        InstallWindowHook(false);
     }
 
     std::int32_t BeginInternal(std::string_view a_reason, bool a_releaseOnMainMenu, bool a_healthDepletedToken)
@@ -725,11 +962,13 @@ namespace
         }
 
         RegisterSinksInternal(true);
+        InstallWindowHook(true);
 
         std::thread oldWorker;
         std::int32_t token = 0;
         bool shouldStart = false;
         std::size_t activeCount = 0;
+        const bool allowWindowClose = AllowsWindowCloseReason(a_reason);
         {
             std::scoped_lock lock(g_state.lock);
             if (a_healthDepletedToken && g_state.healthDepletedToken > 0 &&
@@ -745,19 +984,18 @@ namespace
             }
             token = g_state.nextToken;
 
-            g_state.activeTokens[token] = a_releaseOnMainMenu;
+            g_state.activeTokens[token] = { a_releaseOnMainMenu, allowWindowClose };
             if (a_healthDepletedToken) {
                 g_state.healthDepletedToken = token;
             }
-            if (a_releaseOnMainMenu) {
-                g_state.releaseOnMainMenu = true;
-            }
+            RecalculateTokenFlagsLocked();
             activeCount = g_state.activeTokens.size();
 
             if (shouldStart) {
                 g_state.warnedMissingControlMap = false;
                 g_state.lastBlockedInputLogSec = 0.0;
                 g_state.lastBlockedMenuLogSec = 0.0;
+                g_state.lastBlockedWindowLogSec = 0.0;
                 StartWorkerLocked(oldWorker);
             }
         }
@@ -770,10 +1008,11 @@ namespace
 
         if (InfoLoggingEnabled()) {
             logger::info(
-                "MenuBlocker: begin token={} reason={} releaseOnMainMenu={} active={}",
+                "MenuBlocker: begin token={} reason={} releaseOnMainMenu={} allowWindowClose={} active={}",
                 token,
                 ResolveReason(a_reason),
                 a_releaseOnMainMenu,
+                allowWindowClose,
                 activeCount);
         }
         return token;
@@ -804,12 +1043,7 @@ namespace
                 ++g_state.loadBoundarySerial;
             }
 
-            g_state.releaseOnMainMenu = std::any_of(
-                g_state.activeTokens.begin(),
-                g_state.activeTokens.end(),
-                [](const auto& entry) {
-                    return entry.second;
-                });
+            RecalculateTokenFlagsLocked();
             activeCount = g_state.activeTokens.size();
 
             if (!IsActiveLocked()) {

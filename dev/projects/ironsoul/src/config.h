@@ -27,6 +27,10 @@ namespace IronSoul::Config
 	// Returns the flattened IronSoulPreset ordinal stored in the native cache.
 	std::int32_t GetIronSoulPresetOrdinal();
 
+	// Returns the configured text language: Auto, English, French, German,
+	// Italian, Spanish, Polish, Russian, Japanese, or Chinese.
+	std::string GetLanguage();
+
 	// Runtime display difficulty mirrors Papyrus-only runtime availability checks.
 	bool SetEffectiveDisplayDifficulty(std::int32_t presetFamily, std::int32_t displayRank);
 	std::string GetEffectiveDisplayDifficultyJournalPrefix();

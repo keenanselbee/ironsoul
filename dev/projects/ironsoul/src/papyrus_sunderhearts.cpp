@@ -2,6 +2,7 @@
 #include "papyrus_sunderhearts.h"
 #include "papyrus_itemselect.h"
 #include "papyrus_common.h"
+#include "text_catalog.h"
 
 #include <algorithm>
 #include <cmath>
@@ -151,7 +152,15 @@ namespace
 
     std::string FormatTemperSummary(const RE::TESForm* a_form, std::int32_t a_currentLevel, std::int32_t a_newLevel)
     {
-        return std::format("{} +{} -> +{}", GetFormName(a_form), a_currentLevel, a_newLevel);
+        const std::string currentLevel = std::to_string(a_currentLevel);
+        const std::string newLevel = std::to_string(a_newLevel);
+        return IronSoul::Text::Format(
+            "Sunderheart.Native.TemperSummary",
+            {
+                { "name", GetFormName(a_form) },
+                { "current", currentLevel },
+                { "new", newLevel },
+            });
     }
 
     bool SetTemperHealth(RE::ExtraDataList* a_extraList, float a_health)
@@ -442,25 +451,25 @@ namespace
             extraList = nullptr;
         }
         if (!extraList) {
-            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected item is no longer in inventory");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, IronSoul::Text::Get("Sunderheart.Native.ItemMissingInventory"));
             return false;
         }
 
         const float currentHealth = GetTemperHealth(extraList);
         const std::int32_t currentLevel = GetTemperLevel(currentHealth);
         if (currentLevel < 0) {
-            SetLastResult(EnhanceResult::kInvalidGear, "Selected item has invalid temper health");
+            SetLastResult(EnhanceResult::kInvalidGear, IronSoul::Text::Get("Sunderheart.Native.InvalidTemperHealth"));
             return false;
         }
         if (currentLevel >= a_token.cap) {
-            SetLastResult(EnhanceResult::kAlreadyCapped, "Selected item is already at the temper cap");
+            SetLastResult(EnhanceResult::kAlreadyCapped, IronSoul::Text::Get("Sunderheart.Native.AlreadyAtTemperCap"));
             return false;
         }
 
         const std::int32_t newLevel = (std::min)(currentLevel + a_token.power, a_token.cap);
         const float newHealth = GetTemperHealthForLevel(newLevel);
         if (!SetTemperHealth(extraList, newHealth)) {
-            SetLastResult(EnhanceResult::kApplyFailed, "Could not write temper data");
+            SetLastResult(EnhanceResult::kApplyFailed, IronSoul::Text::Get("Sunderheart.Native.ApplyFailedWrite"));
             return false;
         }
 
@@ -472,29 +481,29 @@ namespace
     {
         auto* player = RE::PlayerCharacter::GetSingleton();
         if (!player || !a_object) {
-            SetLastResult(EnhanceResult::kItemMissingAtApply, "Player or selected item is unavailable");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, IronSoul::Text::Get("Sunderheart.Native.PlayerOrItemUnavailable"));
             return false;
         }
 
         if (CountInventoryItems(a_object) <= 0) {
-            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected item is no longer in inventory");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, IronSoul::Text::Get("Sunderheart.Native.ItemMissingInventory"));
             return false;
         }
         if (CountPlainInventoryItems(a_object) <= 0) {
-            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected plain item is no longer in inventory");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, IronSoul::Text::Get("Sunderheart.Native.PlainItemMissing"));
             return false;
         }
 
         auto* extraList = CreateExtraDataList();
         if (!extraList) {
-            SetLastResult(EnhanceResult::kApplyFailed, "Could not allocate temper data");
+            SetLastResult(EnhanceResult::kApplyFailed, IronSoul::Text::Get("Sunderheart.Native.ApplyFailedAllocate"));
             return false;
         }
         const std::int32_t newLevel = (std::min)(a_token.power, a_token.cap);
         const float newHealth = GetTemperHealthForLevel(newLevel);
         if (!SetTemperHealth(extraList, newHealth)) {
             RE::free(extraList);
-            SetLastResult(EnhanceResult::kApplyFailed, "Could not prepare temper data");
+            SetLastResult(EnhanceResult::kApplyFailed, IronSoul::Text::Get("Sunderheart.Native.ApplyFailedPrepare"));
             return false;
         }
 
@@ -511,7 +520,7 @@ namespace
         std::int32_t a_cap)
     {
         if (a_power <= 0 || a_cap <= 0) {
-            SetLastResult(EnhanceResult::kInvalidRequest, "Invalid Sunderheart enhancement request");
+            SetLastResult(EnhanceResult::kInvalidRequest, IronSoul::Text::Get("Sunderheart.Native.InvalidRequest"));
             return 0;
         }
 
@@ -528,12 +537,12 @@ namespace
             session.options = BuildTemperGearEnhanceOptions(a_power, a_cap);
             break;
         default:
-            SetLastResult(EnhanceResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
+            SetLastResult(EnhanceResult::kUnsupportedEffect, IronSoul::Text::Get("Sunderheart.Native.UnsupportedEffect"));
             return 0;
         }
 
         if (session.options.empty()) {
-            SetLastResult(EnhanceResult::kNoEligibleOptions, "No eligible gear can be strengthened");
+            SetLastResult(EnhanceResult::kNoEligibleOptions, IronSoul::Text::Get("Sunderheart.Native.NoEligibleOptions"));
             logger::info("Iron Soul Sunderheart: no eligible enhancement options effect={} power={} cap={}", a_effectID, a_power, a_cap);
             return 0;
         }
@@ -541,7 +550,7 @@ namespace
         const std::int32_t sessionToken = session.token;
         const std::size_t optionCount = session.options.size();
         g_enhanceSessions[sessionToken] = std::move(session);
-        SetLastResult(EnhanceResult::kOk, "OK");
+        SetLastResult(EnhanceResult::kOk, IronSoul::Text::Get("Sunderheart.Native.OK"));
         logger::info(
             "Iron Soul Sunderheart: built enhancement session token={} effect={} power={} cap={} options={}",
             sessionToken,
@@ -556,7 +565,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, IronSoul::Text::Get("Sunderheart.Native.InvalidToken"));
             return 0;
         }
 
@@ -570,13 +579,13 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, IronSoul::Text::Get("Sunderheart.Native.InvalidToken"));
             return "";
         }
 
         const auto& options = sessionIt->second.options;
         if (a_optionIndex < 0 || static_cast<std::size_t>(a_optionIndex) >= options.size()) {
-            SetLastResult(EnhanceResult::kInvalidOption, "Sunderheart enhancement option is invalid");
+            SetLastResult(EnhanceResult::kInvalidOption, IronSoul::Text::Get("Sunderheart.Native.InvalidOption"));
             return "";
         }
 
@@ -587,7 +596,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, IronSoul::Text::Get("Sunderheart.Native.InvalidToken"));
             return "";
         }
 
@@ -596,7 +605,7 @@ namespace
 
         auto* itemList = ItemSelect::GetOpenInventoryItemList();
         if (!itemList) {
-            SetLastResult(EnhanceResult::kNoInventoryMenu, "Inventory menu is not open");
+            SetLastResult(EnhanceResult::kNoInventoryMenu, IronSoul::Text::Get("Sunderheart.Native.NoInventoryMenu"));
             return "";
         }
 
@@ -610,7 +619,7 @@ namespace
                 option = BuildTemperGearEnhanceOptionFromInventoryEntry(entry, session.power, session.cap);
                 break;
             default:
-                SetLastResult(EnhanceResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
+                SetLastResult(EnhanceResult::kUnsupportedEffect, IronSoul::Text::Get("Sunderheart.Native.UnsupportedEffect"));
                 return "";
             }
             if (!option) {
@@ -623,7 +632,7 @@ namespace
         }
 
         if (session.rowTokens.empty()) {
-            SetLastResult(EnhanceResult::kNoEligibleOptions, "No eligible visible inventory rows can be strengthened");
+            SetLastResult(EnhanceResult::kNoEligibleOptions, IronSoul::Text::Get("Sunderheart.Native.NoEligibleRows"));
             logger::info(
                 "Iron Soul Sunderheart: no eligible InventoryMenu rows for session={} effect={} power={} cap={}",
                 a_sessionToken,
@@ -633,7 +642,7 @@ namespace
             return "";
         }
 
-        SetLastResult(EnhanceResult::kOk, "OK");
+        SetLastResult(EnhanceResult::kOk, IronSoul::Text::Get("Sunderheart.Native.OK"));
         logger::info(
             "Iron Soul Sunderheart: refreshed enhancement session rows session={} rows={}",
             a_sessionToken,
@@ -649,11 +658,11 @@ namespace
     {
         auto* object = RE::TESForm::LookupByID<RE::TESBoundObject>(a_token.baseFormID);
         if (!object) {
-            SetLastResult(EnhanceResult::kItemMissingAtApply, "Selected item form is no longer available");
+            SetLastResult(EnhanceResult::kItemMissingAtApply, IronSoul::Text::Get("Sunderheart.Native.ItemMissingAtApply"));
             return false;
         }
         if (!IsPracticalTemperGear(object)) {
-            SetLastResult(EnhanceResult::kInvalidGear, "Selected item is no longer valid temper gear");
+            SetLastResult(EnhanceResult::kInvalidGear, IronSoul::Text::Get("Sunderheart.Native.InvalidGear"));
             return false;
         }
 
@@ -708,7 +717,7 @@ namespace
         case SunderheartEffect::kTemperGear:
             return ApplyTemperGearEnhanceToken(a_sessionToken, a_selectionIndex, a_selectionKind, a_token);
         default:
-            SetLastResult(EnhanceResult::kUnsupportedEffect, "Unsupported Sunderheart enhancement effect");
+            SetLastResult(EnhanceResult::kUnsupportedEffect, IronSoul::Text::Get("Sunderheart.Native.UnsupportedEffect"));
             return false;
         }
     }
@@ -720,7 +729,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, IronSoul::Text::Get("Sunderheart.Native.InvalidToken"));
             return false;
         }
 
@@ -728,7 +737,7 @@ namespace
         g_enhanceSessions.erase(sessionIt);
 
         if (a_optionIndex < 0 || static_cast<std::size_t>(a_optionIndex) >= session.options.size()) {
-            SetLastResult(EnhanceResult::kInvalidOption, "Sunderheart enhancement option is invalid");
+            SetLastResult(EnhanceResult::kInvalidOption, IronSoul::Text::Get("Sunderheart.Native.InvalidOption"));
             return false;
         }
 
@@ -743,7 +752,7 @@ namespace
     {
         auto sessionIt = g_enhanceSessions.find(a_sessionToken);
         if (sessionIt == g_enhanceSessions.end()) {
-            SetLastResult(EnhanceResult::kInvalidToken, "Sunderheart enhancement session is invalid or expired");
+            SetLastResult(EnhanceResult::kInvalidToken, IronSoul::Text::Get("Sunderheart.Native.InvalidToken"));
             return false;
         }
 
@@ -752,7 +761,7 @@ namespace
 
         auto rowIt = session.rowTokens.find(a_rowIndex);
         if (rowIt == session.rowTokens.end()) {
-            SetLastResult(EnhanceResult::kInvalidOption, "Sunderheart enhancement inventory row is invalid");
+            SetLastResult(EnhanceResult::kInvalidOption, IronSoul::Text::Get("Sunderheart.Native.InvalidInventoryRow"));
             return false;
         }
 
@@ -762,7 +771,7 @@ namespace
     static void SunderheartReleaseEnhanceSession(RE::StaticFunctionTag*, std::int32_t a_sessionToken)
     {
         g_enhanceSessions.erase(a_sessionToken);
-        SetLastResult(EnhanceResult::kOk, "OK");
+        SetLastResult(EnhanceResult::kOk, IronSoul::Text::Get("Sunderheart.Native.OK"));
     }
 
     static std::int32_t SunderheartGetEnhanceResult(RE::StaticFunctionTag*)

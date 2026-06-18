@@ -341,7 +341,7 @@ Function HandleUninstallMode(Actor player)
 
     if !_uninstallNotified
         _uninstallNotified = True
-        Debug.MessageBox("Iron Soul has been safely disabled.\nYou may now uninstall the mod, or leave it installed in its disabled state.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.CleanupDisabled"))
     endif
 EndFunction
 

@@ -12,6 +12,10 @@ namespace IronSoul::Papyrus
     {
         return IronSoul::Config::GetInt("SlowMoOnDeath", 1) == 1;
     }
+    bool FeatSlowMoEnabled()
+    {
+        return IronSoul::Config::GetInt("SlowMoOnFeat", 1) == 1;
+    }
 
     std::string Trim(std::string s)
     {

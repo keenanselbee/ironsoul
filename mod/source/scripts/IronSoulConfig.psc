@@ -19,6 +19,7 @@ Scriptname IronSoulConfig extends Quest
 ; SunderheartAbsorbSFX = 1
 ; SunderheartFocusSFX = 1
 ; IronIntroSFX = 1
+; LuckImprovedSFX = 1
 ; LuckOutcomeSFX = 1
 ; PermadeathSFX = 1
 ; RespawnSFX = 1
@@ -60,7 +61,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsFarsightOverlayEnabled()
 ; GetFarsightOverlayMode()
 ; IsIronSoulIntroEnabled()
-; GetIronSoulIntroDelaySeconds()
+; GetIronSoulIntroTargetSeconds()
 ; IsSunderheartMenuEnabled()
 ; IsSunderheartNotificationEnabled()
 ; GetSunderheartInventoryMode()
@@ -80,6 +81,7 @@ Scriptname IronSoulConfig extends Quest
 ; IsDragonSoulReviveCastSFXEnabled()
 ; IsDragonSoulReviveSFXEnabled()
 ; IsFeatUnlockSFXEnabled()
+; IsLuckImprovedSFXEnabled()
 ; IsLuckOutcomeSFXEnabled()
 ; IsRespawnHeavyBreathingSFXEnabled()
 ; IsDefiantSoulEnabled()
@@ -147,10 +149,9 @@ Bool _enableCharacterSheetCompatibility = False
 Bool _requiemCompatibilityEnabled = True
 Bool _cosaveRecoveryBackupEnabled = True
 Bool _tintOverlayEnabled = True
-Bool _farsightOverlayEnabled = True
 Int _farsightOverlayMode = 1
 Bool _ironSoulIntroEnabled = True
-Int _ironSoulIntroDelaySeconds = 27
+Int _ironSoulIntroTargetSeconds = 15
 Bool _sunderheartMenuEnabled = True
 Bool _sunderheartNotificationEnabled = True
 Int _sunderheartInventoryMode = 1 ; 1=reopen,2=close
@@ -170,6 +171,7 @@ Bool _sunderheartFocusSFXEnabled = True
 Bool _dragonSoulReviveCastSFXEnabled = True
 Bool _dragonSoulReviveSFXEnabled = True
 Bool _featUnlockSFXEnabled = True
+Bool _luckImprovedSFXEnabled = True
 Bool _luckOutcomeSFXEnabled = True
 Bool _respawnHeavyBreathingSFXEnabled = True
 
@@ -201,7 +203,7 @@ Function ResetDefaults()
     _dragonSoulReviveMenuEnabled = True
     _dragonSoulNotificationEnabled = True
     _ironSoulIntroEnabled = True
-    _ironSoulIntroDelaySeconds = 23
+    _ironSoulIntroTargetSeconds = 15
     _sunderheartMenuEnabled = True
     _sunderheartNotificationEnabled = True
     _sunderheartInventoryMode = 1
@@ -215,7 +217,6 @@ Function ResetDefaults()
     _requiemCompatibilityEnabled = True
     _cosaveRecoveryBackupEnabled = True
     _tintOverlayEnabled = True
-    _farsightOverlayEnabled = True
     _farsightOverlayMode = 1
     _dragonSoulReviveEnabled = True
     _dragonSoulReviveTransformEnabled = True
@@ -255,6 +256,7 @@ Function ResetDefaults()
     _dragonSoulReviveCastSFXEnabled = True
     _dragonSoulReviveSFXEnabled = True
     _featUnlockSFXEnabled = True
+    _luckImprovedSFXEnabled = True
     _luckOutcomeSFXEnabled = True
     _respawnHeavyBreathingSFXEnabled = True
 EndFunction
@@ -295,7 +297,7 @@ Function LoadFromIni()
     _respawnEnabled = ReadFeatureEnabled("Respawn", True)
     _respawnMenuEnabled = ReadFeatureEnabled("RespawnMenu", True)
     _ironSoulIntroEnabled = ReadFeatureEnabled("IronSoulIntro", True)
-    _ironSoulIntroDelaySeconds = ReadIntRange("IronSoulIntroDelaySeconds", _ironSoulIntroDelaySeconds, 0, 120)
+    _ironSoulIntroTargetSeconds = ReadIntRange("IronSoulIntroTargetSeconds", _ironSoulIntroTargetSeconds, 0, 120)
     _sunderheartMenuEnabled = ReadFeatureEnabled("SunderheartMenu", True)
     _sunderheartNotificationEnabled = ReadFeatureEnabled("SunderheartNotification", True)
     _sunderheartInventoryMode = ReadIntRange("SunderheartInventoryMode", _sunderheartInventoryMode, 1, 2)
@@ -308,8 +310,7 @@ Function LoadFromIni()
     _requiemCompatibilityEnabled = ReadFeatureEnabled("RequiemCompatibility", True)
     _cosaveRecoveryBackupEnabled = ReadFeatureEnabled("CosaveRecoveryBackup", True)
     _tintOverlayEnabled = ReadFeatureEnabled("TintOverlay", True)
-    _farsightOverlayEnabled = ReadFeatureEnabled("FarsightOverlay", True)
-    _farsightOverlayMode = ReadIntRange("FarsightOverlayMode", _farsightOverlayMode, 1, 2)
+    _farsightOverlayMode = ReadIntRange("FarsightOverlayMode", _farsightOverlayMode, 0, 2)
 
     Bool iniPermadeath = ReadFeatureEnabled("Permadeath", True)
 
@@ -340,6 +341,7 @@ Function LoadFromIni()
     _dragonSoulReviveCastSFXEnabled = ReadFeatureEnabled("DragonSoulReviveCastSFX", True)
     _dragonSoulReviveSFXEnabled = ReadFeatureEnabled("DragonSoulReviveSFX", True)
     _featUnlockSFXEnabled = ReadFeatureEnabled("FeatUnlockSFX", True)
+    _luckImprovedSFXEnabled = ReadFeatureEnabled("LuckImprovedSFX", True)
     _luckOutcomeSFXEnabled = ReadFeatureEnabled("LuckOutcomeSFX", True)
     _respawnHeavyBreathingSFXEnabled = ReadFeatureEnabled("RespawnHeavyBreathingSFX", True)
 EndFunction
@@ -431,7 +433,7 @@ Bool Function IsTintOverlayEnabled()
 EndFunction
 
 Bool Function IsFarsightOverlayEnabled()
-    return _farsightOverlayEnabled
+    return _farsightOverlayMode > 0
 EndFunction
 
 Int Function GetFarsightOverlayMode()
@@ -442,8 +444,8 @@ Bool Function IsIronSoulIntroEnabled()
     return _ironSoulIntroEnabled
 EndFunction
 
-Int Function GetIronSoulIntroDelaySeconds()
-    return _ironSoulIntroDelaySeconds
+Int Function GetIronSoulIntroTargetSeconds()
+    return _ironSoulIntroTargetSeconds
 EndFunction
 
 Bool Function IsSunderheartMenuEnabled()
@@ -520,6 +522,10 @@ EndFunction
 
 Bool Function IsFeatUnlockSFXEnabled()
     return _featUnlockSFXEnabled
+EndFunction
+
+Bool Function IsLuckImprovedSFXEnabled()
+    return _luckImprovedSFXEnabled
 EndFunction
 
 Bool Function IsLuckOutcomeSFXEnabled()
@@ -658,7 +664,6 @@ Function LogSnapshot()
         + " Permadeath=" + _permadeathEnabled \
         + " PrisonerTestCharacters=" + _prisonerTestCharactersEnabled \
         + " TintOverlay=" + _tintOverlayEnabled \
-        + " FarsightOverlay=" + _farsightOverlayEnabled \
         + " FarsightOverlayMode=" + _farsightOverlayMode \
         + " UninstallMode=" + _uninstallMode)
 
@@ -695,6 +700,7 @@ Function LogSnapshot()
         + " DragonSoulReviveCastSFX=" + _dragonSoulReviveCastSFXEnabled \
         + " DragonSoulReviveSFX=" + _dragonSoulReviveSFXEnabled \
         + " FeatUnlockSFX=" + _featUnlockSFXEnabled \
+        + " LuckImprovedSFX=" + _luckImprovedSFXEnabled \
         + " LuckOutcomeSFX=" + _luckOutcomeSFXEnabled \
         + " RespawnHeavyBreathingSFX=" + _respawnHeavyBreathingSFXEnabled)
 EndFunction

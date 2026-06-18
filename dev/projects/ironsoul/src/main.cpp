@@ -10,6 +10,7 @@
 #include "papyrus_musicfade.h"
 #include "papyrus_runtimepulse.h"
 #include "papyrus_sunderheart_focus.h"
+#include "text_catalog.h"
 
 namespace fs = std::filesystem;
 
@@ -52,14 +53,14 @@ namespace IronSoul
 
 	static void EnsureDirectories()
 	{
-		// Where ironsoul.ini and the character journal live:
-		// Data/SKSE/plugins
-		const fs::path pluginsDir = IronSoul::PathUtil::GetSksePluginsDir();
+		// Where Iron Soul-owned text resources and character data live:
+		// Data/SKSE/plugins/ironsoul
+		const fs::path ironSoulDir = IronSoul::PathUtil::GetIronSoulPluginDir();
 
 		std::error_code ec;
-		fs::create_directories(pluginsDir, ec);
+		fs::create_directories(ironSoulDir, ec);
 		if (ec) {
-			logger::warn("Iron Soul: could not create Data/SKSE/plugins: {}", pluginsDir.string());
+			logger::warn("Iron Soul: could not create Data/SKSE/plugins/ironsoul: {}", ironSoulDir.string());
 		}
 	}
 }
@@ -82,6 +83,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::EnsureDirectories();
 
 	IronSoul::Config::Load();
+	IronSoul::Text::Load();
 	IronSoul::ConsoleGuard::Install();
 	IronSoul::DataStore::Initialize();
 	IronSoul::Papyrus::RuntimePulse::StartDataFlushHeartbeat();
@@ -89,11 +91,15 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::MenuBlocker::RegisterLifecycleHooks();
 	IronSoul::Papyrus::Audio::RegisterLifecycleHooks();
 	IronSoul::Papyrus::MusicFade::RegisterLifecycleHooks();
+	IronSoul::Papyrus::RuntimePulse::RegisterLifecycleHooks();
 	IronSoul::Papyrus::SunderheartFocus::RegisterLifecycleHooks();
 
-	// Flush DataStore on save (most reliable session boundary)
+	// Flush DataStore on save and use VM revert as the most reliable fresh-game reset boundary.
 	if (auto* ser = SKSE::GetSerializationInterface(); ser) {
 		ser->SetUniqueID('ISDT');
+		ser->SetRevertCallback([](SKSE::SerializationInterface*) {
+			IronSoul::Papyrus::RuntimePulse::HandleSerializationRevert();
+		});
 		ser->SetSaveCallback([](SKSE::SerializationInterface*) {
 			if (IronSoul::Config::ShouldEmitInfoLog()) {
 				logger::info("Iron Soul: Save flush");
@@ -101,7 +107,7 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 			IronSoul::DataStore::FlushIfDirty();
 		});
 	} else {
-		logger::warn("Iron Soul: Serialization interface unavailable; save-flush disabled");
+		logger::warn("Iron Soul: Serialization interface unavailable; save-flush and intro VM-reset detection disabled");
 	}
 
 	if (!IronSoul::Papyrus::Register()) {

@@ -960,7 +960,7 @@ EndFunction
 String Function GetSunderheartEnhanceResultText()
     String resultText = IronSoulNative.SunderheartGetEnhanceResultText()
     if resultText == ""
-        return "Unknown Sunderheart enhancement failure"
+        return IronSoulNative.TextGet("Sunderheart.EnhanceUnknownFailure")
     endif
     return resultText
 EndFunction
@@ -968,13 +968,13 @@ EndFunction
 Function NotifySunderheartEnhanceFailure(Bool applyFailure = False)
     Int result = IronSoulNative.SunderheartGetEnhanceResult()
     if result == ENHANCE_RESULT_ALREADY_CAPPED
-        Debug.Notification("The Sunderheart cannot strengthen that item further.")
+        Debug.Notification(IronSoulNative.TextGet("Sunderheart.EnhanceAlreadyCapped"))
     elseif result == ENHANCE_RESULT_AMBIGUOUS_STACK
-        Debug.Notification("The Sunderheart cannot choose between matching items.")
+        Debug.Notification(IronSoulNative.TextGet("Sunderheart.EnhanceAmbiguousStack"))
     elseif applyFailure
-        Debug.Notification("The Sunderheart failed to strengthen that item.")
+        Debug.Notification(IronSoulNative.TextGet("Sunderheart.EnhanceApplyFailure"))
     else
-        Debug.Notification("The Sunderheart cannot strengthen that item.")
+        Debug.Notification(IronSoulNative.TextGet("Sunderheart.EnhanceFailure"))
     endif
 EndFunction
 
@@ -986,7 +986,7 @@ Function NotifySunderheartSuccess(String msg)
         return
     endif
 
-    Debug.Notification(msg + ". Sunderhearts Absorbed: " + GetSunderheartsTotal(Game.GetPlayer()))
+    Debug.Notification(IronSoulNative.TextFormat2("Sunderheart.SuccessNotification", "message", msg, "total", "" + GetSunderheartsTotal(Game.GetPlayer())))
 EndFunction
 
 Bool Function TryUseSunderheart(Actor player, Form sunderheartBaseItem, Int sunderheartType = 0, Int sunderheartTier = 0)
@@ -1013,7 +1013,7 @@ Bool Function TryUseSunderheart(Actor player, Form sunderheartBaseItem, Int sund
     if player.GetItemCount(sunderheartBaseItem) <= 0
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "TryUseSunderheart: Player does not have the exact Sunderheart base form")
         ClearSunderheartUseIntentState("missing-item")
-        Debug.MessageBox("The Sunderheart is no longer in your inventory.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartMissingInventory"))
         return False
     endif
 
@@ -1087,25 +1087,25 @@ EndFunction
 
 String Function GetSunderheartActionMessageText(Int selectorTextState)
     String newline = StringUtil.AsChar(10)
-    String prefix = "The Sunderheart warms in your palm." + newline + "The power within yearns for purpose." + newline + newline
+    String prefix = IronSoulNative.TextGet("Sunderheart.ActionIntroLine1") + newline + IronSoulNative.TextGet("Sunderheart.ActionIntroLine2") + newline + newline
     if selectorTextState == SUNDERHEART_ACTION_TEXT_NO_PURGE
-        return prefix + "No deaths linger near enough to burn away."
+        return prefix + IronSoulNative.TextGet("Sunderheart.ActionNoDeaths")
     elseif selectorTextState == SUNDERHEART_ACTION_TEXT_NO_ITEM
-        return prefix + "No item can currently hold the heart energies."
+        return prefix + IronSoulNative.TextGet("Sunderheart.ActionNoItem")
     endif
 
-    return prefix + "What would you ask of it?"
+    return prefix + IronSoulNative.TextGet("Sunderheart.ActionPrompt")
 EndFunction
 
 Int Function ShowSunderheartActionChoice(Int sunderheartTier, Int selectorTextState)
     Int optionCount = 3
     String[] labels = Utility.CreateStringArray(optionCount)
     Int[] actions = Utility.CreateIntArray(optionCount)
-    labels[0] = "Absorb Anima"
+    labels[0] = IronSoulNative.TextGet("Sunderheart.ActionAbsorbAnima")
     actions[0] = SUNDERHEART_ACTION_ANIMA
-    labels[1] = "Enhance Item"
+    labels[1] = IronSoulNative.TextGet("Sunderheart.ActionEnhanceItem")
     actions[1] = SUNDERHEART_ACTION_ENHANCE
-    labels[2] = "Purge Death"
+    labels[2] = IronSoulNative.TextGet("Sunderheart.ActionPurgeDeath")
     actions[2] = SUNDERHEART_ACTION_PURGE
 
     _sunderheartActionChoiceFocusSFX = True
@@ -1315,7 +1315,7 @@ Int Function TryEnhanceItemWithEffectResult(Actor player, Form sunderheartBaseIt
     if player.GetItemCount(sunderheartBaseItem) <= 0
         ReleasePreparedEnhanceSession(preparedSessionToken)
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "TryEnhanceItemWithEffect: Player does not have the exact Sunderheart base form")
-        Debug.MessageBox("The Sunderheart is no longer in your inventory.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartMissingInventory"))
         return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
 
@@ -1398,7 +1398,7 @@ Int Function ShowSunderheartEnhanceList(Int sessionToken)
     if !inventoryWasOpen && !IronSoulNative.OpenMenu(SUNDERHEART_INVENTORY_MENU)
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "ShowSunderheartEnhanceList: InventoryMenu could not be queued")
         ClearSunderheartInventoryBridgeWait()
-        Debug.MessageBox("The Sunderheart selection menu is not available.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartSelectionUnavailable"))
         return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
 
@@ -1411,7 +1411,7 @@ Int Function ShowSunderheartEnhanceList(Int sessionToken)
     if !UI.IsMenuOpen(SUNDERHEART_INVENTORY_MENU)
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "ShowSunderheartEnhanceList: InventoryMenu did not open")
         ClearSunderheartInventoryBridgeWait()
-        Debug.MessageBox("The Sunderheart selection menu is not available.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartSelectionUnavailable"))
         return SUNDERHEART_ENHANCE_RESULT_FAILED
     endif
 
@@ -1435,7 +1435,7 @@ Int Function ShowSunderheartEnhanceList(Int sessionToken)
         endif
         ClearSunderheartInventoryBridgeWait()
         if !noEligibleRows
-            Debug.MessageBox("The Sunderheart selection menu is not available.")
+            Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartSelectionUnavailable"))
             return SUNDERHEART_ENHANCE_RESULT_FAILED
         endif
         return SUNDERHEART_ENHANCE_RESULT_NO_ROWS
@@ -1695,7 +1695,7 @@ Bool Function CompleteItemEnhancement()
 
     if player.GetItemCount(sunderheartBaseItem) <= 0
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "CompleteItemEnhancement: Player no longer has exact Sunderheart base form")
-        Debug.MessageBox("The Sunderheart is no longer in your inventory.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartMissingInventory"))
         ClearEnhancementSelectionState()
         return False
     endif
@@ -1718,7 +1718,7 @@ Bool Function CompleteItemEnhancement()
     player.RemoveItem(sunderheartBaseItem, 1, True)
     AwardHeartglass(player, sunderheartType, sunderheartTier)
     RegisterSunderheartUsed(player, sunderheartType, sunderheartTier)
-    NotifySunderheartSuccess("The Sunderheart strengthens " + enhanceResultText)
+    NotifySunderheartSuccess(IronSoulNative.TextFormat1("Sunderheart.SuccessEnhance", "result", enhanceResultText))
 
     LogSunderhearts(IronSoulConfig.LOG_INFO(), "CompleteItemEnhancement: Enhanced selected inventory item type=" + sunderheartType + " tier=" + sunderheartTier + " effect=" + effectId + " power=" + effectPower + " cap=" + effectCap + " result=" + enhanceResultText)
     ClearEnhancementSelectionState()
@@ -1802,7 +1802,7 @@ Bool Function TryAbsorbAnima(Actor player, String guid, Form sunderheartBaseItem
     Int itemCount = player.GetItemCount(sunderheartBaseItem)
     if itemCount <= 0
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "TryAbsorbAnima: Player does not have the exact Sunderheart base form")
-        Debug.MessageBox("The Sunderheart is no longer in your inventory.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartMissingInventory"))
         return False
     endif
 
@@ -1815,7 +1815,7 @@ Bool Function TryAbsorbAnima(Actor player, String guid, Form sunderheartBaseItem
     PlaySunderheartPresentation(player, SUNDERHEART_ANIMA_ABSORBED_MENU)
     AwardHeartglass(player, sunderheartType, sunderheartTier)
     RegisterSunderheartUsed(player, sunderheartType, sunderheartTier)
-    NotifySunderheartSuccess("The Sunderheart releases its Anima")
+    NotifySunderheartSuccess(IronSoulNative.TextGet("Sunderheart.SuccessAbsorbAnima"))
     ReopenInventoryAfterSunderheartAction(False)
     return True
 EndFunction
@@ -1838,12 +1838,19 @@ Int Function TryPurgeDeathResult(Actor player, String guid, Form sunderheartBase
     Int itemCount = player.GetItemCount(sunderheartBaseItem)
     if itemCount <= 0
         LogSunderhearts(IronSoulConfig.LOG_ERR(), "TryPurgeDeath: Player does not have the exact Sunderheart base form")
-        Debug.MessageBox("The Sunderheart is no longer in your inventory.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SunderheartMissingInventory"))
         return SUNDERHEART_PURGE_RESULT_FAILED
     endif
 
     BeginSunderheartMenuBlock()
     Int deathsAfterPurge = deathsBeforePurge - 1
+    Int tierBeforePurge = Controller.Tiers.GetCurrentTier(player, guid)
+    Bool defiantRestoreHandoff = (tierBeforePurge == Controller.Tiers.TIER_DEFIANT && deathsAfterPurge < Controller.Tiers.IRON_SOUL_MAX_LIVES)
+    Int defiantRestoreHandoffCursorToken = 0
+    if defiantRestoreHandoff
+        defiantRestoreHandoffCursorToken = IronSoulNative.BeginCursorSuppress()
+    endif
+
     player.RemoveItem(sunderheartBaseItem, 1, True)
     Controller.Death.SetCurrentDeathCount(player, guid, deathsAfterPurge)
 
@@ -1852,12 +1859,27 @@ Int Function TryPurgeDeathResult(Actor player, String guid, Form sunderheartBase
     IronSoulNative.DataFlushIfDirty()
 
     CloseInventoryForSunderheartAction()
-    PlaySunderheartPresentation(player, SUNDERHEART_DEATH_PURGED_MENU)
+    PlaySunderheartPresentation(player, SUNDERHEART_DEATH_PURGED_MENU, !defiantRestoreHandoff)
     AwardHeartglass(player, sunderheartType, sunderheartTier)
     RegisterSunderheartUsed(player, sunderheartType, sunderheartTier)
-    Controller.Tiers.TryRestoreFromDefiant(player, guid)
-    NotifySunderheartSuccess("The Sunderheart purges one death. Deaths: " + deathsBeforePurge + " -> " + deathsAfterPurge)
-    ReopenInventoryAfterSunderheartAction(False)
+    if defiantRestoreHandoff
+        UI.CloseCustomMenu()
+        IronSoulNative.PrimeCursorSuppress()
+        IronSoulNative.RefreshCursorSuppress()
+        LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryPurgeDeath: Defiant restore handoff started after Sunderheart menu")
+    endif
+    Bool restoredFromDefiant = Controller.Tiers.TryRestoreFromDefiant(player, guid)
+    if defiantRestoreHandoffCursorToken > 0
+        IronSoulNative.EndCursorSuppress(defiantRestoreHandoffCursorToken)
+    endif
+    if defiantRestoreHandoff && !restoredFromDefiant
+        Controller.Presentation.RestoreMusic()
+        LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryPurgeDeath: Defiant restore handoff fell through; restored music")
+    endif
+    NotifySunderheartSuccess(IronSoulNative.TextFormat2("Sunderheart.SuccessPurgeDeath", "before", "" + deathsBeforePurge, "after", "" + deathsAfterPurge))
+    if !restoredFromDefiant
+        ReopenInventoryAfterSunderheartAction(False)
+    endif
     return SUNDERHEART_PURGE_RESULT_SUCCESS
 EndFunction
 
@@ -1874,7 +1896,7 @@ Function AwardHeartglass(Actor player, Int sunderheartType = 0, Int sunderheartT
     LogSunderhearts(IronSoulConfig.LOG_INFO(), "AwardHeartglass: Awarded Heartglass for spent Sunderheart type=" + sunderheartType + " tier=" + sunderheartTier)
 EndFunction
 
-Function PlaySunderheartPresentation(Actor player, String menuName)
+Function PlaySunderheartPresentation(Actor player, String menuName, Bool restoreMusicAfter = True)
     ClearSunderheartUseIntentState("presentation")
     if !player
         EndSunderheartUseFocus(False)
@@ -1910,7 +1932,9 @@ Function PlaySunderheartPresentation(Actor player, String menuName)
     ; PlaySunderheartSFX(player)
     Controller.Presentation.WaitKeyDismissMenu(SUNDERHEART_PRESENTATION_MAX_SECONDS, SUNDERHEART_PRESENTATION_DISMISS_SECONDS)
     IronSoulNative.EndCursorSuppress(cursorToken)
-    Controller.Presentation.RestoreMusic()
+    if restoreMusicAfter
+        Controller.Presentation.RestoreMusic()
+    endif
     EndSunderheartMenuBlock("sunderheart-presentation-complete")
     _sunderheartPresentationActive = False
     BlockSunderheartUseBriefly(SUNDERHEART_USE_REENTRY_COOLDOWN_SECONDS)

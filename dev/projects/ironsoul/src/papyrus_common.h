@@ -7,6 +7,7 @@ namespace IronSoul::Papyrus
 
     bool InfoLoggingEnabled();
     bool DeathSlowMoEnabled();
+    bool FeatSlowMoEnabled();
     std::string Trim(std::string a_value);
     std::string ResolvePlayerName(bool a_fallbackToPrisoner);
 }

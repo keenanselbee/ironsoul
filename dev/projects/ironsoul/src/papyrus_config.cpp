@@ -3,6 +3,7 @@
 #include "papyrus_common.h"
 #include "papyrus_runtime.h"
 #include "config.h"
+#include "text_catalog.h"
 
 namespace IronSoul::Papyrus::Config
 {
@@ -59,9 +60,13 @@ namespace
 
     static bool SetConfigString(RE::StaticFunctionTag*, std::string a_key, std::string a_value, bool a_persistToIni)
     {
+        const std::string canonicalKey = IronSoul::Config::GetConfigKeyCanonical(a_key);
         const bool ok = IronSoul::Config::SetString(a_key, a_value, a_persistToIni);
         if (ok) {
             IronSoul::Papyrus::Runtime::RefreshRuntimeConfigCaches();
+            if (canonicalKey == "language") {
+                IronSoul::Text::Load();
+            }
         }
         return ok;
     }
@@ -69,6 +74,7 @@ namespace
     static bool ReloadConfig(RE::StaticFunctionTag*)
     {
         IronSoul::Config::Load();
+        IronSoul::Text::Load();
         IronSoul::Papyrus::Runtime::RefreshRuntimeConfigCaches();
         return true;
     }

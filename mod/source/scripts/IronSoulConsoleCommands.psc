@@ -123,6 +123,11 @@ Scriptname IronSoulConsoleCommands Hidden
 ; GetEffectiveLuckLevel()
 ; IronSoulPresetConfigText()
 ; NormalizeStateLabel()
+; ConsoleText()
+; ConsoleFormat1()
+; ConsoleFormat2()
+; ConsoleFormat3()
+; ConsoleFormat4()
 
 ; --- State & Tier Commands ---
 ; -----------------------------
@@ -940,69 +945,71 @@ String Function NormalizeStateLabel(String value) Global
     return value
 EndFunction
 
+String Function ConsoleText(String textKey) Global
+    return IronSoulNative.TextGet("Console." + textKey)
+EndFunction
+
+String Function ConsoleFormat1(String textKey, String token1, String value1) Global
+    return IronSoulNative.TextFormat1("Console." + textKey, token1, value1)
+EndFunction
+
+String Function ConsoleFormat2(String textKey, String token1, String value1, String token2, String value2) Global
+    return IronSoulNative.TextFormat2("Console." + textKey, token1, value1, token2, value2)
+EndFunction
+
+String Function ConsoleFormat3(String textKey, String token1, String value1, String token2, String value2, String token3, String value3) Global
+    return IronSoulNative.TextFormat3("Console." + textKey, token1, value1, token2, value2, token3, value3)
+EndFunction
+
+String Function ConsoleFormat4(String textKey, String token1, String value1, String token2, String value2, String token3, String value3, String token4, String value4) Global
+    return IronSoulNative.TextFormat4("Console." + textKey, token1, value1, token2, value2, token3, value3, token4, value4)
+EndFunction
+
 ; =============================
 ; --- State & Tier Commands ---
 ; =============================
 
 String Function GetHelp(String helpTopic = "") Global
     if helpTopic == "h" || helpTopic == "H" || helpTopic == "hidden" || helpTopic == "Hidden" || helpTopic == "HIDDEN"
-        return "Iron Soul hidden commands (EnableDebug required):\n" \
-            + "rcd: reset current character data; preserves shared Sunderhearts; double-confirm.\n" \
-            + "pd: purge non-current character data; preserves shared Sunderhearts; double-confirm.\n" \
-            + "rsh: reset shared Sunderhearts absorbed, unlocked, and unlock catalog; double-confirm.\n" \
-            + "gdat [section]: get current character data; sections: identity, shared, core, luck, ui, soul, dsr, bosses, defiant, journal.\n" \
-            + "sdat <key> <value>: set current character data."
+        return ConsoleText("HelpHidden")
     endif
 
     if helpTopic == "a" || helpTopic == "A" || helpTopic == "advanced" || helpTopic == "Advanced" || helpTopic == "ADVANCED"
-        return "Iron Soul advanced commands (EnableDebug required):\n" \
-            + "st <tier> [f|force]: set tier.\n" \
-            + "rt: reset tier.\n" \
-            + "sl <luck>: set luck.\n" \
-            + "sd <deaths>: set deaths.\n" \
-            + "sds <total>: set dragon soul total.\n" \
-            + "don/doff/dreset: force Draugnarok on, force off, or clear override.\n" \
-            + "rsmall/rservice/rtown/rmedium/rpillage/rminor/rgate/rcapital: trigger Draugnarok raids."
+        return ConsoleText("HelpAdvanced")
     endif
 
-    return "Iron Soul commands:\n" \
-        + "s: Iron Soul state summary.\n" \
-        + "d: Draugnarok state summary.\n" \
-        + "rc: calculate current Draugnarok raid chance.\n" \
-        + "gini: list INI options and effective preset-owned core values.\n" \
-        + "sini <key> <value> [t]: set INI for this session; add t to persist to ironsoul.ini.\n" \
-        + "rini: reload INI."
+    return ConsoleText("HelpMain")
 EndFunction
 
 String Function GetIronSoulState() Global
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
 
     if !controller.Tiers
-        return "Error: IronSoulTiers is not wired."
+        return ConsoleText("ErrorTiersNotWired")
     endif
     if !controller.Death
-        return "Error: IronSoulDeath is not wired."
+        return ConsoleText("ErrorDeathNotWired")
     endif
     if !controller.Effects
-        return "Error: IronSoulEffects is not wired."
+        return ConsoleText("ErrorEffectsNotWired")
     endif
     if !controller.Sunderhearts
-        return "Error: IronSoulSunderhearts is not wired."
+        return ConsoleText("ErrorSunderheartsNotWired")
     endif
     if !controller.Luck
-        return "Error: IronSoulLuck is not wired."
+        return ConsoleText("ErrorLuckNotWired")
     endif
 
     Int tierValue = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
@@ -1024,52 +1031,45 @@ String Function GetIronSoulState() Global
     endif
     String soulBonusState = NormalizeStateLabel(controller.Effects.GetAppliedSoulBonusSpellCompactLabel(playerRef))
     String soulFatigueState = NormalizeStateLabel(controller.Effects.GetAppliedSoulFatigueSpellCompactLabel(playerRef))
-    return "GUID=" + guid \
-        + " | Difficulty=" + DifficultyLabelForDisplayRank(difficultyValue, displayDifficultyRank) \
-        + " | Tier=" + TierLabel(tierValue) + "(" + tierValue + ")" \
-        + " | Deaths=" + deathValue \
-        + " | TotalDeaths=" + totalDeathValue \
-        + " | Luck=" + luck + "/" + maxLuck \
-        + "\n" \
-        + "TotalDragonSouls=" + soulsTotal \
-        + " | SunderheartsAbsorbed=" + sunderheartsAbsorbed \
-        + " | SunderheartsUnlocked=" + sunderheartsUnlocked \
-        + " | SoulBonus=" + soulBonusState \
-        + " | SoulFatigue=" + soulFatigueState
+    String summaryLine1 = ConsoleFormat4("StateSummaryStart", "guid", guid, "difficulty", DifficultyLabelForDisplayRank(difficultyValue, displayDifficultyRank), "tier", TierLabel(tierValue), "tier_value", "" + tierValue)
+    summaryLine1 = summaryLine1 + ConsoleFormat3("StateSummaryVitals", "deaths", "" + deathValue, "total_deaths", "" + totalDeathValue, "luck_pair", "" + luck + "/" + maxLuck)
+    String summaryLine2 = ConsoleFormat4("StateSummaryProgress", "dragon_souls", "" + soulsTotal, "sunderhearts_absorbed", "" + sunderheartsAbsorbed, "sunderhearts_unlocked", "" + sunderheartsUnlocked, "soul_bonus", soulBonusState)
+    summaryLine2 = summaryLine2 + ConsoleFormat1("StateSummaryFatigue", "soul_fatigue", soulFatigueState)
+    return summaryLine1 + "\n" + summaryLine2
 EndFunction
 
 String Function SetTier(Int tierValue, String forceMode = "") Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
     if !controller.Death
-        return "Error: IronSoulDeath is not wired."
+        return ConsoleText("ErrorDeathNotWired")
     endif
     if !controller.Tiers
-        return "Error: IronSoulTiers is not wired."
+        return ConsoleText("ErrorTiersNotWired")
     endif
 
     Int parsedForce = ParseForceMode(forceMode)
     if parsedForce == -1
-        return "Error: force flag must be empty, f, or force."
+        return ConsoleText("ErrorForceFlagInvalid")
     endif
 
     if !IsCanonicalTier(tierValue)
-        return "Error: tier must be one of 0, 1, 2, 3, 4, 5, 6, or 9."
+        return ConsoleText("ErrorTierInvalid")
     endif
 
     return controller.Tiers.SetTierFromConsole(playerRef, guid, tierValue, parsedForce)
@@ -1077,64 +1077,64 @@ EndFunction
 
 String Function SetLuck(Int luckValue) Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
 
     if !controller.Luck
-        return "Error: IronSoulLuck is not wired."
+        return ConsoleText("ErrorLuckNotWired")
     endif
 
     Int maxLuck = controller.Luck.GetCurrentMax(playerRef, guid)
 
     Int appliedLuck = controller.Luck.SetValue(playerRef, guid, luckValue)
     if appliedLuck < 0
-        return "Error: failed to set luck."
+        return ConsoleText("ErrorLuckSetFailed")
     endif
 
     IronSoulNative.DataFlushIfDirty()
-    return "Luck set to " + appliedLuck + " (max " + maxLuck + ")."
+    return ConsoleFormat2("LuckSet", "luck", "" + appliedLuck, "max", "" + maxLuck)
 EndFunction
 
 String Function SetDeaths(Int deathsValue) Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
     if !controller.Death
-        return "Error: IronSoulDeath is not wired."
+        return ConsoleText("ErrorDeathNotWired")
     endif
     if !controller.Tiers
-        return "Error: IronSoulTiers is not wired."
+        return ConsoleText("ErrorTiersNotWired")
     endif
     if !controller.Effects
-        return "Error: IronSoulEffects is not wired."
+        return ConsoleText("ErrorEffectsNotWired")
     endif
 
     Int previousTier = ClampTier(controller.Tiers.GetCurrentTier(playerRef, guid))
@@ -1145,34 +1145,34 @@ String Function SetDeaths(Int deathsValue) Global
     IronSoulNative.DataFlushIfDirty()
 
     if actualDeaths == clampedDeaths
-        return "Deaths set to " + actualDeaths + "."
+        return ConsoleFormat1("DeathsSet", "deaths", "" + actualDeaths)
     endif
     if previousTier == 0 && actualDeaths == 0
-        return "Deaths set request " + clampedDeaths + " triggered Defiant restoration. Stored deaths are now 0."
+        return ConsoleFormat1("DeathsSetDefiantRestored", "requested", "" + clampedDeaths)
     endif
-    return "Deaths set request " + clampedDeaths + " resolved to stored value " + actualDeaths + "."
+    return ConsoleFormat2("DeathsSetResolved", "requested", "" + clampedDeaths, "actual", "" + actualDeaths)
 EndFunction
 
 String Function SetDragonSoulsState(Int totalValue) Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
     if !controller.Tiers
-        return "Error: IronSoulTiers is not wired."
+        return ConsoleText("ErrorTiersNotWired")
     endif
 
     return controller.Tiers.SetDragonSoulsTotalFromConsole(playerRef, guid, totalValue)
@@ -1180,24 +1180,24 @@ EndFunction
 
 String Function ResetTier() Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
     if !controller.Tiers
-        return "Error: IronSoulTiers is not wired."
+        return ConsoleText("ErrorTiersNotWired")
     endif
 
     return controller.Tiers.ResetTierFromConsole(playerRef, guid)
@@ -1205,104 +1205,104 @@ EndFunction
 
 String Function ResetSunderhearts() Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
     if !controller.Cleanup
-        return "Error: IronSoulCleanup component is not available."
+        return ConsoleText("ErrorCleanupUnavailable")
     endif
     if !controller.Sunderhearts
-        return "Error: IronSoulSunderhearts is not wired."
+        return ConsoleText("ErrorSunderheartsNotWired")
     endif
     if IsCurrentCharacterTest(playerRef, controller)
-        return "Test character: shared Sunderhearts are not used and were not reset."
+        return ConsoleText("ResetSunderheartsTestCharacter")
     endif
 
     if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("resetsunderhearts", guid)
         controller.Cleanup.ArmDestructiveCommandConfirmation("resetsunderhearts", guid, 10.0)
-        return "This will reset shared Sunderhearts absorbed, unlocked, and unlock catalog for all characters. Enter is resetsunderhearts or is rsh again within 10 seconds to confirm."
+        return ConsoleText("ResetSunderheartsConfirm")
     endif
 
     Int deletedCatalogKeys = controller.Sunderhearts.ResetSharedSunderheartData(playerRef)
     if deletedCatalogKeys < 0
-        return "Error: failed to reset shared Sunderhearts."
+        return ConsoleText("ResetSunderheartsFailed")
     endif
 
-    return "Shared Sunderhearts reset. Deleted " + deletedCatalogKeys + " unlock catalog key(s)."
+    return ConsoleFormat1("ResetSunderheartsDone", "count", "" + deletedCatalogKeys)
 EndFunction
 
 String Function ResetCharacterData() Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
     if !controller.Cleanup
-        return "Error: IronSoulCleanup component is not available."
+        return ConsoleText("ErrorCleanupUnavailable")
     endif
 
     if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("resetcharacterdata", guid)
         controller.Cleanup.ArmDestructiveCommandConfirmation("resetcharacterdata", guid, 10.0)
-        return "This will reset Iron Soul tracked data for the current character only. Shared Sunderhearts are preserved. Enter is resetcharacterdata or is rcd again within 10 seconds to confirm."
+        return ConsoleText("ResetCharacterDataConfirm")
     endif
 
     if !controller.Cleanup.ResetCurrentCharacterData(playerRef, guid)
-        return "Error: failed to reset Iron Soul tracked data for the current character."
+        return ConsoleText("ResetCharacterDataFailed")
     endif
 
-    return "Current character Iron Soul data reset to fresh state. Shared Sunderhearts were preserved. Boss completion flags may reapply later if this save already reports those quests complete."
+    return ConsoleText("ResetCharacterDataDone")
 EndFunction
 
 String Function PurgeData() Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if !controller
-        return "Error: IronSoulControllerQuest is not available."
+        return ConsoleText("ErrorControllerUnavailable")
     endif
     String guid = ResolveGuid(playerRef, controller)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
     if !controller.Cleanup
-        return "Error: IronSoulCleanup component is not available."
+        return ConsoleText("ErrorCleanupUnavailable")
     endif
 
     if !controller.Cleanup.TryConsumeDestructiveCommandConfirmation("purgedata", guid)
         controller.Cleanup.ArmDestructiveCommandConfirmation("purgedata", guid, 10.0)
-        return "This will purge Iron Soul tracked data for all characters except the current character. Shared Sunderhearts are preserved. Enter is purgedata or is pd again within 10 seconds to confirm."
+        return ConsoleText("PurgeDataConfirm")
     endif
 
     Int purgedCount = controller.Cleanup.PurgeHistoricalCharacterData(guid)
@@ -1310,22 +1310,22 @@ String Function PurgeData() Global
     if purgedCount == 1
         suffix = ""
     endif
-    return "Purged Iron Soul data for " + purgedCount + " non-current character" + suffix + ". Current character data and shared Sunderhearts were not changed."
+    return ConsoleFormat2("PurgeDataDone", "count", "" + purgedCount, "suffix", suffix)
 EndFunction
 
 String Function GetData(String section = "") Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     String guid = ResolveGuid(playerRef)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
 
     return IronSoulNative.DataGetCharacterData(guid, section)
@@ -1333,29 +1333,29 @@ EndFunction
 
 String Function SetData(String k, String value) Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     if k == ""
-        return "Error: data key cannot be empty."
+        return ConsoleText("ErrorDataKeyEmpty")
     endif
 
     Actor playerRef = Game.GetPlayer()
     if !playerRef
-        return "Error: player reference is not available."
+        return ConsoleText("ErrorPlayerUnavailable")
     endif
 
     String guid = ResolveGuid(playerRef)
     if guid == ""
-        return "Error: character GUID is not initialized yet."
+        return ConsoleText("ErrorGuidUnavailable")
     endif
 
     String requestedBase = StripCurrentGuidScope(k, guid)
     if requestedBase == "#FOREIGN_SCOPE#"
-        return "Error: scoped data key belongs to a different GUID."
+        return ConsoleText("ErrorDataForeignGuid")
     endif
     if requestedBase == ""
-        return "Error: data key cannot be empty."
+        return ConsoleText("ErrorDataKeyEmpty")
     endif
 
     requestedBase = NormalizeDataRawKey(requestedBase, guid)
@@ -1366,25 +1366,25 @@ String Function SetData(String k, String value) Global
     endif
 
     if keyBase == "CharacterGuid" || keyBase == "IS_9975"
-        return "Error: CharacterGuid is read-only; it is stored in the authoritative co-save identity slot."
+        return ConsoleText("ErrorCharacterGuidReadOnly")
     endif
 
     Int valueType = KnownDataValueType(keyBase)
     if valueType == 0 && !IsAllowedRawDataBase(keyBase)
-        return "Error: unknown global data key '" + k + "'. Use a friendly key, current-character raw key, G.U.INDEX, or G.U.<currentGuid>."
+        return ConsoleFormat1("ErrorDataUnknownGlobalKey", "key", k)
     endif
     if IsSharedDataKey(keyBase) && IsCurrentCharacterTest(playerRef)
-        return "Test character: shared progress key '" + keyBase + "' was not changed."
+        return ConsoleFormat1("DataSharedTestSkipped", "key", keyBase)
     endif
 
     String targetKey = ResolveDataTargetKey(keyBase, guid)
     if targetKey == ""
-        return "Error: failed to resolve data key '" + k + "'."
+        return ConsoleFormat1("ErrorDataResolveFailed", "key", k)
     endif
 
     if valueType == 1
         if !IsStrictIntText(value)
-            return "Error: data key '" + k + "' requires an integer value."
+            return ConsoleFormat1("ErrorDataRequiresInteger", "key", k)
         endif
 
         Int intValue = value as Int
@@ -1397,17 +1397,17 @@ String Function SetData(String k, String value) Global
             intWriteOk = IronSoulNative.DataSetIntChecked(targetKey, intValue)
         endif
         if !intWriteOk
-            return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
+            return ConsoleFormat1("ErrorDataWriteRejected", "key", targetKey)
         endif
         SyncSharedDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
-        return "Set " + targetKey + "=" + intValue + "."
+        return ConsoleFormat2("DataSetInt", "key", targetKey, "value", "" + intValue)
     elseif valueType == 2
         if !IronSoulNative.DataSetStringChecked(targetKey, value)
-            return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
+            return ConsoleFormat1("ErrorDataWriteRejected", "key", targetKey)
         endif
         IronSoulNative.DataFlushIfDirty()
-        return "Set " + targetKey + "=\"" + value + "\"."
+        return ConsoleFormat2("DataSetString", "key", targetKey, "value", value)
     endif
 
     if IsStrictIntText(value)
@@ -1421,44 +1421,44 @@ String Function SetData(String k, String value) Global
             inferredIntWriteOk = IronSoulNative.DataSetIntChecked(targetKey, inferredIntValue)
         endif
         if !inferredIntWriteOk
-            return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
+            return ConsoleFormat1("ErrorDataWriteRejected", "key", targetKey)
         endif
         SyncSharedDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
-        return "Set " + targetKey + "=" + inferredIntValue + "."
+        return ConsoleFormat2("DataSetInt", "key", targetKey, "value", "" + inferredIntValue)
     endif
 
     if !IronSoulNative.DataSetStringChecked(targetKey, value)
-        return "Error: failed to write data key '" + targetKey + "'; MainData rejected the key or value."
+        return ConsoleFormat1("ErrorDataWriteRejected", "key", targetKey)
     endif
     IronSoulNative.DataFlushIfDirty()
-    return "Set " + targetKey + "=\"" + value + "\"."
+    return ConsoleFormat2("DataSetString", "key", targetKey, "value", value)
 EndFunction
 
 String Function TriggerDraugnarokRaid(Int raidType, String raidLabel) Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     if !draugnarok
-        return "Error: Draugnarok quest is not available."
+        return ConsoleText("ErrorDraugnarokUnavailable")
     endif
 
     if !draugnarok.IsDraugnarokSystemEnabled()
-        return "DraugnarokSystem=0. Enable DraugnarokSystem before triggering manual raids."
+        return ConsoleText("DraugnarokManualRaidsDisabled")
     endif
 
     if draugnarok.TriggerManualRaid(raidType, raidLabel)
-        return "Attempting to trigger Draugnarok " + raidLabel + "."
+        return ConsoleFormat1("DraugnarokRaidAttempt", "raid", raidLabel)
     endif
-    return "Failed to trigger Draugnarok " + raidLabel + "."
+    return ConsoleFormat1("DraugnarokRaidFailed", "raid", raidLabel)
 EndFunction
 
 String Function DraugnarokState() Global
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     if !draugnarok
-        return "Error: Draugnarok quest is not available."
+        return ConsoleText("ErrorDraugnarokUnavailable")
     endif
 
     return draugnarok.GetDraugnarokStateSummary()
@@ -1467,7 +1467,7 @@ EndFunction
 String Function DraugnarokRaidChance() Global
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     if !draugnarok
-        return "Error: Draugnarok quest is not available."
+        return ConsoleText("ErrorDraugnarokUnavailable")
     endif
 
     return draugnarok.GetCurrentRaidChanceSummary()
@@ -1475,26 +1475,26 @@ EndFunction
 
 String Function SetDraugnarokOverride(Int mode, String label) Global
     if !IsDebugEnabled()
-        return "Debug disabled. Set EnableDebug=1 in ironsoul.ini."
+        return ConsoleText("DebugDisabled")
     endif
 
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     if !draugnarok
-        return "Error: Draugnarok quest is not available."
+        return ConsoleText("ErrorDraugnarokUnavailable")
     endif
 
     if mode == 1 && !draugnarok.IsDraugnarokSystemEnabled()
-        return "DraugnarokSystem=0. Enable DraugnarokSystem before forcing Draugnarok on."
+        return ConsoleText("DraugnarokForceOnDisabled")
     endif
 
     if draugnarok.SetDraugnarokOverrideMode(mode, True)
         if mode == 0 && !draugnarok.IsDraugnarokSystemEnabled()
-            return "Draugnarok override: cleared. Normal rules restored, but DraugnarokSystem=0 keeps the system disabled."
+            return ConsoleText("DraugnarokOverrideClearedDisabled")
         endif
-        return "Draugnarok override: " + label + "."
+        return ConsoleFormat1("DraugnarokOverrideSet", "label", label)
     endif
 
-    return "Error: failed to set Draugnarok override for the current character."
+    return ConsoleText("DraugnarokOverrideFailed")
 EndFunction
 
 String Function DraugnarokForceOn() Global
@@ -1551,20 +1551,20 @@ EndFunction
 
 String Function SafeUninstallGuidance(Bool persistToIni) Global
     if persistToIni
-        return " Safe uninstall is armed for next load: save, reload, wait for the disabled message, then save again before removing the mod."
+        return ConsoleText("SafeUninstallGuidancePersisted")
     endif
-    return " Cache-only UninstallMode will not run the safe uninstall flow on next load unless it is persisted to ironsoul.ini."
+    return ConsoleText("SafeUninstallGuidanceCacheOnly")
 EndFunction
 
 String Function RefreshDraugnarokRuntime() Global
     _DS_DN_Draugnarok draugnarok = ResolveDraugnarokQuest()
     if !draugnarok
-        return " Draugnarok runtime refresh skipped: quest unavailable."
+        return ConsoleText("DraugnarokRuntimeSkipped")
     endif
 
     Int mode = draugnarok.GetDraugnarokOverrideMode()
     draugnarok.ApplyDraugnarokOverrideMode(mode)
-    return " Draugnarok runtime refreshed."
+    return ConsoleText("DraugnarokRuntimeRefreshed")
 EndFunction
 
 String Function GetIni() Global
@@ -1574,12 +1574,12 @@ EndFunction
 
 String Function SetIni(String k, String value, String persistFlag = "") Global
     if k == ""
-        return "Error: config key cannot be empty."
+        return ConsoleText("ErrorConfigKeyEmpty")
     endif
 
     Int parsedPersist = ParsePersistFlag(persistFlag)
     if parsedPersist == -1
-        return "Error: persist flag must be t/T/f/F/true/false."
+        return ConsoleText("ErrorPersistFlagInvalid")
     endif
 
     Bool persistToIni = (parsedPersist == 1)
@@ -1591,7 +1591,7 @@ String Function SetIni(String k, String value, String persistFlag = "") Global
 
     String canonicalKey = IronSoulNative.GetConfigKeyCanonical(k)
     if canonicalKey == ""
-        return "Error: unknown INI key '" + k + "'."
+        return ConsoleFormat1("ErrorIniKeyUnknown", "key", k)
     endif
 
     String displayName = IronSoulNative.GetConfigKeyDisplayName(k)
@@ -1602,7 +1602,7 @@ String Function SetIni(String k, String value, String persistFlag = "") Global
     Int keyFlags = IronSoulNative.GetConfigKeyFlags(k)
     Bool ok = IronSoulNative.SetConfigString(k, value, persistToIni)
     if !ok
-        return "Error: failed to set INI key '" + displayName + "'."
+        return ConsoleFormat1("ErrorIniSetFailed", "key", displayName)
     endif
 
     IronSoulController controller = ResolveControllerQuest()
@@ -1640,16 +1640,16 @@ String Function SetIni(String k, String value, String persistFlag = "") Global
         mode = "persisted"
     endif
 
-    String result = "Set " + displayName + "=" + value + " (" + mode + ")."
+    String result = ConsoleFormat3("IniSet", "key", displayName, "value", value, "mode", mode)
     if !persistToIni
-        result = "Set " + displayName + "=" + value + " (" + mode + "; add t to persist to ironsoul.ini)."
+        result = ConsoleFormat3("IniSetCacheOnly", "key", displayName, "value", value, "mode", mode)
     endif
     if configLoaded
-        result = result + " Iron Soul config component refreshed."
+        result = result + ConsoleText("ConfigComponentRefreshed")
     elseif controller
-        result = result + " Native cache refreshed, but controller config refresh failed; check the Iron Soul log for the missing component."
+        result = result + ConsoleText("ConfigComponentRefreshFailed")
     else
-        result = result + " Native cache refreshed, but controller was unavailable."
+        result = result + ConsoleText("ConfigControllerUnavailable")
     endif
 
     if HasConfigKeyFlag(keyFlags, ConfigFlagDraugnarokRefresh())
@@ -1665,7 +1665,7 @@ EndFunction
 String Function ReloadIni() Global
     Bool ok = IronSoulNative.ReloadConfig()
     if !ok
-        return "Error: failed to reload ironsoul.ini."
+        return ConsoleText("ReloadIniFailed")
     endif
 
     IronSoulController controller = ResolveControllerQuest()
@@ -1695,12 +1695,12 @@ String Function ReloadIni() Global
                 controller.Config.ApplyDynamicPresetAssetsForTier(soulTier)
             endif
             IronSoulNative.ApplyDynamicLevelWidget(soulTier)
-            result = "Reloaded ironsoul.ini into native cache and Iron Soul config component."
+            result = ConsoleText("ReloadIniDone")
         else
-            result = "Reloaded ironsoul.ini into native config cache. Controller config refresh failed; check the Iron Soul log for the missing component."
+            result = ConsoleText("ReloadIniConfigRefreshFailed")
         endif
     else
-        result = "Reloaded ironsoul.ini into native config cache. Controller was unavailable."
+        result = ConsoleText("ReloadIniControllerUnavailable")
     endif
 
     result = result + RefreshDraugnarokRuntime()

@@ -87,6 +87,7 @@ Scriptname IronSoulController extends Quest
 ; OnIronSoul_RuntimeUpdate()
 ; RunRuntimeUpdateTick()
 ; RunDragonSoulWatcherTick()
+; RunFeatUnlockMenuAlarmTick()
 ; RunLuckActiveAlarmTick()
 ; RunDragonSoulReviveActiveAlarmTick()
 ; RunMaintenanceTick()
@@ -171,97 +172,97 @@ Bool Function LoadConfig()
     if !Config
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Config property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulConfig quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingConfig"))
         return False
     endif
     if !Persistence
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Persistence property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulPersistence quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingPersistence"))
         return False
     endif
     if !Identity
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Identity property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulIdentity quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingIdentity"))
         return False
     endif
     if !Journal
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Journal property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulJournal quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingJournal"))
         return False
     endif
     if !Death
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Death property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulDeath quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingDeath"))
         return False
     endif
     if !Luck
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Luck property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulLuck quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingLuck"))
         return False
     endif
     if !Presentation
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Presentation property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulUI quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingUI"))
         return False
     endif
     if !SFX
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: SFX property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulSFX quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingSFX"))
         return False
     endif
     if !SFX.AudioCategoryIronSoul
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: SFX AudioCategoryIronSoul property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the Iron Soul sound category is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingSoundCategory"))
         return False
     endif
     if !Cleanup
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Cleanup property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulCleanup quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingCleanup"))
         return False
     endif
     if !Respawn
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Respawn property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulRespawn quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingRespawn"))
         return False
     endif
     if !DragonSoulRevive
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: DragonSoulRevive property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulDragonSoulRevive quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingDragonSoulRevive"))
         return False
     endif
     if !Tiers
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Tiers property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulTiers quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingTiers"))
         return False
     endif
     if !Sunderhearts
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Sunderhearts property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulSunderhearts quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingSunderhearts"))
         return False
     endif
     if !Effects
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Effects property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulEffects quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingEffects"))
         return False
     endif
     if !Globals
         SetModDisabled(True)
         LogController(IronSoulConfig.LOG_ERR(), "LoadConfig: Globals property is not wired")
-        Debug.MessageBox("Iron Soul has been disabled because the IronSoulGlobals quest component is not wired.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.ControllerMissingGlobals"))
         return False
     endif
 
@@ -426,7 +427,7 @@ Event OnInit()
 
     if !IronSoulNative.IsAvailable()
         SetModDisabled(True)
-        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (ironsoul.dll) is missing.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SKSEMissing"))
         if Globals
             Globals.SyncModState()
         endif
@@ -443,6 +444,7 @@ Event OnInit()
     Presentation.RegisterMusicVolumeCacheMenus()
     Presentation.RefreshConfiguredMusicVolumeCache("init")
     IronSoulNative.StartHealthMonitor()
+    IronSoulNative.EnsureNewGameIntroClockStarted("controller-oninit")
 
     LogController(IronSoulConfig.LOG_INFO(), "IronSoulController: OnInit event fired")
 
@@ -473,6 +475,9 @@ Function StartBootstrap()
 
     Identity.StartBootstrap(10)
     _updateQueued = False
+    if Presentation
+        Presentation.ScheduleIronIntroFromNewGameClock(Game.GetPlayer())
+    endif
 
     QueueUpdate(1.0)
 EndFunction
@@ -482,7 +487,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     ; Native/plugin availability.
     if !IronSoulNative.IsAvailable()
         SetModDisabled(True)
-        Debug.MessageBox("Iron Soul has been disabled because the required SKSE plugin (ironsoul.dll) is missing.")
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.SKSEMissing"))
         return
     endif
 
@@ -604,7 +609,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
     if loadTransitionTier == tiersQ.TIER_DEFIANT
         LogController(IronSoulConfig.LOG_INFO(), "OnPlayerLoadGame: Defiant transition triggered on load")
         tiersQ.PromoteToDefiantTier(player, guid, soulTier)
-        journalQ.LogEventForGuid(player, guid, "You refuse Sovngarde and rise again. Defiant Soul awakened. Death limit is now 20.")
+        journalQ.LogDefiantAwakenedForGuid(player, guid)
         ; Load-time Defiant promotion remains in-session, so restore music after the intro closes.
         deathQ.PlayLoadTransitionImodAndWait()
         tiersQ.PlayDefiantTransitionSWF(soulTier, True)
@@ -733,6 +738,7 @@ Event OnIronSoul_RuntimeUpdate(String eventName, String strArg, Float numArg, Fo
     Int token = numArg as Int
     Bool respawnMonitorEvent = (StringUtil.Find(strArg, "respawn-") == 0)
     Bool dragonSoulWatcherEvent = (StringUtil.Find(strArg, "dragon-souls-") == 0)
+    Bool featUnlockMenuAlarmEvent = (StringUtil.Find(strArg, "feat-unlock-menu") == 0)
     Bool luckActiveAlarmEvent = (StringUtil.Find(strArg, "luck-active") == 0)
     Bool dsrActiveAlarmEvent = (StringUtil.Find(strArg, "dsr-active") == 0)
 
@@ -747,6 +753,13 @@ Event OnIronSoul_RuntimeUpdate(String eventName, String strArg, Float numArg, Fo
             return
         endif
         RunDragonSoulWatcherTick(token, strArg)
+        return
+    elseif featUnlockMenuAlarmEvent
+        if !Tiers || !Tiers.IsFeatUnlockMenuAlarmToken(token)
+            LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale feat unlock menu alarm event reason=" + strArg + " token=" + token, True)
+            return
+        endif
+        RunFeatUnlockMenuAlarmTick(token, strArg)
         return
     elseif luckActiveAlarmEvent
         if !Luck || !Luck.IsActiveGameplayAlarmToken(token)
@@ -787,6 +800,10 @@ Function RunRuntimeUpdateTick(String source = "runtime-update")
 
     TickRequiemDeathHandlingReassertion()
 
+    ; Native-clocked first-character intro may fire before identity bootstrap
+    ; has accepted a placeholder name such as Prisoner.
+    Presentation.HandleDelayedIronIntro(player)
+
     ; Defer initialisation bootstrap if necessary
     if BootstrapTick()
         return
@@ -794,9 +811,6 @@ Function RunRuntimeUpdateTick(String source = "runtime-update")
 
     ; Timed load-notification handler
     Presentation.HandleLoadNotification(player)
-
-    ; Delayed first-character intro, scheduled by fresh GUID finalization.
-    Presentation.HandleDelayedIronIntro(player)
 
     ; Low-frequency maintenance and progression integrity checks.
     RunMaintenanceTick(player)
@@ -829,6 +843,19 @@ Function RunDragonSoulWatcherTick(Int token, String source = "dragon-souls-chang
     endif
 
     Tiers.HandleDragonSoulWatcherUpdate(player, guid, token)
+EndFunction
+
+Function RunFeatUnlockMenuAlarmTick(Int token, String source = "feat-unlock-menu")
+    if _isQuitting || Config.IsUninstallMode() || _modDisabled
+        return
+    endif
+
+    Actor player = Game.GetPlayer()
+    if !player
+        return
+    endif
+
+    Tiers.HandleFeatUnlockMenuAlarm(player, token, source)
 EndFunction
 
 Function RunLuckActiveAlarmTick(Int token, String source = "luck-active-alarm")

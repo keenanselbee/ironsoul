@@ -609,7 +609,7 @@ Function HandleRespawnMenuWithRuntime(Actor player, Bool runtimeAvailable)
                 if Controller.Tiers
                     soulTier = Controller.Tiers.GetCurrentTier(player, guid)
                 endif
-                Controller.Presentation.OpenTimedMessageSWF_SFX(IronSoulUI.ResolveRespawnMenu(soulTier), 6.0, Controller.SFX.SFXRespawn, player)
+                Controller.Presentation.OpenTimedMessageSWF_KeyDismiss_SFX(IronSoulUI.ResolveRespawnMenu(soulTier), 6.0, 4.0, Controller.SFX.SFXRespawn, player)
             endif
             IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "respawn-menu-complete")
         else

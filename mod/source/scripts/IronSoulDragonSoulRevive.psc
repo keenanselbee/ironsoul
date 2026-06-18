@@ -196,9 +196,18 @@ Function HandleRevive(Actor target, Actor caster, String guid)
         soulTierDSR = tiers.GetCurrentTier(target, guid)
     endif
 
+    Bool rearmDragonSoulWatcher = False
+
     ; Devour-tier DSR is free and does not spend a dragon soul.
     if ShouldSpendDragonSoul(soulTierDSR)
+        if guid != ""
+            tiers.StopDragonSoulWatcher("dragon-soul-revive-spend")
+            rearmDragonSoulWatcher = True
+        endif
         target.DamageAV("DragonSouls", 1.0)
+        if guid != ""
+            tiers.RebaselineDragonSoulsLastSeen(target, guid, target.GetActorValue("DragonSouls") as Int)
+        endif
     endif
 
     if reviveLimit > 0 && guid != ""
@@ -257,14 +266,18 @@ Function HandleRevive(Actor target, Actor caster, String guid)
         LogDragonSoulRevive(IronSoulConfig.LOG_ERR(), "HandleDragonSoulRevive: SFXDragonSoulReviveExplosion is None; skipping explosion SFX")
     endif
 
-    Utility.Wait(1.0)
+    Utility.Wait(0.5)
 
     ShaderParticleIntro()
 
+    Int restoreTicks = 5
+    Float restoreSeconds = restoreTicks as Float
+
     if config.IsDragonSoulReviveMenuEnabled()
         PlayDragonSoulReviveSFX(IronSoulSFX.PickDragonSoulReviveCastSFX(SFXDragonSoulReviveCast1, SFXDragonSoulReviveCast2, SFXDragonSoulReviveCast3, SFXDragonSoulReviveCast4), target, True)
+        Utility.Wait(0.5)
         presentation.OpenTimedMessageSWF(IronSoulUI.SwfNoBonus(ResolveMenu(target, guid), config.IsSoulBonusEnabled()), 3.0)
-        IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "dragon-soul-revive-complete")
+        IronSoulNative.ReleaseDeathSlowMoWithHold(0.5, 0.0, restoreSeconds, "dragon-soul-revive-recovery")
     else
         IronSoulNative.ReleaseDeathSlowMo(1.0, 0.0, "dragon-soul-revive-message-disabled")
     endif
@@ -284,7 +297,7 @@ Function HandleRevive(Actor target, Actor caster, String guid)
     LogDragonSoulRevive(IronSoulConfig.LOG_INFO(), "HandleDragonSoulRevive: Cleanup started")
 
     Int i = 0
-    while i < 5
+    while i < restoreTicks
         Utility.Wait(1.0)
         RestoreVitals(target)
         i += 1
@@ -302,6 +315,9 @@ Function HandleRevive(Actor target, Actor caster, String guid)
 
     IronSoulNative.EndMenuBlock(menuBlockToken)
     ReleaseDeathLock()
+    if rearmDragonSoulWatcher && guid != ""
+        tiers.StartDragonSoulWatcher(target, guid, "dragon-soul-revive-complete")
+    endif
     LogDragonSoulRevive(IronSoulConfig.LOG_DBG(), "HandleDragonSoulRevive: Cleanup finished")
 EndFunction
 
