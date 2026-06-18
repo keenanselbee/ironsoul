@@ -7,6 +7,7 @@ namespace IronSoul::MenuBlocker
 {
     void RegisterSinks();
     void RegisterLifecycleHooks();
+    void RefreshWindowCloseSubclass();
     void BeginHealthDepletedBlock();
     void EndHealthDepletedBlock(std::string_view a_reason);
     void EndLoadBoundaryBlock(std::string_view a_reason);

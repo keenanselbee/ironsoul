@@ -3,6 +3,7 @@
 #include "papyrus_common.h"
 #include "papyrus_runtime.h"
 #include "config.h"
+#include "menu_blocker.h"
 #include "text_catalog.h"
 
 namespace IronSoul::Papyrus::Config
@@ -51,9 +52,13 @@ namespace
 
     static bool SetConfigInt(RE::StaticFunctionTag*, std::string a_key, std::int32_t a_value, bool a_persistToIni)
     {
+        const std::string canonicalKey = IronSoul::Config::GetConfigKeyCanonical(a_key);
         const bool ok = IronSoul::Config::SetInt(a_key, a_value, a_persistToIni);
         if (ok) {
             IronSoul::Papyrus::Runtime::RefreshRuntimeConfigCaches();
+            if (canonicalKey == "anticheat") {
+                IronSoul::MenuBlocker::RefreshWindowCloseSubclass();
+            }
         }
         return ok;
     }
@@ -76,6 +81,7 @@ namespace
         IronSoul::Config::Load();
         IronSoul::Text::Load();
         IronSoul::Papyrus::Runtime::RefreshRuntimeConfigCaches();
+        IronSoul::MenuBlocker::RefreshWindowCloseSubclass();
         return true;
     }
 }

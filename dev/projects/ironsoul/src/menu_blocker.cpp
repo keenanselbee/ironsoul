@@ -4,6 +4,8 @@
 
 #include <SKSE/InputMap.h>
 
+#include <CommCtrl.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -86,8 +88,15 @@ namespace
         bool allowWindowClose{ false };
     };
 
-    void RestoreWindowHook();
-    LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_message, WPARAM a_wParam, LPARAM a_lParam);
+    void RestoreWindowCloseSubclass();
+    void QueueWindowCloseSubclassUpdate(bool a_warnMissing);
+    LRESULT CALLBACK WindowCloseSubclassProc(
+        HWND a_hwnd,
+        UINT a_message,
+        WPARAM a_wParam,
+        LPARAM a_lParam,
+        UINT_PTR a_subclassId,
+        DWORD_PTR a_refData);
 
     struct BlockerState
     {
@@ -106,21 +115,24 @@ namespace
         bool allowWindowClose{ false };
         bool inputSinkRegistered{ false };
         bool menuSinkRegistered{ false };
-        bool windowHookInstalled{ false };
+        bool windowCloseSubclassInstalled{ false };
         HWND gameWindow{ nullptr };
-        WNDPROC originalWndProc{ nullptr };
+        std::atomic_bool shouldBlockWindowClose{ false };
+        std::atomic_bool debugWindowCloseLogEnabled{ false };
+        std::atomic<std::int64_t> lastBlockedWindowLogMs{ 0 };
         bool warnedMissingTaskInterface{ false };
         bool warnedMissingControlMap{ false };
         bool warnedMissingInputManager{ false };
         bool warnedMissingWindow{ false };
-        bool warnedWindowHookFailed{ false };
+        bool warnedWindowSubclassInstallFailed{ false };
+        bool warnedWindowSubclassRemoveFailed{ false };
         double lastBlockedInputLogSec{ 0.0 };
         double lastBlockedMenuLogSec{ 0.0 };
-        double lastBlockedWindowLogSec{ 0.0 };
 
         ~BlockerState()
         {
-            RestoreWindowHook();
+            shouldBlockWindowClose.store(false, std::memory_order_release);
+            RestoreWindowCloseSubclass();
             loadBoundaryWatchdogToken.fetch_add(1);
             if (loadBoundaryWatchdog.joinable()) {
                 loadBoundaryWatchdog.join();
@@ -148,6 +160,7 @@ namespace
 
     BlockerState g_state;
     BlockerSink g_sink;
+    constexpr UINT_PTR kWindowCloseSubclassId = 0x49726F6E536F756C;
 
     bool InfoLoggingEnabled()
     {
@@ -185,6 +198,11 @@ namespace
         return IsActiveLocked();
     }
 
+    bool ShouldPrearmWindowCloseSubclass()
+    {
+        return IronSoul::Config::GetAllowedInt("Anticheat", 1) == 1;
+    }
+
     void RecalculateTokenFlagsLocked()
     {
         g_state.releaseOnMainMenu = std::any_of(
@@ -199,6 +217,16 @@ namespace
             [](const auto& entry) {
                 return entry.second.allowWindowClose;
             });
+
+        const bool shouldBlockWindowClose =
+            IsActiveLocked() &&
+            !g_state.allowWindowClose &&
+            ShouldPrearmWindowCloseSubclass();
+        g_state.shouldBlockWindowClose.store(shouldBlockWindowClose, std::memory_order_release);
+        g_state.debugWindowCloseLogEnabled.store(DebugLoggingEnabled(), std::memory_order_release);
+        if (!shouldBlockWindowClose) {
+            g_state.lastBlockedWindowLogMs.store(0, std::memory_order_release);
+        }
     }
 
     bool ShouldReleaseOnMainMenu()
@@ -207,14 +235,15 @@ namespace
         return IsActiveLocked() && g_state.releaseOnMainMenu;
     }
 
+    void RefreshWindowCloseState()
+    {
+        std::scoped_lock lock(g_state.lock);
+        RecalculateTokenFlagsLocked();
+    }
+
     bool ShouldBlockWindowClose()
     {
-        if (IronSoul::Config::GetAllowedInt("Anticheat", 1) != 1) {
-            return false;
-        }
-
-        std::scoped_lock lock(g_state.lock);
-        return IsActiveLocked() && !g_state.allowWindowClose;
+        return g_state.shouldBlockWindowClose.load(std::memory_order_acquire);
     }
 
     std::string NormalizeEventName(std::string_view a_value)
@@ -298,17 +327,27 @@ namespace
 
     bool ClaimBlockedWindowLog()
     {
-        if (!DebugLoggingEnabled()) {
+        if (!g_state.debugWindowCloseLogEnabled.load(std::memory_order_acquire)) {
             return false;
         }
 
-        const double nowSec = NowSeconds();
-        std::scoped_lock lock(g_state.lock);
-        if ((nowSec - g_state.lastBlockedWindowLogSec) < kBlockedAttemptLogInterval.count()) {
+        const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        auto lastMs = g_state.lastBlockedWindowLogMs.load(std::memory_order_acquire);
+        if ((nowMs - lastMs) < std::chrono::duration_cast<std::chrono::milliseconds>(kBlockedAttemptLogInterval).count()) {
             return false;
         }
 
-        g_state.lastBlockedWindowLogSec = nowSec;
+        while (!g_state.lastBlockedWindowLogMs.compare_exchange_weak(
+            lastMs,
+            nowMs,
+            std::memory_order_acq_rel,
+            std::memory_order_acquire)) {
+            if ((nowMs - lastMs) < std::chrono::duration_cast<std::chrono::milliseconds>(kBlockedAttemptLogInterval).count()) {
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -404,47 +443,66 @@ namespace
         return search.window;
     }
 
-    WNDPROC GetOriginalWndProc()
+    void RestoreWindowCloseSubclass()
     {
-        std::scoped_lock lock(g_state.lock);
-        return g_state.originalWndProc;
+        g_state.shouldBlockWindowClose.store(false, std::memory_order_release);
+        g_state.debugWindowCloseLogEnabled.store(false, std::memory_order_release);
+
+        HWND window = nullptr;
+        {
+            std::scoped_lock lock(g_state.lock);
+            if (!g_state.windowCloseSubclassInstalled) {
+                return;
+            }
+            window = g_state.gameWindow;
+        }
+
+        bool removed = true;
+        if (window && IsWindow(window)) {
+            SetLastError(ERROR_SUCCESS);
+            removed = RemoveWindowSubclass(window, WindowCloseSubclassProc, kWindowCloseSubclassId) != FALSE;
+            const auto error = GetLastError();
+            if (!removed) {
+                std::scoped_lock lock(g_state.lock);
+                if (!g_state.warnedWindowSubclassRemoveFailed) {
+                    g_state.warnedWindowSubclassRemoveFailed = true;
+                    logger::warn(
+                        "MenuBlocker: failed to remove window close subclass error={}",
+                        static_cast<unsigned long>(error));
+                }
+                return;
+            }
+        }
+
+        {
+            std::scoped_lock lock(g_state.lock);
+            if (g_state.gameWindow == window) {
+                g_state.windowCloseSubclassInstalled = false;
+                g_state.gameWindow = nullptr;
+                g_state.warnedWindowSubclassRemoveFailed = false;
+            }
+        }
+
+        if (InfoLoggingEnabled()) {
+            logger::info("MenuBlocker: window close subclass removed");
+        }
     }
 
-    void RestoreWindowHook()
+    void UpdateWindowCloseSubclassOnUiThread(bool a_warnMissing)
     {
-        std::scoped_lock lock(g_state.lock);
-        if (!g_state.windowHookInstalled) {
+        if (!ShouldPrearmWindowCloseSubclass()) {
+            RestoreWindowCloseSubclass();
             return;
         }
 
-        if (g_state.gameWindow && IsWindow(g_state.gameWindow) && g_state.originalWndProc) {
-            const auto currentWndProc = reinterpret_cast<WNDPROC>(GetWindowLongPtrW(g_state.gameWindow, GWLP_WNDPROC));
-            if (currentWndProc == WindowProc) {
-                SetWindowLongPtrW(
-                    g_state.gameWindow,
-                    GWLP_WNDPROC,
-                    reinterpret_cast<LONG_PTR>(g_state.originalWndProc));
-            } else {
-                logger::warn("MenuBlocker: window proc changed after install; original proc not restored");
-            }
-        }
-
-        g_state.windowHookInstalled = false;
-        g_state.gameWindow = nullptr;
-        g_state.originalWndProc = nullptr;
-    }
-
-    void InstallWindowHook(bool a_warnMissing)
-    {
         {
             std::scoped_lock lock(g_state.lock);
-            if (g_state.windowHookInstalled && g_state.gameWindow && IsWindow(g_state.gameWindow)) {
+            if (g_state.windowCloseSubclassInstalled && g_state.gameWindow && IsWindow(g_state.gameWindow)) {
                 return;
             }
 
-            g_state.windowHookInstalled = false;
+            g_state.windowCloseSubclassInstalled = false;
             g_state.gameWindow = nullptr;
-            g_state.originalWndProc = nullptr;
         }
 
         HWND window = FindGameWindow();
@@ -459,44 +517,37 @@ namespace
             return;
         }
 
-        std::scoped_lock lock(g_state.lock);
-        if (g_state.windowHookInstalled && g_state.gameWindow && IsWindow(g_state.gameWindow)) {
-            return;
-        }
-
         SetLastError(ERROR_SUCCESS);
-        const auto originalWndProc = reinterpret_cast<WNDPROC>(
-            SetWindowLongPtrW(window, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(WindowProc)));
+        const bool installed = SetWindowSubclass(window, WindowCloseSubclassProc, kWindowCloseSubclassId, 0) != FALSE;
         const auto error = GetLastError();
-        if (!originalWndProc && error != ERROR_SUCCESS) {
-            if (!g_state.warnedWindowHookFailed) {
-                g_state.warnedWindowHookFailed = true;
+        if (!installed) {
+            std::scoped_lock lock(g_state.lock);
+            if (!g_state.warnedWindowSubclassInstallFailed) {
+                g_state.warnedWindowSubclassInstallFailed = true;
                 logger::warn(
-                    "MenuBlocker: failed to install window proc hook error={}",
+                    "MenuBlocker: failed to install window close subclass error={}",
                     static_cast<unsigned long>(error));
             }
             return;
         }
 
-        g_state.windowHookInstalled = true;
-        g_state.gameWindow = window;
-        g_state.originalWndProc = originalWndProc;
-        g_state.warnedMissingWindow = false;
-        g_state.warnedWindowHookFailed = false;
-        logger::info("MenuBlocker: window proc hook installed hwnd=0x{:X}", reinterpret_cast<std::uintptr_t>(window));
-    }
-
-    bool IsAltF4(UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
-    {
-        if (a_message != WM_SYSKEYDOWN || a_wParam != VK_F4) {
-            return false;
+        {
+            std::scoped_lock lock(g_state.lock);
+            g_state.windowCloseSubclassInstalled = true;
+            g_state.gameWindow = window;
+            g_state.warnedMissingWindow = false;
+            g_state.warnedWindowSubclassInstallFailed = false;
+            g_state.warnedWindowSubclassRemoveFailed = false;
         }
 
-        constexpr LPARAM kAltDownBit = 1LL << 29;
-        return (a_lParam & kAltDownBit) != 0 || (GetKeyState(VK_MENU) & 0x8000) != 0;
+        if (InfoLoggingEnabled()) {
+            logger::info(
+                "MenuBlocker: passive window close subclass installed hwnd=0x{:X}",
+                reinterpret_cast<std::uintptr_t>(window));
+        }
     }
 
-    bool IsWindowCloseMessage(UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
+    bool IsWindowCloseMessage(UINT a_message, WPARAM a_wParam)
     {
         if (a_message == WM_CLOSE) {
             return true;
@@ -506,27 +557,23 @@ namespace
             return true;
         }
 
-        return IsAltF4(a_message, a_wParam, a_lParam);
+        return false;
     }
 
-    LRESULT CallOriginalWndProc(HWND a_hwnd, UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
+    LRESULT CALLBACK WindowCloseSubclassProc(
+        HWND a_hwnd,
+        UINT a_message,
+        WPARAM a_wParam,
+        LPARAM a_lParam,
+        UINT_PTR,
+        DWORD_PTR)
     {
-        const auto originalWndProc = GetOriginalWndProc();
-        if (originalWndProc) {
-            return CallWindowProcW(originalWndProc, a_hwnd, a_message, a_wParam, a_lParam);
-        }
-
-        return DefWindowProcW(a_hwnd, a_message, a_wParam, a_lParam);
-    }
-
-    LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
-    {
-        if (IsWindowCloseMessage(a_message, a_wParam, a_lParam) && ShouldBlockWindowClose()) {
+        if (IsWindowCloseMessage(a_message, a_wParam) && ShouldBlockWindowClose()) {
             LogBlockedWindowClose(a_message, a_wParam);
             return 0;
         }
 
-        return CallOriginalWndProc(a_hwnd, a_message, a_wParam, a_lParam);
+        return DefSubclassProc(a_hwnd, a_message, a_wParam, a_lParam);
     }
 
     void ApplyControlsOnGameThread()
@@ -584,6 +631,9 @@ namespace
 
     void EnforceOnGameThread()
     {
+        RefreshWindowCloseState();
+        QueueWindowCloseSubclassUpdate(true);
+
         if (!IsActive()) {
             return;
         }
@@ -606,6 +656,24 @@ namespace
 
         task->AddTask([]() {
             EnforceOnGameThread();
+        });
+    }
+
+    void QueueWindowCloseSubclassUpdate(bool a_warnMissing)
+    {
+        auto* task = SKSE::GetTaskInterface();
+        if (!task) {
+            std::scoped_lock lock(g_state.lock);
+            if (!g_state.warnedMissingTaskInterface) {
+                g_state.warnedMissingTaskInterface = true;
+                logger::warn("MenuBlocker: task interface unavailable");
+            }
+            return;
+        }
+
+        task->AddUITask([a_warnMissing]() {
+            RefreshWindowCloseState();
+            UpdateWindowCloseSubclassOnUiThread(a_warnMissing);
         });
     }
 
@@ -744,12 +812,16 @@ namespace
             RecalculateTokenFlagsLocked();
             g_state.lastBlockedInputLogSec = 0.0;
             g_state.lastBlockedMenuLogSec = 0.0;
-            g_state.lastBlockedWindowLogSec = 0.0;
+            g_state.lastBlockedWindowLogMs.store(0, std::memory_order_release);
             if (preservedLoadBoundary) {
                 shouldRestore = false;
             } else if (shouldRestore) {
                 StopWorkerAndRestore(oldWorker, restoreToken);
             }
+        }
+
+        if (!preservedLoadBoundary) {
+            QueueWindowCloseSubclassUpdate(false);
         }
 
         if (shouldRestore) {
@@ -952,7 +1024,13 @@ namespace
     void RegisterSinks()
     {
         RegisterSinksInternal(false);
-        InstallWindowHook(false);
+        QueueWindowCloseSubclassUpdate(false);
+    }
+
+    void RefreshWindowCloseSubclass()
+    {
+        RefreshWindowCloseState();
+        QueueWindowCloseSubclassUpdate(false);
     }
 
     std::int32_t BeginInternal(std::string_view a_reason, bool a_releaseOnMainMenu, bool a_healthDepletedToken)
@@ -962,7 +1040,6 @@ namespace
         }
 
         RegisterSinksInternal(true);
-        InstallWindowHook(true);
 
         std::thread oldWorker;
         std::int32_t token = 0;
@@ -995,7 +1072,7 @@ namespace
                 g_state.warnedMissingControlMap = false;
                 g_state.lastBlockedInputLogSec = 0.0;
                 g_state.lastBlockedMenuLogSec = 0.0;
-                g_state.lastBlockedWindowLogSec = 0.0;
+                g_state.lastBlockedWindowLogMs.store(0, std::memory_order_release);
                 StartWorkerLocked(oldWorker);
             }
         }
@@ -1004,6 +1081,7 @@ namespace
             oldWorker.join();
         }
 
+        QueueWindowCloseSubclassUpdate(true);
         QueueEnforce();
 
         if (InfoLoggingEnabled()) {
@@ -1059,6 +1137,8 @@ namespace
                 ResolveReason(a_reason),
                 activeCount);
         }
+
+        QueueWindowCloseSubclassUpdate(false);
 
         if (shouldRestore) {
             FinishStoppedWorker(oldWorker, restoreToken);

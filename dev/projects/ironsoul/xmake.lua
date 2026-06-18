@@ -2,7 +2,7 @@ set_xmakever('3.0.1')
 includes('lib/commonlibsse-ng')
 
 set_project('ironsoul')
-set_version('2.9.7')
+set_version('2.9.9')
 set_license('GPL-3.0')
 
 set_languages('c++23')
@@ -55,6 +55,7 @@ target('ironsoul')
 
     add_files('src/**.cpp')
     add_headerfiles('src/**.h')
+    add_syslinks('comctl32')
 
     add_includedirs(
         'src',
