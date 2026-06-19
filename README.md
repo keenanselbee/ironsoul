@@ -43,27 +43,30 @@ Systems
 
 Anima
 
-Anima replaces dragon souls as the primary soul-tier progression currency. Anima and unlocked Soul Tiers are
-shared progress, making Iron Soul progression persist across characters for a stronger roguelite loop.
+Anima replaces dragon souls as the primary soul-tier progression currency. Iron Soul tracks both character Anima
+and total saga Anima. Soul Tiers are character-specific, but the highest Soul Tier ever reached is stored globally.
+When a new character climbs toward a tier that has already been reached by a previous character, that tier's Anima
+requirement is halved for character attunement.
 
-Soul Tier unlock targets:
+Soul Tier character attunement targets:
 
 ```text
-| Soul Tier     | Unlock Requirement            |
-| Defiant Soul  | 100 Anima                     |
-| Silver Soul   | 250 Anima                     |
-| Gold Soul     | 500 Anima                     |
-| Ebon Soul     | 1,000 Anima                   |
-| Platinum Soul | 2,000 Anima                   |
-| Devour Soul   | 5,000 Anima + 50 dragon souls |
+| Soul Tier     | First Global Unlock           | Repeat Character Attunement         |
+| Defiant Soul  | 100 Anima                     | 50 Anima                            |
+| Silver Soul   | 250 Anima                     | 125 Anima                           |
+| Gold Soul     | 500 Anima                     | 250 Anima                           |
+| Ebon Soul     | 1,000 Anima                   | 500 Anima                           |
+| Platinum Soul | 2,000 Anima                   | 1,000 Anima                         |
+| Devour Soul   | 5,000 Anima + 50 dragon souls | 2,500 Anima + repeat dragon requirement TBD |
 ```
 
-- Add shared Anima storage and shared Soul Tier unlock persistence.
-- Convert Soul Tier unlocking from dragon-soul thresholds to Anima thresholds, keeping dragon souls as an additional Devour Soul requirement.
+- Add character Anima storage, total saga Anima storage, and global highest Soul Tier persistence.
+- Convert Soul Tier progression from dragon-soul thresholds to character Anima attunement thresholds, keeping dragon souls as an additional Devour Soul requirement.
+- When a character reaches a new highest Soul Tier, update the global highest tier so later characters can attune to that tier at half Anima cost.
 - Add Anima death rewards from tiered sources: draugr and other undead, dragon priests, dragons, and major bosses.
 - Add major Anima payouts for saga bosses such as Alduin, Harkon, and Miraak.
 - Add Sunderheart use option `Absorb Anima`; when selected, the consumed Sunderheart grants Anima based on its Sunderheart tier.
-- Block Anima gain while the character is in Defiant Soul, preventing new Soul Tier unlocks during Defiant runs.
+- Block Anima gain while the character is in Defiant Soul, preventing new character tier attunement and global highest-tier advancement during Defiant runs.
 - Assign Anima-bearing enemies a Soul Level that drives both their Anima reward and Soul Vigor behavior.
 - Draft Soul Levels: draugr/undead = 1, dragon priests = 2, dragons = 3, Alduin = 4, Miraak = 5; assign Harkon and other major bosses during tuning.
 - Implement Soul Vigor regeneration from enemy Soul Level comparison: enemies below the player's Soul Level have no regeneration, enemies at the player's Soul Level have mild regeneration, and enemies above the player's Soul Level have significant regeneration.
@@ -111,7 +114,7 @@ Dragon reward draft:
 
 - Keep common undead rewards low so Nordic ruins remain steady progress instead of tier skips.
 - Make dragon priests and named undead boss kills feel like real Anima milestones without replacing dragons.
-- Make major quest bosses large shared progress spikes, especially Alduin, Harkon, and Miraak.
+- Make major quest bosses large saga Anima progress spikes, especially Alduin, Harkon, and Miraak.
 - Use Soul Vigor sparingly on low-tier enemies so regeneration feels like supernatural pressure rather than a universal combat tax.
 - Add INI tuning later for reward multipliers, Soul Vigor strength, and whether non-draugr undead count as Anima sources.
 
