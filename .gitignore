@@ -14,7 +14,7 @@ mod/SKSE/plugins/ironsoul/ironsoul-character-mirror-data.dat.tmp
 reference/
 logs/
 heartshard_vertex_color_notes.md
-mod/interface/lvlWidget-live-tier-update-report.md
+assets\interface\level-widget\lvlWidget-live-tier-update-report.md
 Iron Soul.code-workspace
 
 # Local SKSE build environment. Keep only the Iron Soul plugin project slice.
@@ -34,3 +34,5 @@ dev/projects/ironsoul/**
 !dev/projects/ironsoul/src/**
 !dev/projects/ironsoul/lib/
 dev/projects/ironsoul/lib/**
+assets/interface/ironsoul-messagebox/porting-notes.md
+assets/interface/level-widget/lvlWidget-live-tier-update-report.md
