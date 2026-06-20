@@ -8,8 +8,8 @@ Scriptname IronSoulGlobals extends Quest
 ; change them. These globals are not authoritative game state.
 ;
 ; Most mirrors expose direct values such as current deaths, soul tier, luck,
-; effective max lives, and Shared/character totals. Anima and SoulLevel slain
-; mirrors are wired placeholders until those systems are implemented. Status
+; effective max lives, Character and World Anima, and SoulLevel slain.
+; Status
 ; mirrors use small integer states:
 ; IronSoul_RespawnStatus: 0 unavailable, 1 runtime available.
 ; IronSoul_DraugnarokStatus: 0 inactive, 1 dormant, 2 active or forced.
@@ -21,28 +21,31 @@ Scriptname IronSoulGlobals extends Quest
 ; Game.GetFormFromFile(0x0000026E, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_ModDisabled
 ; Game.GetFormFromFile(0x0000026F, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DifficultyPreset
 ; Game.GetFormFromFile(0x00000270, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_EffectiveMaxLives
-; Game.GetFormFromFile(0x00000271, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DeathCount
+; Game.GetFormFromFile(0x00000271, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DeathCountWorld
 ; Game.GetFormFromFile(0x00000272, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DeathCountTotal
-; Game.GetFormFromFile(0x00000273, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulTier
-; Game.GetFormFromFile(0x00000274, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_AnimaTotalShared
-; Game.GetFormFromFile(0x00000275, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_AnimaTotalCharacter
-; Game.GetFormFromFile(0x00000276, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SunderheartTotalShared
-; Game.GetFormFromFile(0x00000B12, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SunderheartTotalCharacter
-; Game.GetFormFromFile(0x00000C49, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DragonSoulTotalShared
-; Game.GetFormFromFile(0x00000C4A, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DragonSoulTotalCharacter
+; Game.GetFormFromFile(0x00000273, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DeathCount
+; Game.GetFormFromFile(0x00000274, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulTierWorld
+; Game.GetFormFromFile(0x00000275, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulTier
+; Game.GetFormFromFile(0x00000276, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_AnimaWorld
+; Game.GetFormFromFile(0x00000B12, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_AnimaCharacter
+; Game.GetFormFromFile(0x00000C49, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_AnimaCurrentDay
+; Game.GetFormFromFile(0x00000C4A, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SunderheartTotalWorld
+; Game.GetFormFromFile(0x00000E12, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SunderheartTotalCharacter
+; Game.GetFormFromFile(0x00000E13, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DragonSoulTotalWorld
+; Game.GetFormFromFile(0x00000E14, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DragonSoulTotalCharacter
 ; Game.GetFormFromFile(0x00000FC2, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_DraugnarokStatus
 ; Game.GetFormFromFile(0x00000FC3, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_RespawnStatus
 ; Game.GetFormFromFile(0x00000FC4, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_LuckMax
 ; Game.GetFormFromFile(0x00000FC7, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_Luck
-; Game.GetFormFromFile(0x00000FC8, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel1SlainShared
+; Game.GetFormFromFile(0x00000FC8, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel1SlainWorld
 ; Game.GetFormFromFile(0x00000FC9, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel1SlainCharacter
-; Game.GetFormFromFile(0x00000FD2, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel2SlainShared
+; Game.GetFormFromFile(0x00000FD2, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel2SlainWorld
 ; Game.GetFormFromFile(0x00000FD3, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel2SlainCharacter
-; Game.GetFormFromFile(0x00000FD4, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel3SlainShared
+; Game.GetFormFromFile(0x00000FD4, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel3SlainWorld
 ; Game.GetFormFromFile(0x00000FD5, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel3SlainCharacter
-; Game.GetFormFromFile(0x00000FD6, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel4SlainShared
+; Game.GetFormFromFile(0x00000FD6, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel4SlainWorld
 ; Game.GetFormFromFile(0x00000FD7, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel4SlainCharacter
-; Game.GetFormFromFile(0x00000FD8, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel5SlainShared
+; Game.GetFormFromFile(0x00000FD8, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel5SlainWorld
 ; Game.GetFormFromFile(0x00000FD9, "Iron Soul - Dead God's Dream.esp") as GlobalVariable ; IronSoul_SoulLevel5SlainCharacter
 
 ; =========================
@@ -62,8 +65,8 @@ Scriptname IronSoulGlobals extends Quest
 ; SyncLuck()
 ; SyncLuckValues()
 ; SyncSunderhearts()
-; SyncAnimaPlaceholders()
-; SyncSoulLevelSlainPlaceholders()
+; SyncAnima()
+; SyncSoulLevelSlain()
 ; SyncDifficultyPreset()
 ; SyncIntegrationStatus()
 ; SyncModState()
@@ -80,31 +83,34 @@ Scriptname IronSoulGlobals extends Quest
 
 IronSoulController Property Controller Auto
 
-GlobalVariable Property IronSoul_DeathCount Auto
+GlobalVariable Property IronSoul_DeathCountWorld Auto
 GlobalVariable Property IronSoul_DeathCountTotal Auto
+GlobalVariable Property IronSoul_DeathCount Auto
+GlobalVariable Property IronSoul_SoulTierWorld Auto
 GlobalVariable Property IronSoul_SoulTier Auto
 GlobalVariable Property IronSoul_EffectiveMaxLives Auto
 GlobalVariable Property IronSoul_Luck Auto
 GlobalVariable Property IronSoul_LuckMax Auto
 GlobalVariable Property IronSoul_DifficultyPreset Auto
-GlobalVariable Property IronSoul_AnimaTotalShared Auto
-GlobalVariable Property IronSoul_AnimaTotalCharacter Auto
-GlobalVariable Property IronSoul_SunderheartTotalShared Auto
+GlobalVariable Property IronSoul_AnimaWorld Auto
+GlobalVariable Property IronSoul_AnimaCharacter Auto
+GlobalVariable Property IronSoul_AnimaCurrentDay Auto
+GlobalVariable Property IronSoul_SunderheartTotalWorld Auto
 GlobalVariable Property IronSoul_SunderheartTotalCharacter Auto
-GlobalVariable Property IronSoul_DragonSoulTotalShared Auto
+GlobalVariable Property IronSoul_DragonSoulTotalWorld Auto
 GlobalVariable Property IronSoul_DragonSoulTotalCharacter Auto
 GlobalVariable Property IronSoul_RespawnStatus Auto
 GlobalVariable Property IronSoul_DraugnarokStatus Auto
 GlobalVariable Property IronSoul_ModDisabled Auto
-GlobalVariable Property IronSoul_SoulLevel1SlainShared Auto
+GlobalVariable Property IronSoul_SoulLevel1SlainWorld Auto
 GlobalVariable Property IronSoul_SoulLevel1SlainCharacter Auto
-GlobalVariable Property IronSoul_SoulLevel2SlainShared Auto
+GlobalVariable Property IronSoul_SoulLevel2SlainWorld Auto
 GlobalVariable Property IronSoul_SoulLevel2SlainCharacter Auto
-GlobalVariable Property IronSoul_SoulLevel3SlainShared Auto
+GlobalVariable Property IronSoul_SoulLevel3SlainWorld Auto
 GlobalVariable Property IronSoul_SoulLevel3SlainCharacter Auto
-GlobalVariable Property IronSoul_SoulLevel4SlainShared Auto
+GlobalVariable Property IronSoul_SoulLevel4SlainWorld Auto
 GlobalVariable Property IronSoul_SoulLevel4SlainCharacter Auto
-GlobalVariable Property IronSoul_SoulLevel5SlainShared Auto
+GlobalVariable Property IronSoul_SoulLevel5SlainWorld Auto
 GlobalVariable Property IronSoul_SoulLevel5SlainCharacter Auto
 
 
@@ -134,47 +140,59 @@ Function SyncAll(Actor player, String guid)
     SyncDragonSouls(player, guid)
     SyncLuck(player, guid)
     SyncSunderhearts(player, guid)
-    SyncAnimaPlaceholders()
-    SyncSoulLevelSlainPlaceholders()
+    SyncAnima(player, guid)
+    SyncSoulLevelSlain(player, guid)
     SyncDifficultyPreset()
     SyncIntegrationStatus(player)
     SyncModState()
 EndFunction
 
 Function SyncDeath(Actor player, String guid)
-    if !HasCoreRuntime() || !player || guid == ""
-        SetGlobalInt(IronSoul_DeathCount, 0)
+    if !HasCoreRuntime() || !Controller.Death
+        SetGlobalInt(IronSoul_DeathCountWorld, 0)
         SetGlobalInt(IronSoul_DeathCountTotal, 0)
+        SetGlobalInt(IronSoul_DeathCount, 0)
         return
     endif
 
-    if Controller.Death
-        SetGlobalInt(IronSoul_DeathCount, Controller.Death.GetCurrentDeathCount(player, guid))
-        SetGlobalInt(IronSoul_DeathCountTotal, Controller.Death.GetTotalDeaths(player, guid))
+    SetGlobalInt(IronSoul_DeathCountWorld, Controller.Death.GetWorldDeathCount())
+    if !player || guid == ""
+        SetGlobalInt(IronSoul_DeathCountTotal, 0)
+        SetGlobalInt(IronSoul_DeathCount, 0)
+        return
     endif
+
+    SetGlobalInt(IronSoul_DeathCount, Controller.Death.GetCurrentDeathCount(player, guid))
+    SetGlobalInt(IronSoul_DeathCountTotal, Controller.Death.GetTotalDeaths(player, guid))
 EndFunction
 
 Function SyncTier(Actor player, String guid)
-    if !HasCoreRuntime() || !player || guid == ""
+    if !HasCoreRuntime() || !Controller.Tiers
+        SetGlobalInt(IronSoul_SoulTierWorld, 0)
         SetGlobalInt(IronSoul_SoulTier, 0)
         SetGlobalInt(IronSoul_EffectiveMaxLives, 0)
         return
     endif
 
-    if Controller.Tiers
-        SetGlobalInt(IronSoul_SoulTier, Controller.Tiers.GetCurrentTier(player, guid))
-        SetGlobalInt(IronSoul_EffectiveMaxLives, Controller.Tiers.GetGlobalEffectiveMaxLives(player, guid))
+    SetGlobalInt(IronSoul_SoulTierWorld, Controller.Tiers.GetSaveHighestUnlockedTier())
+    if !player || guid == ""
+        SetGlobalInt(IronSoul_SoulTier, 0)
+        SetGlobalInt(IronSoul_EffectiveMaxLives, 0)
+        return
     endif
+
+    SetGlobalInt(IronSoul_SoulTier, Controller.Tiers.GetCurrentTier(player, guid))
+    SetGlobalInt(IronSoul_EffectiveMaxLives, Controller.Tiers.GetGlobalEffectiveMaxLives(player, guid))
 EndFunction
 
 Function SyncDragonSouls(Actor player, String guid)
     if !HasCoreRuntime() || !Controller.Tiers
-        SetGlobalInt(IronSoul_DragonSoulTotalShared, 0)
+        SetGlobalInt(IronSoul_DragonSoulTotalWorld, 0)
         SetGlobalInt(IronSoul_DragonSoulTotalCharacter, 0)
         return
     endif
 
-    SetGlobalInt(IronSoul_DragonSoulTotalShared, Controller.Tiers.GetDragonSoulsTotalShared(player))
+    SetGlobalInt(IronSoul_DragonSoulTotalWorld, Controller.Tiers.GetDragonSoulsTotalWorld(player))
     if !player || guid == ""
         SetGlobalInt(IronSoul_DragonSoulTotalCharacter, 0)
         return
@@ -201,12 +219,15 @@ EndFunction
 
 Function SyncSunderhearts(Actor player, String guid = "")
     if !Controller || !Controller.Sunderhearts
-        SetGlobalInt(IronSoul_SunderheartTotalShared, 0)
+        SetGlobalInt(IronSoul_SunderheartTotalWorld, 0)
         SetGlobalInt(IronSoul_SunderheartTotalCharacter, 0)
         return
     endif
 
-    SetGlobalInt(IronSoul_SunderheartTotalShared, Controller.Sunderhearts.GetSunderheartsTotal(player))
+    SetGlobalInt(IronSoul_SunderheartTotalWorld, Controller.Sunderhearts.GetSunderheartsAbsorbedWorld(player))
+    if guid == "" && player && Controller.Identity
+        guid = Controller.Identity.GetTickGuid(player)
+    endif
     if guid != ""
         SetGlobalInt(IronSoul_SunderheartTotalCharacter, Controller.Sunderhearts.GetSunderheartsCharacterTotal(player, guid))
     else
@@ -214,22 +235,50 @@ Function SyncSunderhearts(Actor player, String guid = "")
     endif
 EndFunction
 
-Function SyncAnimaPlaceholders()
-    SetGlobalInt(IronSoul_AnimaTotalShared, 0)
-    SetGlobalInt(IronSoul_AnimaTotalCharacter, 0)
+Function SyncAnima(Actor player, String guid)
+    if !HasCoreRuntime() || !Controller.Tiers
+        SetGlobalInt(IronSoul_AnimaWorld, 0)
+        SetGlobalInt(IronSoul_AnimaCharacter, 0)
+        SetGlobalInt(IronSoul_AnimaCurrentDay, 0)
+        return
+    endif
+
+    SetGlobalInt(IronSoul_AnimaWorld, Controller.Tiers.GetWorldAnima())
+    if !player || guid == ""
+        SetGlobalInt(IronSoul_AnimaCharacter, 0)
+        SetGlobalInt(IronSoul_AnimaCurrentDay, 0)
+        return
+    endif
+
+    SetGlobalInt(IronSoul_AnimaCharacter, Controller.Tiers.GetCharacterAnima(player, guid))
+    SetGlobalInt(IronSoul_AnimaCurrentDay, IronSoulNative.DataGetInt("AN.D:" + guid, 0))
 EndFunction
 
-Function SyncSoulLevelSlainPlaceholders()
-    SetGlobalInt(IronSoul_SoulLevel1SlainShared, 0)
-    SetGlobalInt(IronSoul_SoulLevel1SlainCharacter, 0)
-    SetGlobalInt(IronSoul_SoulLevel2SlainShared, 0)
-    SetGlobalInt(IronSoul_SoulLevel2SlainCharacter, 0)
-    SetGlobalInt(IronSoul_SoulLevel3SlainShared, 0)
-    SetGlobalInt(IronSoul_SoulLevel3SlainCharacter, 0)
-    SetGlobalInt(IronSoul_SoulLevel4SlainShared, 0)
-    SetGlobalInt(IronSoul_SoulLevel4SlainCharacter, 0)
-    SetGlobalInt(IronSoul_SoulLevel5SlainShared, 0)
-    SetGlobalInt(IronSoul_SoulLevel5SlainCharacter, 0)
+Function SyncSoulLevelSlain(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        SetGlobalInt(IronSoul_SoulLevel1SlainWorld, 0)
+        SetGlobalInt(IronSoul_SoulLevel1SlainCharacter, 0)
+        SetGlobalInt(IronSoul_SoulLevel2SlainWorld, 0)
+        SetGlobalInt(IronSoul_SoulLevel2SlainCharacter, 0)
+        SetGlobalInt(IronSoul_SoulLevel3SlainWorld, 0)
+        SetGlobalInt(IronSoul_SoulLevel3SlainCharacter, 0)
+        SetGlobalInt(IronSoul_SoulLevel4SlainWorld, 0)
+        SetGlobalInt(IronSoul_SoulLevel4SlainCharacter, 0)
+        SetGlobalInt(IronSoul_SoulLevel5SlainWorld, 0)
+        SetGlobalInt(IronSoul_SoulLevel5SlainCharacter, 0)
+        return
+    endif
+
+    SetGlobalInt(IronSoul_SoulLevel1SlainWorld, IronSoulNative.SoulLevelGetSlainWorld(1))
+    SetGlobalInt(IronSoul_SoulLevel1SlainCharacter, IronSoulNative.SoulLevelGetSlainCharacter(guid, 1))
+    SetGlobalInt(IronSoul_SoulLevel2SlainWorld, IronSoulNative.SoulLevelGetSlainWorld(2))
+    SetGlobalInt(IronSoul_SoulLevel2SlainCharacter, IronSoulNative.SoulLevelGetSlainCharacter(guid, 2))
+    SetGlobalInt(IronSoul_SoulLevel3SlainWorld, IronSoulNative.SoulLevelGetSlainWorld(3))
+    SetGlobalInt(IronSoul_SoulLevel3SlainCharacter, IronSoulNative.SoulLevelGetSlainCharacter(guid, 3))
+    SetGlobalInt(IronSoul_SoulLevel4SlainWorld, IronSoulNative.SoulLevelGetSlainWorld(4))
+    SetGlobalInt(IronSoul_SoulLevel4SlainCharacter, IronSoulNative.SoulLevelGetSlainCharacter(guid, 4))
+    SetGlobalInt(IronSoul_SoulLevel5SlainWorld, IronSoulNative.SoulLevelGetSlainWorld(5))
+    SetGlobalInt(IronSoul_SoulLevel5SlainCharacter, IronSoulNative.SoulLevelGetSlainCharacter(guid, 5))
 EndFunction
 
 Function SyncDifficultyPreset()
@@ -259,19 +308,22 @@ Function SyncModState()
 EndFunction
 
 Function ResetGlobals()
-    SetGlobalInt(IronSoul_DeathCount, 0)
+    SetGlobalInt(IronSoul_DeathCountWorld, 0)
     SetGlobalInt(IronSoul_DeathCountTotal, 0)
+    SetGlobalInt(IronSoul_DeathCount, 0)
+    SetGlobalInt(IronSoul_SoulTierWorld, 0)
     SetGlobalInt(IronSoul_SoulTier, 0)
     SetGlobalInt(IronSoul_EffectiveMaxLives, 0)
-    SetGlobalInt(IronSoul_AnimaTotalShared, 0)
-    SetGlobalInt(IronSoul_AnimaTotalCharacter, 0)
-    SetGlobalInt(IronSoul_SunderheartTotalShared, 0)
+    SetGlobalInt(IronSoul_AnimaWorld, 0)
+    SetGlobalInt(IronSoul_AnimaCharacter, 0)
+    SetGlobalInt(IronSoul_AnimaCurrentDay, 0)
+    SetGlobalInt(IronSoul_SunderheartTotalWorld, 0)
     SetGlobalInt(IronSoul_SunderheartTotalCharacter, 0)
-    SetGlobalInt(IronSoul_DragonSoulTotalShared, 0)
+    SetGlobalInt(IronSoul_DragonSoulTotalWorld, 0)
     SetGlobalInt(IronSoul_DragonSoulTotalCharacter, 0)
     SetGlobalInt(IronSoul_Luck, 0)
     SetGlobalInt(IronSoul_LuckMax, 0)
-    SyncSoulLevelSlainPlaceholders()
+    SyncSoulLevelSlain(None, "")
     SetGlobalInt(IronSoul_DifficultyPreset, 0)
     SetGlobalInt(IronSoul_RespawnStatus, 0)
     SetGlobalInt(IronSoul_DraugnarokStatus, 0)

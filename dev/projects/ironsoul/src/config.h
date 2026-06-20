@@ -23,6 +23,7 @@ namespace IronSoul::Config
 	// the flattened ordinal parsed from base-plus INI text.
 	// Returns fallback for invalid, non-allowlisted, or missing keys.
 	std::int32_t GetAllowedInt(std::string_view key, std::int32_t fallback = 0);
+	std::string GetAllowedString(std::string_view key, std::string_view fallback = "");
 
 	// Returns the flattened IronSoulPreset ordinal stored in the native cache.
 	std::int32_t GetIronSoulPresetOrdinal();

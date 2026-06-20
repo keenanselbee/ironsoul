@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "datastore.h"
 #include "datastore_internal.h"
+#include "config.h"
 #include "pathutil.h"
 #include <algorithm>
 #include <cstring>
@@ -19,6 +20,36 @@ namespace IronSoul
         return in.good();
     }
 
+    static bool CheckMainDataFileSize(const fs::path& path)
+    {
+        if (Config::GetAllowedInt("DataStoreSizeWarning", 1) == 0) {
+            return false;
+        }
+
+        std::error_code ec;
+        const auto bytes = fs::file_size(path, ec);
+        if (ec || bytes == 0) {
+            return false;
+        }
+
+        const auto logKB = std::max<std::int32_t>(1, Config::GetAllowedInt("DataStoreSizeLogKB", 512));
+        const auto warnKB = std::max<std::int32_t>(1, Config::GetAllowedInt("DataStoreSizeWarnKB", 900));
+        constexpr std::uintmax_t kBytesPerKB = 1024u;
+        const auto logBytes = static_cast<std::uintmax_t>(logKB) * kBytesPerKB;
+        const auto warnBytes = static_cast<std::uintmax_t>(warnKB) * kBytesPerKB;
+
+        if (bytes >= logBytes || bytes >= warnBytes) {
+            logger::warn(
+                "IronSoul DataStore: MainData unusually large ({} bytes; log={} KB warn={} KB): {}",
+                bytes,
+                logKB,
+                warnKB,
+                path.string());
+        }
+
+        return bytes >= warnBytes;
+    }
+
     void DataStore::Initialize()
     {
         if (_initialized.load()) {
@@ -29,6 +60,16 @@ namespace IronSoul
         Load();
 
         _initialized.store(true);
+    }
+
+    bool DataStore::SizeWarningPending()
+    {
+        return _sizeWarningPending.load(std::memory_order_acquire);
+    }
+
+    bool DataStore::ConsumeSizeWarning()
+    {
+        return _sizeWarningPending.exchange(false, std::memory_order_acq_rel);
     }
 
     void DataStore::EnsureDirectories()
@@ -42,7 +83,12 @@ namespace IronSoul
 
     void DataStore::Load()
     {
-        const ParsedSnapshot mainSnapshot = LoadFile(MainDataPath().wstring());
+        const fs::path mainPath = MainDataPath();
+        if (CheckMainDataFileSize(mainPath)) {
+            _sizeWarningPending.store(true, std::memory_order_release);
+        }
+
+        const ParsedSnapshot mainSnapshot = LoadFile(mainPath.wstring());
         const bool mirrorEnabled = MirrorDataBackupEnabled();
         if (!mirrorEnabled) {
             std::lock_guard<std::mutex> lock(_mutex);

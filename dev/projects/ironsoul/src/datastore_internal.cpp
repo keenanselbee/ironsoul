@@ -1,18 +1,18 @@
 #include "pch.h"
 #include "datastore_internal.h"
 #include "config.h"
-#include "pathutil.h"
+#include "storage_paths.h"
 
 namespace IronSoul::DataStoreInternal
 {
     std::filesystem::path MainDataPath()
     {
-        return IronSoul::PathUtil::GetIronSoulPluginDir() / L"ironsoul-character-data.dat";
+        return IronSoul::StoragePaths::MainDataPath();
     }
 
     std::filesystem::path MirrorDataPath()
     {
-        return IronSoul::PathUtil::GetIronSoulPluginDir() / L"ironsoul-character-mirror-data.dat";
+        return IronSoul::StoragePaths::MirrorDataPath();
     }
 
     bool MirrorDataBackupEnabled()

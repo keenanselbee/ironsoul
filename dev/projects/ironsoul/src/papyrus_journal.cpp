@@ -8,29 +8,9 @@ namespace IronSoul::Papyrus::Journal
 {
 namespace
 {
-    static std::string BuildJournalPrefix()
-    {
-        const std::string name = ResolvePlayerName(true);
-        std::string prefix = name;
-        const std::string difficultyLabel = IronSoul::Config::GetEffectiveDisplayDifficultyJournalPrefix();
-        if (!difficultyLabel.empty()) {
-            prefix += " " + difficultyLabel;
-        }
-        return prefix;
-    }
-
-    static bool AppendPrefixedJournalLine(std::string a_message)
-    {
-        std::string msg = Trim(a_message);
-        if (msg.empty()) {
-            return false;
-        }
-        return IronSoul::Journal::AppendLine(BuildJournalPrefix() + " | " + msg);
-    }
-
     static bool AppendBuiltJournalEvent(std::string a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
     {
-        return AppendPrefixedJournalLine(IronSoul::Journal::BuildDayLine(a_eventText, a_startDay, a_nowDay));
+        return IronSoul::Journal::AppendEvent(a_eventText, a_startDay, a_nowDay);
     }
 
     static bool JournalLogEvent(RE::StaticFunctionTag*, std::string a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
@@ -92,28 +72,40 @@ namespace
         return AppendBuiltJournalEvent(IronSoul::Journal::BuildLuckOutcome(a_luck, a_roll, a_maxLuck), a_startDay, a_nowDay);
     }
 
-    static bool JournalLogDragonSoulAbsorbed(
+    static bool JournalLogAnimaAward(
         RE::StaticFunctionTag*,
-        std::int32_t a_total,
+        std::string a_source,
+        std::int32_t a_amount,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildDragonSoulAbsorbed(a_total), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(IronSoul::Journal::BuildAnimaAward(a_source, a_amount), a_startDay, a_nowDay);
+    }
+
+    static bool JournalFlushDailyAnima(RE::StaticFunctionTag*, std::string a_guid)
+    {
+        return IronSoul::Journal::FlushDailyAnima(a_guid);
+    }
+
+    static bool JournalNoteDailyAnimaAward(
+        RE::StaticFunctionTag*,
+        std::string a_guid,
+        std::string a_source,
+        std::int32_t a_amount,
+        std::int32_t a_priority)
+    {
+        return IronSoul::Journal::NoteDailyAnimaAward(a_guid, a_source, a_amount, a_priority);
     }
 
     static bool JournalLogSoulFeat(
         RE::StaticFunctionTag*,
         std::int32_t a_soulTier,
         std::int32_t a_totalDeaths,
-        bool a_molagKilled,
-        bool a_miraakKilled,
-        bool a_alduinKilled,
-        bool a_harkonKilled,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
         return AppendBuiltJournalEvent(
-            IronSoul::Journal::BuildSoulFeat(a_soulTier, a_totalDeaths, a_molagKilled, a_miraakKilled, a_alduinKilled, a_harkonKilled),
+            IronSoul::Journal::BuildSoulFeat(a_soulTier, a_totalDeaths),
             a_startDay,
             a_nowDay);
     }
@@ -131,15 +123,11 @@ namespace
         RE::StaticFunctionTag*,
         std::int32_t a_targetTier,
         std::int32_t a_totalDeaths,
-        bool a_molagKilled,
-        bool a_miraakKilled,
-        bool a_alduinKilled,
-        bool a_harkonKilled,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
         return AppendBuiltJournalEvent(
-            IronSoul::Journal::BuildDefiantRestore(a_targetTier, a_totalDeaths, a_molagKilled, a_miraakKilled, a_alduinKilled, a_harkonKilled),
+            IronSoul::Journal::BuildDefiantRestore(a_targetTier, a_totalDeaths),
             a_startDay,
             a_nowDay);
     }
@@ -163,7 +151,9 @@ namespace
         a_vm->RegisterFunction("JournalLogTrueDeathOutcome", kScriptName, JournalLogTrueDeathOutcome);
         a_vm->RegisterFunction("JournalLogDefiantFatigueOutcome", kScriptName, JournalLogDefiantFatigueOutcome);
         a_vm->RegisterFunction("JournalLogLuckOutcome", kScriptName, JournalLogLuckOutcome);
-        a_vm->RegisterFunction("JournalLogDragonSoulAbsorbed", kScriptName, JournalLogDragonSoulAbsorbed);
+        a_vm->RegisterFunction("JournalLogAnimaAward", kScriptName, JournalLogAnimaAward);
+        a_vm->RegisterFunction("JournalFlushDailyAnima", kScriptName, JournalFlushDailyAnima);
+        a_vm->RegisterFunction("JournalNoteDailyAnimaAward", kScriptName, JournalNoteDailyAnimaAward);
         a_vm->RegisterFunction("JournalLogSoulFeat", kScriptName, JournalLogSoulFeat);
         a_vm->RegisterFunction("JournalLogDefiantSoulFeat", kScriptName, JournalLogDefiantSoulFeat);
         a_vm->RegisterFunction("JournalLogDefiantRestore", kScriptName, JournalLogDefiantRestore);

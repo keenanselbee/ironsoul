@@ -8,7 +8,7 @@ Scriptname IronSoulTiers extends Quest
 ; -------------------------
 ; HasCoreRuntime()
 ; HasPersistenceRuntime()
-; CanWriteSharedProgression()
+; CanWriteWorldProgression()
 ; LogTiers()
 ; LogTiersSnapshot()
 
@@ -37,8 +37,16 @@ Scriptname IronSoulTiers extends Quest
 ; SyncTierDynamicAssets()
 ; SyncTierGlobalMirrors()
 ; GetDragonSoulsTotal()
-; GetDragonSoulsTotalShared()
+; GetDragonSoulsTotalWorld()
 ; SetDragonSoulsTotalFromConsole()
+; GetCharacterAnima()
+; GetWorldAnima()
+; GetSaveHighestUnlockedTier()
+; AwardAnima()
+; NoteDailyAnimaAwardFromPayload()
+; SetCharacterAnimaFromConsole()
+; AddCharacterAnimaFromConsole()
+; SetWorldAnimaFromConsole()
 ; IsManualTierOverrideActive()
 ; SetManualTierOverrideActive()
 ; GetHighestEligibleNormalTierForPlayer()
@@ -98,10 +106,10 @@ Scriptname IronSoulTiers extends Quest
 ; --- Boss Latches ---
 ; --------------------
 ; PollBossDefeatLatches()
-; IsMiraakDefeated()
-; IsAlduinDefeated()
-; IsHarkonDefeated()
-; IsMolagBalDefeatedVigilant()
+; NoteBossDailyAnimaAwardFromPayload()
+; GetBossDailyAnimaPriority()
+; IsBossAnimaAwardSource()
+; DrainDeathSinkAnimaAwards()
 
 ; --- UI / SFX ---
 ; ----------------
@@ -120,7 +128,6 @@ Scriptname IronSoulTiers extends Quest
 ; GetSoulBonusOrdinal()
 ; NormalizeDefiantTrackedTier()
 ; GetMaxLuckForTierAtLevel()
-; GetHighestEligibleNormalSoulTier()
 ; ResolveSoulTierTargetFromFacts()
 ; SoulTierLabel()
 ; NormalizeSoulFeatUnlockTier()
@@ -142,10 +149,9 @@ Sound Property SFXFeatUnlock Auto
 ; Soul / feats
 String Property soulTierIndex              = "IS_2204" AutoReadOnly
 String Property manualTierOverrideActive   = "IS_2719" AutoReadOnly
-String Property ebonFeatVariant            = "IS_4520" AutoReadOnly
-String Property platinumFeatVariant        = "IS_4779" AutoReadOnly
 String Property dragonSoulsTotal           = "IS_9646" AutoReadOnly
-String Property dragonSoulsTotalShared     = "DS.T" AutoReadOnly ; Shared accepted Dragon Soul counter.
+String Property dragonSoulsTotalWorld      = "DS.W" AutoReadOnly ; World accepted Dragon Soul counter.
+String Property animaCharacter            = "AN.C" AutoReadOnly
 String Property dragonSoulsLastSeen        = "IS_7440" AutoReadOnly
 
 ; Narrative / UI one-shots
@@ -207,10 +213,6 @@ Float _featUnlockSFXStartedWallAt = 0.0
 Float _featUnlockMenuDueWallAt = 0.0
 Int _featUnlockMenuAlarmToken = 0
 
-Quest _vigilantMq08Cache = None
-Bool _vigilantMq08Tried = False
-
-
 ; --- Component Helpers ---
 ; =========================
 
@@ -237,7 +239,7 @@ Bool Function HasPersistenceRuntime()
     return True
 EndFunction
 
-Bool Function CanWriteSharedProgression(Actor player)
+Bool Function CanWriteWorldProgression(Actor player)
     if player && Controller && Controller.Identity
         return !Controller.Identity.IsCurrentCharacterTest(player)
     endif
@@ -279,8 +281,6 @@ Function ResetTransientState()
     _featUnlockSFXStartedWallAt = 0.0
     _featUnlockMenuDueWallAt = 0.0
     _featUnlockMenuAlarmToken = 0
-    _vigilantMq08Cache = None
-    _vigilantMq08Tried = False
 EndFunction
 
 Function SetPendingDragonSoulsRebaseline(Bool pending)
@@ -302,10 +302,9 @@ Function RemoveTrackedData(Actor player, String guid, Bool deleteMainData = True
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, tierMsgShownDevour, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, soulTierIndex, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, manualTierOverrideActive, deleteMainData, unsetCosave)
-    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, ebonFeatVariant, deleteMainData, unsetCosave)
-    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, platinumFeatVariant, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, dragonSoulsTotal, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, dragonSoulsLastSeen, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, animaCharacter, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, miraakKilled, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, alduinKilled, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, harkonKilled, deleteMainData, unsetCosave)
@@ -330,6 +329,7 @@ Function Heartbeat(Actor player, String guid)
     endif
 
     PollBossDefeatLatches(player, guid)
+    DrainDeathSinkAnimaAwards(player, guid)
     TryScheduleFeats(player)
 EndFunction
 
@@ -426,27 +426,26 @@ Bool Function SyncDragonSoulsLive(Actor player, String guid, String reason = "dr
 
         if accepted > 0
             Int soulsTotal = GetDragonSoulsTotal(player, guid)
-            Bool writeSharedProgression = CanWriteSharedProgression(player)
-            Int sharedSoulsTotal = GetDragonSoulsTotalShared(player)
+            Bool writeWorldProgression = CanWriteWorldProgression(player)
+            Int worldSoulsTotal = GetDragonSoulsTotalWorld(player)
             Int j = 0
             while j < accepted
                 soulsTotal += 1
-                if writeSharedProgression
-                    sharedSoulsTotal += 1
+                if writeWorldProgression
+                    worldSoulsTotal += 1
                 endif
                 Controller.Persistence.SetGuidInt(player, guid, dragonSoulsTotal, soulsTotal, True)
 
                 Int liveTierNow = GetCurrentTier(player, guid)
                 MaybeNotifyDragonSoulIncrease(player, guid, liveTierNow, soulsTotal)
 
-                Controller.Journal.LogDragonSoulAbsorbedForGuid(player, guid, soulsTotal)
-                HandleProgressionRelevantChange(player, guid)
 
                 j += 1
             endwhile
-            if writeSharedProgression
-                Controller.Persistence.SetSharedInt(dragonSoulsTotalShared, sharedSoulsTotal, True)
+            if writeWorldProgression
+                Controller.Persistence.SetWorldInt(dragonSoulsTotalWorld, worldSoulsTotal, True)
             endif
+            HandleProgressionRelevantChange(player, guid)
             if Controller.Globals
                 Controller.Globals.SyncDragonSouls(player, guid)
             endif
@@ -485,9 +484,9 @@ Function LogSnapshot()
             Int tier = GetCurrentTier(p, guid)
             Int totalDeaths = Controller.Death.GetTotalDeaths(p, guid)
             if tier == TIER_DEFIANT
-                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "Tiers: SoulTier=" + tier + " DefiantTrackedTier=" + GetDefiantTrackedTier(p, guid) + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid))
+                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "Tiers: SoulTier=" + tier + " DefiantTrackedTier=" + GetDefiantTrackedTier(p, guid) + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid) + " CharacterAnima=" + GetCharacterAnima(p, guid) + " WorldAnima=" + GetWorldAnima() + " SaveHighestUnlockedTier=" + GetSaveHighestUnlockedTier())
             else
-                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "Tiers: SoulTier=" + tier + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid))
+                LogTiersSnapshot(IronSoulConfig.LOG_INFO(), "Tiers: SoulTier=" + tier + " TotalDeaths=" + totalDeaths + " DragonSoulsTotal=" + GetDragonSoulsTotal(p, guid) + " CharacterAnima=" + GetCharacterAnima(p, guid) + " WorldAnima=" + GetWorldAnima() + " SaveHighestUnlockedTier=" + GetSaveHighestUnlockedTier())
             endif
         endif
     endif
@@ -555,14 +554,14 @@ Int Function GetDragonSoulsTotal(Actor player, String guid)
     return Controller.Persistence.GetGuidInt(player, guid, dragonSoulsTotal, 0)
 EndFunction
 
-Int Function GetDragonSoulsTotalShared(Actor player = None)
+Int Function GetDragonSoulsTotalWorld(Actor player = None)
     if !Controller || !Controller.Persistence
         return 0
     endif
     if player && Controller.Identity && Controller.Identity.IsCurrentCharacterTest(player)
         return 0
     endif
-    return Controller.Persistence.GetSharedInt(dragonSoulsTotalShared, 0)
+    return Controller.Persistence.GetWorldInt(dragonSoulsTotalWorld, 0)
 EndFunction
 
 String Function SetDragonSoulsTotalFromConsole(Actor player, String guid, Int totalValue)
@@ -590,6 +589,245 @@ String Function SetDragonSoulsTotalFromConsole(Actor player, String guid, Int to
     return IronSoulNative.TextFormat1("Console.SoulsTotalSet", "total", "" + clampedTotal)
 EndFunction
 
+Int Function GetCharacterAnima(Actor player, String guid)
+    if guid == ""
+        return 0
+    endif
+    return IronSoulNative.AnimaGetCharacter(guid)
+EndFunction
+
+Int Function GetWorldAnima()
+    return IronSoulNative.AnimaGetWorld()
+EndFunction
+
+Int Function GetSaveHighestUnlockedTier()
+    return IronSoulNative.SoulTierGetWorld()
+EndFunction
+
+Int Function GetEligibleUnlockTier(Actor player, String guid, Int characterDragonSouls = -1)
+    if !HasCoreRuntime() || !player || guid == ""
+        return 0
+    endif
+    if characterDragonSouls < 0
+        characterDragonSouls = GetDragonSoulsTotal(player, guid)
+    endif
+    return IronSoulNative.AnimaGetEligibleMilestone(guid, characterDragonSouls, Controller.Death.GetCurrentDeathCount(player, guid))
+EndFunction
+
+String Function AnimaResultField(String payload, Int fieldIndex)
+    if payload == "" || fieldIndex < 0
+        return ""
+    endif
+
+    Int start = 0
+    Int currentField = 0
+    Int delim = StringUtil.Find(payload, "|", start)
+    while currentField < fieldIndex && delim != -1
+        start = delim + 1
+        currentField += 1
+        delim = StringUtil.Find(payload, "|", start)
+    endwhile
+
+    if currentField != fieldIndex
+        return ""
+    endif
+    if delim == -1
+        return StringUtil.Substring(payload, start)
+    endif
+    return StringUtil.Substring(payload, start, delim - start)
+EndFunction
+
+Bool Function IsAnimaResultOk(String payload)
+    return AnimaResultField(payload, 0) == "ok"
+EndFunction
+
+Int Function AnimaResultInt(String payload, Int fieldIndex, Int fallback = 0)
+    String valueText = AnimaResultField(payload, fieldIndex)
+    if valueText == ""
+        return fallback
+    endif
+    return valueText as Int
+EndFunction
+
+String Function AnimaErrorText(String payload)
+    String reason = AnimaResultField(payload, 1)
+    if reason == ""
+        reason = "unknown"
+    endif
+    return IronSoulNative.TextFormat1("Console.AnimaNativeError", "reason", reason)
+EndFunction
+
+String Function UnlockTierLabel(Int tier)
+    if tier == 1
+        return "Defiant"
+    elseif tier == 2
+        return "Silver"
+    elseif tier == 3
+        return "Gold"
+    elseif tier == 4
+        return "Ebon"
+    elseif tier == 5
+        return "Platinum"
+    elseif tier == 6
+        return "Devour"
+    endif
+    return "Iron"
+EndFunction
+
+Int Function UnlockTierToNormalSoulTier(Int tier)
+    if tier == 2
+        return TIER_SILVER
+    elseif tier == 3
+        return TIER_GOLD
+    elseif tier == 4
+        return TIER_EBON
+    elseif tier == 5
+        return TIER_PLATINUM
+    elseif tier == 6
+        return TIER_DEVOUR
+    endif
+    return TIER_IRON
+EndFunction
+
+Function SyncAnimaGlobals(Actor player, String guid)
+    if Controller && Controller.Globals
+        Controller.Globals.SyncAnima(player, guid)
+    endif
+EndFunction
+
+Function UpdateDefiantTrackedTierFromUnlockTier(Actor player, String guid, Int eligibleUnlockTier, Bool notifyIncrease = False)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
+    endif
+    if GetCurrentTier(player, guid) != TIER_DEFIANT
+        return
+    endif
+
+    Int candidateTier = UnlockTierToNormalSoulTier(eligibleUnlockTier)
+    Int trackedTier = GetDefiantTrackedTier(player, guid)
+    if candidateTier > trackedTier
+        Controller.Persistence.SetGuidInt(player, guid, defiantTrackedTier, candidateTier, True)
+        if notifyIncrease
+            Debug.Notification(IronSoulNative.TextFormat1("Notification.AnimaDefiantTrackedTier", "tier", SoulTierLabel(candidateTier)))
+        endif
+    endif
+EndFunction
+
+String Function ApplyAnimaResult(Actor player, String guid, String payload, Bool notifyGain = True, Bool notifyMilestone = True)
+    if !IsAnimaResultOk(payload)
+        return payload
+    endif
+
+    Int oldSaveHighestUnlockedTier = AnimaResultInt(payload, 3)
+    Int newSaveHighestUnlockedTier = AnimaResultInt(payload, 4)
+    Int eligibleUnlockTier = AnimaResultInt(payload, 5)
+    Int amount = AnimaResultInt(payload, 6)
+    String source = AnimaResultField(payload, 7)
+    if source == ""
+        source = "Anima"
+    endif
+
+    if notifyGain && amount > 0
+        Debug.Notification(IronSoulNative.TextFormat2("Notification.AnimaGained", "amount", "" + amount, "source", source))
+    endif
+    if notifyMilestone && newSaveHighestUnlockedTier > oldSaveHighestUnlockedTier
+        Debug.Notification(IronSoulNative.TextFormat2("Notification.SaveHighestUnlockedTier", "tier", "" + newSaveHighestUnlockedTier, "label", UnlockTierLabel(newSaveHighestUnlockedTier)))
+    endif
+
+    UpdateDefiantTrackedTierFromUnlockTier(player, guid, eligibleUnlockTier, True)
+    SyncAnimaGlobals(player, guid)
+    HandleProgressionRelevantChange(player, guid)
+    return payload
+EndFunction
+
+String Function AwardAnima(Actor player, String guid, Int amount, String source, Bool updateWorld = True, Bool notifyGain = True)
+    if !HasCoreRuntime() || !player || guid == ""
+        return "error|runtime"
+    endif
+
+    String payload = IronSoulNative.AnimaAddCharacter(guid, amount, source, GetDragonSoulsTotal(player, guid), Controller.Death.GetCurrentDeathCount(player, guid), updateWorld)
+    String result = ApplyAnimaResult(player, guid, payload, notifyGain, True)
+    NoteDailyAnimaAwardFromPayload(player, guid, payload, Controller.Journal.DAILY_ANIMA_PRIORITY_MINOR)
+    return result
+EndFunction
+
+Function NoteDailyAnimaAwardFromPayload(Actor player, String guid, String payload, Int priority)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
+    endif
+    if !IsAnimaResultOk(payload)
+        return
+    endif
+
+    Int amount = AnimaResultInt(payload, 6)
+    if amount <= 0
+        return
+    endif
+
+    String source = AnimaResultField(payload, 7)
+    if source == ""
+        source = "Anima"
+    endif
+    Controller.Journal.NoteDailyAnimaAwardForGuid(player, guid, source, amount, priority)
+EndFunction
+
+String Function SetCharacterAnimaFromConsole(Actor player, String guid, Int value)
+    if !HasCoreRuntime() || !player || guid == ""
+        return IronSoulNative.TextGet("Console.TiersUnavailable")
+    endif
+
+    String payload = IronSoulNative.AnimaSetCharacter(guid, value, GetDragonSoulsTotal(player, guid), Controller.Death.GetCurrentDeathCount(player, guid))
+    ApplyAnimaResult(player, guid, payload, False, True)
+    if !IsAnimaResultOk(payload)
+        return AnimaErrorText(payload)
+    endif
+
+    Int characterAnima = AnimaResultInt(payload, 1)
+    Debug.Notification(IronSoulNative.TextFormat1("Notification.AnimaSet", "anima", "" + characterAnima))
+    IronSoulNative.DataFlushIfDirty()
+    return IronSoulNative.TextFormat1("Console.AnimaSet", "anima", "" + characterAnima)
+EndFunction
+
+String Function AddCharacterAnimaFromConsole(Actor player, String guid, Int amount)
+    if !HasCoreRuntime() || !player || guid == ""
+        return IronSoulNative.TextGet("Console.TiersUnavailable")
+    endif
+
+    String payload = AwardAnima(player, guid, amount, "Console", CanWriteWorldProgression(player), True)
+    if !IsAnimaResultOk(payload)
+        return AnimaErrorText(payload)
+    endif
+
+    IronSoulNative.DataFlushIfDirty()
+    return IronSoulNative.TextFormat3("Console.AnimaAdded", "amount", "" + AnimaResultInt(payload, 6), "character", "" + AnimaResultInt(payload, 1), "world", "" + AnimaResultInt(payload, 2))
+EndFunction
+
+String Function SetWorldAnimaFromConsole(Actor player, Int value)
+    if !HasCoreRuntime()
+        return IronSoulNative.TextGet("Console.TiersUnavailable")
+    endif
+    if IsCurrentCharacterTestForAnima(player)
+        return IronSoulNative.TextGet("Console.WorldAnimaTestSkipped")
+    endif
+
+    String payload = IronSoulNative.AnimaSetWorld(value)
+    if !IsAnimaResultOk(payload)
+        return AnimaErrorText(payload)
+    endif
+
+    Int worldAnima = AnimaResultInt(payload, 2)
+    SyncAnimaGlobals(player, Controller.Identity.GetTickGuid(player))
+    Debug.Notification(IronSoulNative.TextFormat1("Notification.WorldAnimaSet", "world", "" + worldAnima))
+    IronSoulNative.DataFlushIfDirty()
+    return IronSoulNative.TextFormat1("Console.WorldAnimaSet", "world", "" + worldAnima)
+EndFunction
+
+Bool Function IsCurrentCharacterTestForAnima(Actor player)
+    if player && Controller && Controller.Identity
+        return Controller.Identity.IsCurrentCharacterTest(player)
+    endif
+    return False
+EndFunction
 Bool Function IsManualTierOverrideActive(Actor player, String guid)
     if !HasCoreRuntime() || !player || guid == ""
         return False
@@ -613,11 +851,8 @@ Int Function GetHighestEligibleNormalTierForPlayer(Actor player, String guid, In
         return TIER_IRON
     endif
 
-    Int molagFlag = Controller.Persistence.GetGuidInt(player, guid, molagBalKilled, 0)
-    Int miraakFlag = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
-    Int alduinFlag = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
-    Int harkonFlag = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-    return GetHighestEligibleNormalSoulTier(soulsObtained, molagFlag == 1, miraakFlag == 1, alduinFlag == 1, harkonFlag == 1)
+    Int eligibleUnlockTier = IronSoulNative.AnimaGetEligibleMilestone(guid, soulsObtained, Controller.Death.GetCurrentDeathCount(player, guid))
+    return UnlockTierToNormalSoulTier(eligibleUnlockTier)
 EndFunction
 
 Int Function ResolveSoulTierTarget(Actor player, String guid, Int resolveMode, Int deaths = -1, Int soulsObtained = -1, Int liveTier = -1)
@@ -696,6 +931,7 @@ Function HandleProgressionRelevantChange(Actor player, String guid)
 
     Int liveTier = GetCurrentTier(player, guid)
     if liveTier == TIER_DEFIANT
+        UpdateDefiantTrackedTierFromUnlockTier(player, guid, GetEligibleUnlockTier(player, guid), False)
         return
     endif
 
@@ -808,11 +1044,7 @@ Bool Function TryRestoreFromDefiant(Actor player, String guid)
     SetManualTierOverrideActive(player, guid, False)
     ClearDefiantState(player, guid)
     if Controller.Config.IsCharacterJournalEnabled()
-        Int molagFlagR = Controller.Persistence.GetGuidInt(player, guid, molagBalKilled, 0)
-        Int miraakFlagR = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
-        Int alduinFlagR = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
-        Int harkonFlagR = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-        Controller.Journal.LogDefiantRestoreForGuid(player, guid, targetTier, Controller.Death.GetTotalDeaths(player, guid), molagFlagR == 1, miraakFlagR == 1, alduinFlagR == 1, harkonFlagR == 1)
+        Controller.Journal.LogDefiantRestoreForGuid(player, guid, targetTier, Controller.Death.GetTotalDeaths(player, guid))
     endif
 
     IronSoulNative.DataFlushIfDirty()
@@ -1119,7 +1351,7 @@ Function TryScheduleFeats(Actor player)
 
     Float nowRT = Utility.GetCurrentRealTime()
 
-    Bool defiantEligible = (soulsObtained >= 1 && deaths < IRON_SOUL_MAX_LIVES)
+    Bool defiantEligible = (IronSoulNative.AnimaGetEligibleMilestone(guid, soulsObtained, deaths) >= 1 && deaths < IRON_SOUL_MAX_LIVES)
     Int defFeat = Controller.Persistence.GetGuidInt(player, guid, defiantFeatUnlocked, 0)
     if defiantEligible && defFeat != 1
         if Controller.Config.IsDefiantSoulEnabled()
@@ -1233,11 +1465,7 @@ Function HandleFeats(Actor player)
         if promotedFromSoulFeat
             SyncTierLuckState(player, guid)
             if Controller.Config.IsCharacterJournalEnabled()
-                Int molagFlagS = Controller.Persistence.GetGuidInt(player, guid, molagBalKilled, 0)
-                Int miraakFlagS = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
-                Int alduinFlagS = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
-                Int harkonFlagS = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-                Controller.Journal.LogSoulFeatForGuid(player, guid, promotedTier, Controller.Death.GetTotalDeaths(player, guid), molagFlagS == 1, miraakFlagS == 1, alduinFlagS == 1, harkonFlagS == 1)
+                Controller.Journal.LogSoulFeatForGuid(player, guid, promotedTier, Controller.Death.GetTotalDeaths(player, guid))
             endif
             SyncTierDynamicAssets(promotedTier)
             SyncTierPresentationState(player, guid)
@@ -1267,7 +1495,7 @@ Function LogFeatUnlockMenuTiming(String menuName)
 EndFunction
 
 Bool Function HandleDefiantFeatUnlock(Actor player, String guid, Int deaths, Int soulsObtained)
-    Bool defiantEligible = (soulsObtained >= 1 && deaths < IRON_SOUL_MAX_LIVES)
+    Bool defiantEligible = (IronSoulNative.AnimaGetEligibleMilestone(guid, soulsObtained, deaths) >= 1 && deaths < IRON_SOUL_MAX_LIVES)
     Int defFeat = Controller.Persistence.GetGuidInt(player, guid, defiantFeatUnlocked, 0)
     if !defiantEligible || defFeat == 1
         return False
@@ -1356,8 +1584,6 @@ String Function ResolveSoulFeatUnlockMenu(Actor player, String guid, Int soulTie
     endif
 
     Int unlockTier = NormalizeSoulFeatUnlockTier(soulTier)
-    Int platinumVariant = 0
-    Int ebonVariant = 0
 
     if unlockTier == TIER_DEVOUR
         if consumeState
@@ -1376,37 +1602,11 @@ String Function ResolveSoulFeatUnlockMenu(Actor player, String guid, Int soulTie
             Controller.Persistence.SetGuidInt(player, guid, tierMsgShownPlatinum, 1, True)
         endif
 
-        platinumVariant = Controller.Persistence.GetGuidInt(player, guid, platinumFeatVariant, 0)
-        if platinumVariant == 0
-            Int molagFlagV = Controller.Persistence.GetGuidInt(player, guid, molagBalKilled, 0)
-            if molagFlagV == 1
-                platinumVariant = 1
-            else
-                platinumVariant = 2
-            endif
-            if consumeState
-                Controller.Persistence.SetGuidInt(player, guid, platinumFeatVariant, platinumVariant, True)
-            endif
-        endif
-
     elseif unlockTier == TIER_EBON
         if consumeState
             Controller.Persistence.SetGuidInt(player, guid, tierMsgShownGold, 1, True)
             Controller.Persistence.SetGuidInt(player, guid, tierMsgShownSilver, 1, True)
             Controller.Persistence.SetGuidInt(player, guid, tierMsgShownEbon, 1, True)
-        endif
-
-        ebonVariant = Controller.Persistence.GetGuidInt(player, guid, ebonFeatVariant, 0)
-        if ebonVariant == 0
-            Int alduinFlagV = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
-            if alduinFlagV == 1
-                ebonVariant = 1
-            else
-                ebonVariant = 2
-            endif
-            if consumeState
-                Controller.Persistence.SetGuidInt(player, guid, ebonFeatVariant, ebonVariant, True)
-            endif
         endif
 
     elseif unlockTier == TIER_GOLD
@@ -1417,13 +1617,7 @@ String Function ResolveSoulFeatUnlockMenu(Actor player, String guid, Int soulTie
         Controller.Persistence.SetGuidInt(player, guid, tierMsgShownSilver, 1, True)
     endif
 
-    String menu = IronSoulUI.ResolveSoulFeatUnlockMenuFromFacts(unlockTier, Controller.Config.IsSoulBonusEnabled(), Controller.Config.IsDragonSoulReviveEnabled(), platinumVariant, ebonVariant)
-    if unlockTier == TIER_PLATINUM
-        LogTiers(IronSoulConfig.LOG_INFO(), "ResolveSoulFeatUnlockMenu: Platinum variant=" + platinumVariant + " menu=" + menu + " consumeState=" + consumeState)
-    elseif unlockTier == TIER_EBON
-        LogTiers(IronSoulConfig.LOG_INFO(), "ResolveSoulFeatUnlockMenu: Ebon variant=" + ebonVariant + " menu=" + menu + " consumeState=" + consumeState)
-    endif
-    return menu
+    return IronSoulUI.ResolveSoulFeatUnlockMenuFromFacts(unlockTier, Controller.Config.IsSoulBonusEnabled(), Controller.Config.IsDragonSoulReviveEnabled())
 EndFunction
 
 String Function ResolveDefiantRestoreMenu(Int targetTier)
@@ -1446,110 +1640,91 @@ EndFunction
 ; ====================
 
 Function PollBossDefeatLatches(Actor player, String guid)
-    Int curTier = GetCurrentTier(player, guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
+    endif
 
-    if Controller.Config.IsSoulFeatsEnabled() || curTier == TIER_DEFIANT
-        if curTier < TIER_PLATINUM
-            Int molagFlag = Controller.Persistence.GetGuidInt(player, guid, molagBalKilled, 0)
-            if molagFlag != 1
-                IsMolagBalDefeatedVigilant(player, guid)
-            endif
+    String payloads = IronSoulNative.AnimaPollBossLatches(guid, GetDragonSoulsTotal(player, guid), Controller.Death.GetCurrentDeathCount(player, guid), CanWriteWorldProgression(player))
+    if payloads == "" || StringUtil.Substring(payloads, 0, 5) == "skip|"
+        return
+    endif
+    if StringUtil.Substring(payloads, 0, 6) == "error|"
+        LogTiers(IronSoulConfig.LOG_ERR(), "PollBossDefeatLatches: native poll failed " + payloads)
+        return
+    endif
 
-            Int miraakFlag = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
-            if miraakFlag != 1
-                IsMiraakDefeated(player, guid)
-            endif
+    Int start = 0
+    Int delim = StringUtil.Find(payloads, "\n", start)
+    while delim != -1
+        String payload = StringUtil.Substring(payloads, start, delim - start)
+        if payload != ""
+            ApplyAnimaResult(player, guid, payload, True, True)
+            NoteBossDailyAnimaAwardFromPayload(player, guid, payload)
         endif
+        start = delim + 1
+        delim = StringUtil.Find(payloads, "\n", start)
+    endwhile
 
-        if curTier < TIER_EBON
-            Int alduinFlag = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
-            if alduinFlag != 1
-                IsAlduinDefeated(player, guid)
-            endif
-
-            Int harkonFlag = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-            if harkonFlag != 1
-                IsHarkonDefeated(player, guid)
-            endif
-        endif
+    String lastPayload = StringUtil.Substring(payloads, start)
+    if lastPayload != ""
+        ApplyAnimaResult(player, guid, lastPayload, True, True)
+        NoteBossDailyAnimaAwardFromPayload(player, guid, lastPayload)
+    endif
+    if Controller.Globals
+        Controller.Globals.SyncSoulLevelSlain(player, guid)
     endif
 EndFunction
 
-Bool Function IsMiraakDefeated(Actor player, String guid)
-    Int flag = Controller.Persistence.GetGuidInt(player, guid, miraakKilled, 0)
-    if flag == 1
-        return True
+Function NoteBossDailyAnimaAwardFromPayload(Actor player, String guid, String payload)
+    String source = AnimaResultField(payload, 7)
+    Int priority = GetBossDailyAnimaPriority(source)
+    if priority <= 0
+        return
     endif
-
-    if DLC2MQ06
-        if DLC2MQ06.GetStageDone(580) || DLC2MQ06.GetStageDone(600) || DLC2MQ06.IsCompleted()
-            LogTiers(IronSoulConfig.LOG_INFO(), "miraakKilled: latched TRUE (one-shot)")
-            Controller.Persistence.SetGuidInt(player, guid, miraakKilled, 1, True)
-            HandleProgressionRelevantChange(player, guid)
-            return True
-        endif
-    endif
-
-    return False
+    NoteDailyAnimaAwardFromPayload(player, guid, payload, priority)
 EndFunction
 
-Bool Function IsAlduinDefeated(Actor player, String guid)
-    Int flag = Controller.Persistence.GetGuidInt(player, guid, alduinKilled, 0)
-    if flag == 1
-        return True
+Int Function GetBossDailyAnimaPriority(String source)
+    if source == "Miraak" || source == "Molag Bal"
+        return Controller.Journal.DAILY_ANIMA_PRIORITY_CAPSTONE
+    elseif source == "Harkon" || source == "Alduin"
+        return Controller.Journal.DAILY_ANIMA_PRIORITY_MAJOR
     endif
-
-    if MQ305
-        if MQ305.GetStage() >= 190
-            LogTiers(IronSoulConfig.LOG_INFO(), "alduinKilled: latched TRUE (one-shot)")
-            Controller.Persistence.SetGuidInt(player, guid, alduinKilled, 1, True)
-            HandleProgressionRelevantChange(player, guid)
-            return True
-        endif
-    endif
-
-    return False
+    return 0
 EndFunction
 
-Bool Function IsHarkonDefeated(Actor player, String guid)
-    Int flag = Controller.Persistence.GetGuidInt(player, guid, harkonKilled, 0)
-    if flag == 1
-        return True
-    endif
-
-    if DLC1VQ08
-        if DLC1VQ08.GetStage() >= 200
-            LogTiers(IronSoulConfig.LOG_INFO(), "harkonKilled: latched TRUE (one-shot)")
-            Controller.Persistence.SetGuidInt(player, guid, harkonKilled, 1, True)
-            HandleProgressionRelevantChange(player, guid)
-            return True
-        endif
-    endif
-
-    return False
+Bool Function IsBossAnimaAwardSource(String source)
+    return GetBossDailyAnimaPriority(source) > 0
 EndFunction
 
-Bool Function IsMolagBalDefeatedVigilant(Actor player, String guid)
-    Int flag = Controller.Persistence.GetGuidInt(player, guid, molagBalKilled, 0)
-    if flag == 1
-        return True
+Function DrainDeathSinkAnimaAwards(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        return
     endif
 
-    if !_vigilantMq08Tried
-        _vigilantMq08Tried = True
-        _vigilantMq08Cache = Game.GetFormFromFile(0x0000EA8A, "Vigilant.esm") as Quest
+    String payloads = IronSoulNative.DeathSinkDrainAnimaAwards()
+    if payloads == ""
+        return
     endif
 
-    if _vigilantMq08Cache
-        if _vigilantMq08Cache.GetStage() >= 310
-            LogTiers(IronSoulConfig.LOG_INFO(), "molagBalKilled: latched TRUE (one-shot)")
-            Controller.Persistence.SetGuidInt(player, guid, molagBalKilled, 1, True)
-            HandleProgressionRelevantChange(player, guid)
-            return True
+    Int start = 0
+    Int delim = StringUtil.Find(payloads, "\n", start)
+    while delim != -1
+        String payload = StringUtil.Substring(payloads, start, delim - start)
+        if payload != ""
+            ApplyAnimaResult(player, guid, payload, True, True)
         endif
-    endif
+        start = delim + 1
+        delim = StringUtil.Find(payloads, "\n", start)
+    endwhile
 
-    return False
+    String lastPayload = StringUtil.Substring(payloads, start)
+    if lastPayload != ""
+        ApplyAnimaResult(player, guid, lastPayload, True, True)
+    endif
+    if Controller.Globals
+        Controller.Globals.SyncSoulLevelSlain(player, guid)
+    endif
 EndFunction
 
 
@@ -1776,24 +1951,6 @@ Int Function GetMaxLuckForTierAtLevel(Int tier, Int luckLevel) Global
         return 100
     endif
     return GetMaxLuckForTierAtLevel(1, luckLevel)
-EndFunction
-
-Int Function GetHighestEligibleNormalSoulTier(Int soulsObtained, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled) Global
-    if soulsObtained >= 50
-        return 6
-    endif
-    if molagKilled || miraakKilled
-        return 5
-    endif
-    if alduinKilled || harkonKilled
-        return 4
-    endif
-    if soulsObtained >= 20
-        return 3
-    elseif soulsObtained >= 10
-        return 2
-    endif
-    return 1
 EndFunction
 
 Int Function ResolveSoulTierTargetFromFacts(Int resolveMode, Int deaths, Int liveTier, Int highestEligibleNormalTier, Int ironSoulMaxLives, Int defiantSoulMaxLives, Bool soulFeatsEnabled, Bool defiantSoulEnabled, Bool permadeathEnabled, Bool manualTierOverrideActive, Bool chimEnteredByConsole, Bool defiantFeatUnlocked) Global

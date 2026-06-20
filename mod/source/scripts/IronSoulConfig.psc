@@ -25,6 +25,11 @@ Scriptname IronSoulConfig extends Quest
 ; RespawnSFX = 1
 ; RespawnHeavyBreathingSFX = 1
 ; DeathSlowMoSFX = 1
+;
+; [Storage]
+; DataStoreSizeWarning = 1
+; DataStoreSizeLogKB = 512
+; DataStoreSizeWarnKB = 900
 
 ; =========================
 ; --- Table of Contents ---
@@ -56,7 +61,6 @@ Scriptname IronSoulConfig extends Quest
 ; IsLuckRollMenuEnabled()
 ; IsCharacterSheetCompatibilityEnabled()
 ; IsRequiemCompatibilityEnabled()
-; IsCosaveRecoveryBackupEnabled()
 ; IsTintOverlayEnabled()
 ; IsFarsightOverlayEnabled()
 ; GetFarsightOverlayMode()
@@ -147,7 +151,6 @@ Int _luckLevel = 5
 Bool _luckRollMenuEnabled = True
 Bool _enableCharacterSheetCompatibility = False
 Bool _requiemCompatibilityEnabled = True
-Bool _cosaveRecoveryBackupEnabled = True
 Bool _tintOverlayEnabled = True
 Int _farsightOverlayMode = 1
 Bool _ironSoulIntroEnabled = True
@@ -215,7 +218,6 @@ Function ResetDefaults()
     _deathQuitMode = 1
     _enableCharacterSheetCompatibility = False
     _requiemCompatibilityEnabled = True
-    _cosaveRecoveryBackupEnabled = True
     _tintOverlayEnabled = True
     _farsightOverlayMode = 1
     _dragonSoulReviveEnabled = True
@@ -308,7 +310,6 @@ Function LoadFromIni()
     _uninstallMode = ReadBool("UninstallMode", _uninstallMode)
     _enableCharacterSheetCompatibility = ReadBool("EnableCharacterSheetCompatibility", _enableCharacterSheetCompatibility)
     _requiemCompatibilityEnabled = ReadFeatureEnabled("RequiemCompatibility", True)
-    _cosaveRecoveryBackupEnabled = ReadFeatureEnabled("CosaveRecoveryBackup", True)
     _tintOverlayEnabled = ReadFeatureEnabled("TintOverlay", True)
     _farsightOverlayMode = ReadIntRange("FarsightOverlayMode", _farsightOverlayMode, 0, 2)
 
@@ -422,10 +423,6 @@ EndFunction
 
 Bool Function IsRequiemCompatibilityEnabled()
     return _requiemCompatibilityEnabled
-EndFunction
-
-Bool Function IsCosaveRecoveryBackupEnabled()
-    return _cosaveRecoveryBackupEnabled
 EndFunction
 
 Bool Function IsTintOverlayEnabled()

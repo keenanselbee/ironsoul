@@ -15,6 +15,11 @@ Scriptname IronSoulJournal extends Quest
 ; --- Journal Runtime ---
 ; -----------------------
 ; RemoveTrackedData()
+; OnUpdateGameTime()
+; StopDailyAnimaWatcher()
+; ScheduleDailyAnimaWatcher()
+; RefreshDailyAnimaWatcherForGuid()
+; FlushDailyAnimaForGuid()
 ; LogEvent()
 ; LogEventForGuid()
 ; LogExternalEvent()
@@ -26,7 +31,8 @@ Scriptname IronSoulJournal extends Quest
 ; LogTrueDeathOutcomeForGuid()
 ; LogDefiantFatigueOutcomeForGuid()
 ; LogLuckOutcomeForGuid()
-; LogDragonSoulAbsorbedForGuid()
+; NoteDailyAnimaAwardForGuid()
+; LogAnimaAwardForGuid()
 ; LogSoulFeatForGuid()
 ; LogDefiantSoulFeatForGuid()
 ; LogDefiantRestoreForGuid()
@@ -41,6 +47,22 @@ IronSoulController Property Controller Auto
 String Property journalStartDay     = "IS_5341" AutoReadOnly
 String Property journalOpenerLogged = "IS_2270" AutoReadOnly
 String Property journalCHIMLogged   = "IS_1927" AutoReadOnly
+String Property journalAnimaDay     = "J.AD" AutoReadOnly
+String Property dailyAnima          = "AN.D" AutoReadOnly
+String Property journalAnimaPriority = "J.AP" AutoReadOnly
+String Property journalAnimaDateDay = "J.DD" AutoReadOnly
+String Property journalAnimaDateMonth = "J.DM" AutoReadOnly
+String Property journalAnimaDateYear = "J.DY" AutoReadOnly
+
+Int Property DAILY_ANIMA_PRIORITY_MINOR = 1 AutoReadOnly
+Int Property DAILY_ANIMA_PRIORITY_STRONG = 2 AutoReadOnly
+Int Property DAILY_ANIMA_PRIORITY_NAMED_UNDEAD = 3 AutoReadOnly
+Int Property DAILY_ANIMA_PRIORITY_DRAGON = 4 AutoReadOnly
+Int Property DAILY_ANIMA_PRIORITY_MAJOR = 5 AutoReadOnly
+Int Property DAILY_ANIMA_PRIORITY_CAPSTONE = 6 AutoReadOnly
+
+Float _dailyAnimaUpdateHours = 1.0
+Bool _dailyAnimaWatcherArmed = False
 
 
 ; --- Component Helpers ---
@@ -113,6 +135,93 @@ Function RemoveTrackedData(Actor player, String guid, Bool deleteMainData = True
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalStartDay, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalOpenerLogged, deleteMainData, unsetCosave)
     Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalCHIMLogged, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalAnimaDay, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, dailyAnima, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalAnimaPriority, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalAnimaDateDay, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalAnimaDateMonth, deleteMainData, unsetCosave)
+    Controller.Persistence.RemoveGuidTrackedIntKey(player, guid, journalAnimaDateYear, deleteMainData, unsetCosave)
+EndFunction
+
+Event OnUpdateGameTime()
+    _dailyAnimaWatcherArmed = False
+    if !HasCoreRuntime()
+        StopDailyAnimaWatcher()
+        return
+    endif
+
+    Bool characterJournalEnabled = Controller.Config.IsCharacterJournalEnabled()
+    Actor player = Game.GetPlayer()
+    if !player
+        if characterJournalEnabled
+            ScheduleDailyAnimaWatcher()
+        else
+            StopDailyAnimaWatcher()
+        endif
+        return
+    endif
+
+    String guid = Controller.Identity.GetTickGuid(player)
+    if guid == ""
+        if characterJournalEnabled
+            ScheduleDailyAnimaWatcher()
+        else
+            StopDailyAnimaWatcher()
+        endif
+        return
+    endif
+
+    if !characterJournalEnabled
+        FlushDailyAnimaForGuid(player, guid)
+        StopDailyAnimaWatcher()
+        return
+    endif
+
+    FlushDailyAnimaForGuid(player, guid)
+    ScheduleDailyAnimaWatcher()
+EndEvent
+
+Function StopDailyAnimaWatcher()
+    UnregisterForUpdateGameTime()
+    _dailyAnimaWatcherArmed = False
+EndFunction
+
+Function ScheduleDailyAnimaWatcher()
+    UnregisterForUpdateGameTime()
+    RegisterForSingleUpdateGameTime(_dailyAnimaUpdateHours)
+    _dailyAnimaWatcherArmed = True
+EndFunction
+
+Function RefreshDailyAnimaWatcherForGuid(Actor player, String guid)
+    if !HasCoreRuntime() || !player || guid == ""
+        StopDailyAnimaWatcher()
+        return
+    endif
+
+    if !Controller.Config.IsCharacterJournalEnabled()
+        FlushDailyAnimaForGuid(player, guid)
+        StopDailyAnimaWatcher()
+        return
+    endif
+
+    FlushDailyAnimaForGuid(player, guid)
+    ScheduleDailyAnimaWatcher()
+EndFunction
+
+Bool Function FlushDailyAnimaForGuid(Actor player, String guid)
+    String context = "JournalFlushDailyAnima"
+    if !HasCoreRuntime() || !player || guid == ""
+        return False
+    endif
+
+    Bool success = IronSoulNative.JournalFlushDailyAnima(guid)
+    if !success && Controller.Config.IsCharacterJournalEnabled()
+        LogJournal(IronSoulConfig.LOG_ERR(), context + ": native write failed")
+    endif
+    if success && Controller.Globals
+        Controller.Globals.SyncAnima(player, guid)
+    endif
+    return success
 EndFunction
 
 Function LogEvent(String eventText)
@@ -299,18 +408,37 @@ Bool Function LogLuckOutcomeForGuid(Actor player, String guid, Int luck, Int rol
     return FinishNativeJournalWrite(context, IronSoulNative.JournalLogLuckOutcome(luck, roll, maxLuck, startDay, nowDay))
 EndFunction
 
-Bool Function LogDragonSoulAbsorbedForGuid(Actor player, String guid, Int total)
-    String context = "JournalLogDragonSoulAbsorbed"
+Bool Function NoteDailyAnimaAwardForGuid(Actor player, String guid, String source, Int amount, Int priority)
+    String context = "JournalNoteDailyAnimaAward"
+    if !HasCoreRuntime() || !player || guid == ""
+        return False
+    endif
+
+    Bool success = IronSoulNative.JournalNoteDailyAnimaAward(guid, source, amount, priority)
+    if !success && Controller.Config.IsCharacterJournalEnabled()
+        LogJournal(IronSoulConfig.LOG_ERR(), context + ": native write failed")
+    endif
+    if Controller.Config.IsCharacterJournalEnabled()
+        ScheduleDailyAnimaWatcher()
+    endif
+    if success && Controller.Globals
+        Controller.Globals.SyncAnima(player, guid)
+    endif
+    return success
+EndFunction
+
+Bool Function LogAnimaAwardForGuid(Actor player, String guid, String source, Int amount)
+    String context = "JournalLogAnimaAward"
     if !CanLogNativeForGuid(player, guid, context)
         return False
     endif
     Int startDay = EnsureStartDay(player, guid)
     EnsureOpenerLogged(player, guid)
     Int nowDay = Utility.GetCurrentGameTime() as Int
-    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDragonSoulAbsorbed(total, startDay, nowDay))
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogAnimaAward(source, amount, startDay, nowDay))
 EndFunction
 
-Bool Function LogSoulFeatForGuid(Actor player, String guid, Int soulTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled)
+Bool Function LogSoulFeatForGuid(Actor player, String guid, Int soulTier, Int totalDeaths)
     String context = "JournalLogSoulFeat"
     if !CanLogNativeForGuid(player, guid, context)
         return False
@@ -318,7 +446,7 @@ Bool Function LogSoulFeatForGuid(Actor player, String guid, Int soulTier, Int to
     Int startDay = EnsureStartDay(player, guid)
     EnsureOpenerLogged(player, guid)
     Int nowDay = Utility.GetCurrentGameTime() as Int
-    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogSoulFeat(soulTier, totalDeaths, molagKilled, miraakKilled, alduinKilled, harkonKilled, startDay, nowDay))
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogSoulFeat(soulTier, totalDeaths, startDay, nowDay))
 EndFunction
 
 Bool Function LogDefiantSoulFeatForGuid(Actor player, String guid, Int totalDeaths)
@@ -332,7 +460,7 @@ Bool Function LogDefiantSoulFeatForGuid(Actor player, String guid, Int totalDeat
     return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefiantSoulFeat(totalDeaths, startDay, nowDay))
 EndFunction
 
-Bool Function LogDefiantRestoreForGuid(Actor player, String guid, Int targetTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled)
+Bool Function LogDefiantRestoreForGuid(Actor player, String guid, Int targetTier, Int totalDeaths)
     String context = "JournalLogDefiantRestore"
     if !CanLogNativeForGuid(player, guid, context)
         return False
@@ -340,7 +468,7 @@ Bool Function LogDefiantRestoreForGuid(Actor player, String guid, Int targetTier
     Int startDay = EnsureStartDay(player, guid)
     EnsureOpenerLogged(player, guid)
     Int nowDay = Utility.GetCurrentGameTime() as Int
-    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefiantRestore(targetTier, totalDeaths, molagKilled, miraakKilled, alduinKilled, harkonKilled, startDay, nowDay))
+    return FinishNativeJournalWrite(context, IronSoulNative.JournalLogDefiantRestore(targetTier, totalDeaths, startDay, nowDay))
 EndFunction
 
 Bool Function LogDefiantAwakenedForGuid(Actor player, String guid)

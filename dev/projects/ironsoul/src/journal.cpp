@@ -1,10 +1,17 @@
 #include "pch.h"
 
 #include "journal.h"
+#include "config.h"
+#include "datastore.h"
 #include "pathutil.h"
 #include "text_catalog.h"
 
+#include "RE/C/Calendar.h"
+
 #include <algorithm>
+#include <array>
+#include <cstdint>
+#include <limits>
 #include <random>
 
 namespace fs = std::filesystem;
@@ -12,7 +19,46 @@ namespace fs = std::filesystem;
 namespace IronSoul::Journal
 {
 	static std::mutex g_mutex;
+	static std::mutex g_dailyMutex;
 	static constexpr std::int32_t kUncappedMaxLivesSentinel = 2000000000;
+	static constexpr const char* kJournalStartDayKey = "IS_5341";
+	static constexpr const char* kJournalOpenerLoggedKey = "IS_2270";
+	static constexpr const char* kDailyAnimaDayKey = "J.AD";
+	static constexpr const char* kDailyAnimaTotalKey = "AN.D";
+	static constexpr const char* kDailyAnimaPriorityKey = "J.AP";
+	static constexpr const char* kDailyAnimaDateDayKey = "J.DD";
+	static constexpr const char* kDailyAnimaDateMonthKey = "J.DM";
+	static constexpr const char* kDailyAnimaDateYearKey = "J.DY";
+
+	struct DailyAnimaDate
+	{
+		std::int32_t day = 17;
+		std::int32_t month = 7;
+		std::int32_t year = 201;
+	};
+
+	struct DailyAnimaState
+	{
+		std::int32_t trackedDay = -1;
+		std::int32_t total = 0;
+		std::int32_t priority = kDailyAnimaPriorityNone;
+		DailyAnimaDate date;
+	};
+
+	static constexpr std::array<std::string_view, 12> kMonthNames = {
+		"Morning Star",
+		"Sun's Dawn",
+		"First Seed",
+		"Rain's Hand",
+		"Second Seed",
+		"Midyear",
+		"Sun's Height",
+		"Last Seed",
+		"Hearthfire",
+		"Frostfall",
+		"Sun's Dusk",
+		"Evening Star"
+	};
 
 	static fs::path GetLogPath()
 	{
@@ -27,6 +73,99 @@ namespace IronSoul::Journal
 		}
 		const auto last = a_value.find_last_not_of(" \t\n\r");
 		return std::string(a_value.substr(first, last - first + 1));
+	}
+
+	static std::string MakeGuidKey(std::string_view a_key, std::string_view a_guid)
+	{
+		return std::string(a_key) + ":" + std::string(a_guid);
+	}
+
+	static std::uint32_t HashDailySeed(std::string_view a_guid, std::int32_t a_day, std::int32_t a_priority)
+	{
+		std::uint32_t hash = 2166136261u;
+		for (const unsigned char c : a_guid) {
+			hash ^= c;
+			hash *= 16777619u;
+		}
+
+		const std::uint32_t day = static_cast<std::uint32_t>(a_day);
+		const std::uint32_t priority = static_cast<std::uint32_t>(a_priority);
+		hash ^= day;
+		hash *= 16777619u;
+		hash ^= priority;
+		hash *= 16777619u;
+		return hash;
+	}
+
+	static std::int32_t ClampDailyAnimaPriority(std::int32_t a_priority)
+	{
+		return std::clamp(a_priority, kDailyAnimaPriorityNone, kDailyAnimaPriorityCapstone);
+	}
+
+	static bool IsCharacterJournalEnabled()
+	{
+		return IronSoul::Config::GetAllowedInt("CharacterJournal", 1) == 1;
+	}
+
+	static std::int32_t GetCurrentGameDay()
+	{
+		const auto* calendar = RE::Calendar::GetSingleton();
+		if (!calendar) {
+			return 0;
+		}
+		return static_cast<std::int32_t>(calendar->GetCurrentGameTime());
+	}
+
+	static DailyAnimaDate GetCurrentDailyAnimaDate()
+	{
+		const auto* calendar = RE::Calendar::GetSingleton();
+		if (!calendar) {
+			return {};
+		}
+
+		DailyAnimaDate date;
+		date.day = std::clamp(static_cast<std::int32_t>(calendar->GetDay()), 1, 31);
+		date.month = std::clamp(static_cast<std::int32_t>(calendar->GetMonth()), 0, 11);
+		date.year = (std::max)(static_cast<std::int32_t>(calendar->GetYear()), 1);
+		return date;
+	}
+
+	static std::string BuildDailyDate(const DailyAnimaDate& a_date)
+	{
+		const std::int32_t month = std::clamp(a_date.month, 0, 11);
+		return std::to_string((std::max)(a_date.day, 1)) + " " +
+			std::string(kMonthNames[static_cast<std::size_t>(month)]) +
+			", 4E " + std::to_string((std::max)(a_date.year, 1));
+	}
+
+	static DailyAnimaState LoadDailyAnimaState(std::string_view a_guid)
+	{
+		DailyAnimaState state;
+		state.trackedDay = IronSoul::DataStore::GetInt(MakeGuidKey(kDailyAnimaDayKey, a_guid), -1);
+		state.total = (std::max)(IronSoul::DataStore::GetInt(MakeGuidKey(kDailyAnimaTotalKey, a_guid), 0), 0);
+		state.priority = ClampDailyAnimaPriority(IronSoul::DataStore::GetInt(MakeGuidKey(kDailyAnimaPriorityKey, a_guid), 0));
+		state.date.day = std::clamp(IronSoul::DataStore::GetInt(MakeGuidKey(kDailyAnimaDateDayKey, a_guid), 17), 1, 31);
+		state.date.month = std::clamp(IronSoul::DataStore::GetInt(MakeGuidKey(kDailyAnimaDateMonthKey, a_guid), 7), 0, 11);
+		state.date.year = (std::max)(IronSoul::DataStore::GetInt(MakeGuidKey(kDailyAnimaDateYearKey, a_guid), 201), 1);
+		return state;
+	}
+
+	static void StoreDailyAnimaState(std::string_view a_guid, const DailyAnimaState& a_state)
+	{
+		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaDayKey, a_guid), a_state.trackedDay);
+		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaTotalKey, a_guid), (std::max)(a_state.total, 0));
+		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaPriorityKey, a_guid), ClampDailyAnimaPriority(a_state.priority));
+		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaDateDayKey, a_guid), std::clamp(a_state.date.day, 1, 31));
+		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaDateMonthKey, a_guid), std::clamp(a_state.date.month, 0, 11));
+		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaDateYearKey, a_guid), (std::max)(a_state.date.year, 1));
+	}
+
+	static void ResetDailyAnimaState(std::string_view a_guid, std::int32_t a_nowDay)
+	{
+		DailyAnimaState state;
+		state.trackedDay = a_nowDay;
+		state.date = GetCurrentDailyAnimaDate();
+		StoreDailyAnimaState(a_guid, state);
 	}
 
 	static std::int32_t RandomIntInclusive(std::int32_t a_min, std::int32_t a_max)
@@ -137,31 +276,14 @@ namespace IronSoul::Journal
 		return PickNormalDefeatFlavor();
 	}
 
-	static std::string BuildSoulFeatBase(
-		std::int32_t a_soulTier,
-		bool a_molagKilled,
-		bool a_miraakKilled,
-		bool a_alduinKilled,
-		bool a_harkonKilled)
+	static std::string BuildSoulFeatBase(std::int32_t a_soulTier)
 	{
 		switch (a_soulTier) {
 		case 6:
 			return IronSoul::Text::Get("Journal.SoulFeat.Devour");
 		case 5:
-			if (a_molagKilled) {
-				return IronSoul::Text::Get("Journal.SoulFeat.PlatinumMolagBal");
-			}
-			if (a_miraakKilled) {
-				return IronSoul::Text::Get("Journal.SoulFeat.PlatinumMiraak");
-			}
 			return IronSoul::Text::Get("Journal.SoulFeat.Platinum");
 		case 4:
-			if (a_alduinKilled) {
-				return IronSoul::Text::Get("Journal.SoulFeat.EbonAlduin");
-			}
-			if (a_harkonKilled) {
-				return IronSoul::Text::Get("Journal.SoulFeat.EbonHarkon");
-			}
 			return IronSoul::Text::Get("Journal.SoulFeat.Ebon");
 		case 3:
 			return IronSoul::Text::Get("Journal.SoulFeat.Gold");
@@ -172,31 +294,14 @@ namespace IronSoul::Journal
 		}
 	}
 
-	static std::string BuildDefiantRestoreBase(
-		std::int32_t a_targetTier,
-		bool a_molagKilled,
-		bool a_miraakKilled,
-		bool a_alduinKilled,
-		bool a_harkonKilled)
+	static std::string BuildDefiantRestoreBase(std::int32_t a_targetTier)
 	{
 		switch (a_targetTier) {
 		case 6:
 			return IronSoul::Text::Get("Journal.DefiantRestore.Devour");
 		case 5:
-			if (a_molagKilled) {
-				return IronSoul::Text::Get("Journal.DefiantRestore.PlatinumMolagBal");
-			}
-			if (a_miraakKilled) {
-				return IronSoul::Text::Get("Journal.DefiantRestore.PlatinumMiraak");
-			}
 			return IronSoul::Text::Get("Journal.DefiantRestore.Platinum");
 		case 4:
-			if (a_alduinKilled) {
-				return IronSoul::Text::Get("Journal.DefiantRestore.EbonAlduin");
-			}
-			if (a_harkonKilled) {
-				return IronSoul::Text::Get("Journal.DefiantRestore.EbonHarkon");
-			}
 			return IronSoul::Text::Get("Journal.DefiantRestore.Ebon");
 		case 3:
 			return IronSoul::Text::Get("Journal.DefiantRestore.Gold");
@@ -207,6 +312,23 @@ namespace IronSoul::Journal
 		default:
 			return {};
 		}
+	}
+
+	static std::string BuildJournalPrefix()
+	{
+		std::string name;
+		if (auto* player = RE::PlayerCharacter::GetSingleton(); player) {
+			name = TrimCopy(player->GetName());
+		}
+		if (name.empty()) {
+			name = "Prisoner";
+		}
+
+		const std::string difficultyLabel = IronSoul::Config::GetEffectiveDisplayDifficultyJournalPrefix();
+		if (!difficultyLabel.empty()) {
+			name += " " + difficultyLabel;
+		}
+		return name;
 	}
 
 	bool AppendLine(std::string_view line)
@@ -252,6 +374,159 @@ namespace IronSoul::Journal
 		return IronSoul::Text::Format(
 			"Journal.DayLine",
 			{ { "day", day }, { "event", eventText } });
+	}
+
+	bool AppendEvent(std::string_view a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
+	{
+		const std::string dayLine = BuildDayLine(a_eventText, a_startDay, a_nowDay);
+		if (dayLine.empty()) {
+			return false;
+		}
+		return AppendLine(BuildJournalPrefix() + " | " + dayLine);
+	}
+
+	static std::int32_t EnsureJournalStartDay(std::string_view a_guid, std::int32_t a_nowDay)
+	{
+		const std::string key = MakeGuidKey(kJournalStartDayKey, a_guid);
+		std::int32_t startDay = IronSoul::DataStore::GetInt(key, -1);
+		if (startDay == -1) {
+			startDay = a_nowDay;
+			IronSoul::DataStore::SetIntIfChanged(key, startDay);
+		}
+		return startDay;
+	}
+
+	static void EnsureJournalOpenerLogged(std::string_view a_guid)
+	{
+		if (IronSoul::DataStore::GetInt(MakeGuidKey(kJournalOpenerLoggedKey, a_guid), 0) == 1) {
+			return;
+		}
+
+		if (AppendEvent(IronSoul::Text::Get("Journal.Opener"), 0, 0)) {
+			IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kJournalOpenerLoggedKey, a_guid), 1);
+		}
+	}
+
+	static std::string DailyAnimaTextKey(std::int32_t a_priority, std::int32_t a_index)
+	{
+		std::string bucket = "Minor";
+		if (a_priority <= kDailyAnimaPriorityNone) {
+			bucket = "None";
+		} else if (a_priority >= kDailyAnimaPriorityCapstone) {
+			bucket = "Capstone";
+		} else if (a_priority == kDailyAnimaPriorityMajor) {
+			bucket = "Major";
+		} else if (a_priority == kDailyAnimaPriorityDragon) {
+			bucket = "Dragon";
+		} else if (a_priority == kDailyAnimaPriorityNamedUndead) {
+			bucket = "NamedUndead";
+		} else if (a_priority == kDailyAnimaPriorityStrong) {
+			bucket = "Strong";
+		}
+
+		return "Journal.DailyAnima." + bucket + std::to_string(std::clamp(a_index, 1, 2));
+	}
+
+	static std::string BuildDailyAnimaEvent(std::string_view a_guid, const DailyAnimaState& a_state)
+	{
+		std::int32_t priority = ClampDailyAnimaPriority(a_state.priority);
+		if (a_state.total <= 0) {
+			priority = kDailyAnimaPriorityNone;
+		} else if (priority <= kDailyAnimaPriorityNone) {
+			priority = kDailyAnimaPriorityMinor;
+		}
+
+		const std::int32_t index = static_cast<std::int32_t>(HashDailySeed(a_guid, a_state.trackedDay, priority) % 2u) + 1;
+		const std::string amount = std::to_string((std::max)(a_state.total, 0));
+		const std::string text = IronSoul::Text::Format(
+			DailyAnimaTextKey(priority, index),
+			{ { "amount", amount } });
+		return BuildDailyDate(a_state.date) + ". " + text;
+	}
+
+	static bool FlushDailyAnimaUnlocked(std::string_view a_guid)
+	{
+		if (a_guid.empty() || !IronSoul::DataStore::IsInitialized()) {
+			return false;
+		}
+
+		const std::int32_t nowDay = GetCurrentGameDay();
+		if (!IsCharacterJournalEnabled()) {
+			ResetDailyAnimaState(a_guid, nowDay);
+			return true;
+		}
+
+		const DailyAnimaState state = LoadDailyAnimaState(a_guid);
+		if (state.trackedDay < 0) {
+			ResetDailyAnimaState(a_guid, nowDay);
+			return true;
+		}
+
+		if (nowDay < state.trackedDay) {
+			ResetDailyAnimaState(a_guid, nowDay);
+			return true;
+		}
+		if (nowDay == state.trackedDay) {
+			return true;
+		}
+
+		EnsureJournalOpenerLogged(a_guid);
+		const std::int32_t startDay = EnsureJournalStartDay(a_guid, state.trackedDay);
+		const bool logged = AppendEvent(BuildDailyAnimaEvent(a_guid, state), startDay, state.trackedDay);
+		if (!logged) {
+			logger::warn("Iron Soul: failed to write daily Anima journal summary for guid={} day={}", a_guid, state.trackedDay);
+		}
+
+		ResetDailyAnimaState(a_guid, nowDay);
+		return logged;
+	}
+
+	bool FlushDailyAnima(std::string_view a_guid)
+	{
+		std::lock_guard lock(g_dailyMutex);
+		return FlushDailyAnimaUnlocked(TrimCopy(a_guid));
+	}
+
+	bool NoteDailyAnimaAward(
+		std::string_view a_guid,
+		std::string_view a_source,
+		std::int32_t a_amount,
+		std::int32_t a_priority)
+	{
+		(void)a_source;
+
+		std::lock_guard lock(g_dailyMutex);
+
+		const std::string guid = TrimCopy(a_guid);
+		if (guid.empty() || !IronSoul::DataStore::IsInitialized()) {
+			return false;
+		}
+
+		const bool flushed = FlushDailyAnimaUnlocked(guid);
+		if (!IsCharacterJournalEnabled()) {
+			return false;
+		}
+
+		const std::int32_t amount = (std::max)(a_amount, 0);
+		if (amount <= 0) {
+			return flushed;
+		}
+
+		DailyAnimaState state = LoadDailyAnimaState(guid);
+		const std::int32_t nowDay = GetCurrentGameDay();
+		if (state.trackedDay != nowDay) {
+			ResetDailyAnimaState(guid, nowDay);
+			state = LoadDailyAnimaState(guid);
+		}
+
+		const std::int64_t total = static_cast<std::int64_t>(state.total) + amount;
+		const std::int64_t cappedTotal = total > (std::numeric_limits<std::int32_t>::max)() ?
+			(std::numeric_limits<std::int32_t>::max)() :
+			total;
+		state.total = static_cast<std::int32_t>(cappedTotal);
+		state.priority = (std::max)(state.priority, ClampDailyAnimaPriority(a_priority));
+		StoreDailyAnimaState(guid, state);
+		return flushed;
 	}
 
 	std::string BuildExternalEvent(std::string_view a_source, std::string_view a_eventText)
@@ -349,22 +624,21 @@ namespace IronSoul::Journal
 		return IronSoul::Text::Format("Journal.LuckOutcomeBase", replacements);
 	}
 
-	std::string BuildDragonSoulAbsorbed(std::int32_t a_total)
+	std::string BuildAnimaAward(std::string_view a_source, std::int32_t a_amount)
 	{
+		std::string source = TrimCopy(a_source);
+		if (source.empty()) {
+			source = IronSoul::Text::Get("Journal.ExternalSourceDefault");
+		}
+		const std::int32_t clampedAmount = a_amount < 0 ? 0 : a_amount;
 		return IronSoul::Text::Format(
-			"Journal.DragonSoulAbsorbed",
-			{ { "total", std::to_string(a_total) } });
+			"Journal.AnimaAward",
+			{ { "amount", std::to_string(clampedAmount) }, { "source", source } });
 	}
 
-	std::string BuildSoulFeat(
-		std::int32_t a_soulTier,
-		std::int32_t a_totalDeaths,
-		bool a_molagKilled,
-		bool a_miraakKilled,
-		bool a_alduinKilled,
-		bool a_harkonKilled)
+	std::string BuildSoulFeat(std::int32_t a_soulTier, std::int32_t a_totalDeaths)
 	{
-		const std::string baseText = BuildSoulFeatBase(a_soulTier, a_molagKilled, a_miraakKilled, a_alduinKilled, a_harkonKilled);
+		const std::string baseText = BuildSoulFeatBase(a_soulTier);
 		return AppendTotalDeaths(baseText, a_totalDeaths);
 	}
 
@@ -375,15 +649,9 @@ namespace IronSoul::Journal
 			a_totalDeaths);
 	}
 
-	std::string BuildDefiantRestore(
-		std::int32_t a_targetTier,
-		std::int32_t a_totalDeaths,
-		bool a_molagKilled,
-		bool a_miraakKilled,
-		bool a_alduinKilled,
-		bool a_harkonKilled)
+	std::string BuildDefiantRestore(std::int32_t a_targetTier, std::int32_t a_totalDeaths)
 	{
-		const std::string baseText = BuildDefiantRestoreBase(a_targetTier, a_molagKilled, a_miraakKilled, a_alduinKilled, a_harkonKilled);
+		const std::string baseText = BuildDefiantRestoreBase(a_targetTier);
 		return AppendTotalDeaths(baseText, a_totalDeaths);
 	}
 

@@ -1,6 +1,8 @@
 #include "pch.h"
+#include "anima.h"
 #include "datastore.h"
 #include "datastore_internal.h"
+#include "soul_level.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -18,9 +20,8 @@ namespace IronSoul
         Plain,
         Bool,
         SoulTier,
+        UnlockTier,
         DraugnarokOverride,
-        EbonFeatVariant,
-        PlatinumFeatVariant,
         LuckNotificationTier,
         DsrUse,
         RaceFormId
@@ -36,7 +37,7 @@ namespace IronSoul
 
     static constexpr const char* kCharacterDataSections[] = {
         "identity",
-        "shared",
+        "world",
         "core",
         "luck",
         "ui",
@@ -71,10 +72,9 @@ namespace IronSoul
 
         { "soul", "IS_2204", "SoulTier", CharacterDataValueFormat::SoulTier },
         { "soul", "IS_2719", "ManualTierOverride", CharacterDataValueFormat::Bool },
-        { "soul", "IS_4520", "EbonFeatVariant", CharacterDataValueFormat::EbonFeatVariant },
-        { "soul", "IS_4779", "PlatinumFeatVariant", CharacterDataValueFormat::PlatinumFeatVariant },
         { "soul", "IS_9646", "DragonSoulsStoredTotal", CharacterDataValueFormat::Plain },
         { "soul", "IS_7440", "DragonSoulsLastSeenLive", CharacterDataValueFormat::Plain },
+        { "soul", IronSoul::Anima::kCharacterAnimaKey, "AnimaCharacter", CharacterDataValueFormat::Plain },
 
         { "dsr", "IS_8201", "DragonSoulReviveLimitLastActiveSecond", CharacterDataValueFormat::Plain },
         { "dsr", "IS_8202", "DragonSoulReviveLimitPlayedSeconds", CharacterDataValueFormat::Plain },
@@ -94,12 +94,20 @@ namespace IronSoul
 
         { "journal", "IS_5341", "JournalStartGameDay", CharacterDataValueFormat::Plain },
         { "journal", "IS_2270", "JournalOpenerLogged", CharacterDataValueFormat::Bool },
-        { "journal", "IS_1927", "JournalCHIMLogged", CharacterDataValueFormat::Bool }
+        { "journal", "IS_1927", "JournalCHIMLogged", CharacterDataValueFormat::Bool },
+        { "journal", "J.AD", "JournalAnimaDay", CharacterDataValueFormat::Plain },
+        { "journal", "AN.D", "DailyAnima", CharacterDataValueFormat::Plain },
+        { "journal", "J.AP", "JournalAnimaPriority", CharacterDataValueFormat::Plain },
+        { "journal", "J.DD", "JournalAnimaDateDay", CharacterDataValueFormat::Plain },
+        { "journal", "J.DM", "JournalAnimaDateMonth", CharacterDataValueFormat::Plain },
+        { "journal", "J.DY", "JournalAnimaDateYear", CharacterDataValueFormat::Plain }
     };
 
-    static constexpr const char* kSunderheartsAbsorbedKey = "SH.T";
-    static constexpr const char* kSunderheartsUnlockedKey = "SH.U";
-    static constexpr const char* kSunderheartUsedPrefix = "SH.U.";
+    static constexpr const char* kWorldDragonSoulsTotalKey = "DS.W";
+    static constexpr const char* kSunderheartsAbsorbedWorldKey = "SH.A.W";
+    static constexpr const char* kSunderheartsUnlockedWorldKey = "SH.U.W";
+    static constexpr const char* kSunderheartUsedWorldPrefix = "SH.C.";
+    static constexpr const char* kWorldDeathCountKey = "DC.W";
 
     // --- Formatting Helpers ---
     // ==========================
@@ -142,8 +150,8 @@ namespace IronSoul
         if (section == "identity") {
             return "Identity";
         }
-        if (section == "shared") {
-            return "Shared";
+        if (section == "world") {
+            return "World";
         }
         if (section == "core") {
             return "Core";
@@ -259,6 +267,27 @@ namespace IronSoul
         }
     }
 
+    static const char* UnlockTierLabel(std::int32_t value)
+    {
+        switch (value) {
+        case 0:
+            return "Iron";
+        case 1:
+            return "Defiant";
+        case 2:
+            return "Silver";
+        case 3:
+            return "Gold";
+        case 4:
+            return "Ebon";
+        case 5:
+            return "Platinum";
+        case 6:
+            return "Devour";
+        default:
+            return "";
+        }
+    }
     static const char* DraugnarokOverrideLabel(std::int32_t value)
     {
         switch (value) {
@@ -268,34 +297,6 @@ namespace IronSoul
             return "ForceOn";
         case 2:
             return "ForceOff";
-        default:
-            return "";
-        }
-    }
-
-    static const char* EbonFeatVariantLabel(std::int32_t value)
-    {
-        switch (value) {
-        case 0:
-            return "Unresolved";
-        case 1:
-            return "Alduin";
-        case 2:
-            return "Harkon";
-        default:
-            return "";
-        }
-    }
-
-    static const char* PlatinumFeatVariantLabel(std::int32_t value)
-    {
-        switch (value) {
-        case 0:
-            return "Unresolved";
-        case 1:
-            return "MolagBal";
-        case 2:
-            return "Miraak";
         default:
             return "";
         }
@@ -347,12 +348,10 @@ namespace IronSoul
             return std::to_string(value);
         case CharacterDataValueFormat::SoulTier:
             return LabeledInt(value, SoulTierLabel(value));
+        case CharacterDataValueFormat::UnlockTier:
+            return LabeledInt(value, UnlockTierLabel(value));
         case CharacterDataValueFormat::DraugnarokOverride:
             return LabeledInt(value, DraugnarokOverrideLabel(value));
-        case CharacterDataValueFormat::EbonFeatVariant:
-            return LabeledInt(value, EbonFeatVariantLabel(value));
-        case CharacterDataValueFormat::PlatinumFeatVariant:
-            return LabeledInt(value, PlatinumFeatVariantLabel(value));
         case CharacterDataValueFormat::LuckNotificationTier:
             return LabeledInt(value, LuckNotificationTierLabel(value));
         case CharacterDataValueFormat::DsrUse:
@@ -369,6 +368,11 @@ namespace IronSoul
     {
         for (const auto& spec : kCharacterDataKeySpecs) {
             if (key == MakeGuidKey(spec.key, guid)) {
+                return true;
+            }
+        }
+        for (std::int32_t level = SoulLevel::kMinimumLevel; level <= SoulLevel::kMaximumLevel; ++level) {
+            if (key == SoulLevel::MakeCharacterSlainKey(guid, level)) {
                 return true;
             }
         }
@@ -413,7 +417,7 @@ namespace IronSoul
 
         const std::string sectionLower = ToLowerAscii(TrimAscii(section));
         if (!IsCharacterDataSection(sectionLower)) {
-            return "Error: unknown CharacterData section '" + section + "'. Expected identity, shared, core, luck, ui, soul, dsr, bosses, defiant, or journal.";
+            return "Error: unknown CharacterData section '" + section + "'. Expected identity, world, core, luck, ui, soul, dsr, bosses, defiant, or journal.";
         }
 
         std::unordered_map<std::string, Value> snapshot;
@@ -459,30 +463,69 @@ namespace IronSoul
             }
         }
 
-        if (wantsSection("shared")) {
-            const auto sunderheartsAbsorbedIt = snapshot.find(kSunderheartsAbsorbedKey);
-            if (sunderheartsAbsorbedIt != snapshot.end()) {
-                appendValue("shared", "SunderheartsAbsorbed", sunderheartsAbsorbedIt->second, CharacterDataValueFormat::Plain);
+        if (wantsSection("world")) {
+            const auto worldDeathCountIt = snapshot.find(kWorldDeathCountKey);
+            if (worldDeathCountIt != snapshot.end()) {
+                appendValue("world", "DeathCountWorld", worldDeathCountIt->second, CharacterDataValueFormat::Plain);
             }
 
-            const auto sunderheartsUnlockedIt = snapshot.find(kSunderheartsUnlockedKey);
+            const auto worldAnimaIt = snapshot.find(IronSoul::Anima::kWorldAnimaKey);
+            if (worldAnimaIt != snapshot.end()) {
+                appendValue("world", "WorldAnima", worldAnimaIt->second, CharacterDataValueFormat::Plain);
+            }
+
+            const auto saveHighestUnlockedTierIt = snapshot.find(IronSoul::Anima::kSaveHighestUnlockedTierKey);
+            if (saveHighestUnlockedTierIt != snapshot.end()) {
+                appendValue("world", "SaveHighestUnlockedTier", saveHighestUnlockedTierIt->second, CharacterDataValueFormat::UnlockTier);
+            }
+
+            const auto worldDragonSoulsTotalIt = snapshot.find(kWorldDragonSoulsTotalKey);
+            if (worldDragonSoulsTotalIt != snapshot.end()) {
+                appendValue("world", "DragonSoulsTotalWorld", worldDragonSoulsTotalIt->second, CharacterDataValueFormat::Plain);
+            }
+            for (std::int32_t level = SoulLevel::kMinimumLevel; level <= SoulLevel::kMaximumLevel; ++level) {
+                const auto key = SoulLevel::MakeWorldSlainKey(level);
+                const auto it = snapshot.find(key);
+                if (it != snapshot.end()) {
+                    appendValue("world", "SoulLevel" + std::to_string(level) + "SlainWorld", it->second, CharacterDataValueFormat::Plain);
+                }
+            }
+            const auto sunderheartsAbsorbedIt = snapshot.find(kSunderheartsAbsorbedWorldKey);
+            if (sunderheartsAbsorbedIt != snapshot.end()) {
+                appendValue("world", "SunderheartsAbsorbedWorld", sunderheartsAbsorbedIt->second, CharacterDataValueFormat::Plain);
+            }
+
+            const auto sunderheartsUnlockedIt = snapshot.find(kSunderheartsUnlockedWorldKey);
             if (sunderheartsUnlockedIt != snapshot.end()) {
-                appendValue("shared", "SunderheartsUnlocked", sunderheartsUnlockedIt->second, CharacterDataValueFormat::Plain);
+                appendValue("world", "SunderheartsUnlockedWorld", sunderheartsUnlockedIt->second, CharacterDataValueFormat::Plain);
             }
 
             std::vector<std::string> usedSunderheartEntries;
             for (const auto& [key, value] : snapshot) {
-                if (!StartsWith(key, kSunderheartUsedPrefix)) {
+                if (!StartsWith(key, kSunderheartUsedWorldPrefix)) {
                     continue;
                 }
 
-                const std::string suffix = key.substr(std::string(kSunderheartUsedPrefix).size());
-                usedSunderheartEntries.push_back("SunderheartUnlocked(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
+                std::string suffix = key.substr(std::string(kSunderheartUsedWorldPrefix).size());
+                if (EndsWith(suffix, ".W")) {
+                    suffix.resize(suffix.size() - 2);
+                }
+                usedSunderheartEntries.push_back("SunderheartUsedWorld(" + suffix + ")=" + formatValue(value, CharacterDataValueFormat::Plain));
             }
             std::sort(usedSunderheartEntries.begin(), usedSunderheartEntries.end());
 
-            auto& sharedEntries = entries["shared"];
-            sharedEntries.insert(sharedEntries.end(), usedSunderheartEntries.begin(), usedSunderheartEntries.end());
+            auto& worldEntries = entries["world"];
+            worldEntries.insert(worldEntries.end(), usedSunderheartEntries.begin(), usedSunderheartEntries.end());
+        }
+
+        if (wantsSection("soul")) {
+            for (std::int32_t level = SoulLevel::kMinimumLevel; level <= SoulLevel::kMaximumLevel; ++level) {
+                const auto key = SoulLevel::MakeCharacterSlainKey(guid, level);
+                const auto it = snapshot.find(key);
+                if (it != snapshot.end()) {
+                    appendValue("soul", "SoulLevel" + std::to_string(level) + "SlainCharacter", it->second, CharacterDataValueFormat::Plain);
+                }
+            }
         }
 
         for (const auto& spec : kCharacterDataKeySpecs) {

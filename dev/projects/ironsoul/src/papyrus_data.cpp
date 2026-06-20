@@ -75,6 +75,16 @@ namespace
         return IronSoul::DataStore::DeleteKeysWithPrefix(a_prefix);
     }
 
+    static bool DataStoreSizeWarningPending(RE::StaticFunctionTag*)
+    {
+        return IronSoul::DataStore::SizeWarningPending();
+    }
+
+    static bool DataStoreConsumeSizeWarning(RE::StaticFunctionTag*)
+    {
+        return IronSoul::DataStore::ConsumeSizeWarning();
+    }
+
     static void DataFlushIfDirty(RE::StaticFunctionTag*)
     {
         IronSoul::DataStore::FlushIfDirty();
@@ -95,6 +105,8 @@ namespace
         a_vm->RegisterFunction("DataHasKey", kScriptName, DataHasKey);
         a_vm->RegisterFunction("DataDeleteKey", kScriptName, DataDeleteKey);
         a_vm->RegisterFunction("DataDeleteKeysWithPrefix", kScriptName, DataDeleteKeysWithPrefix);
+        a_vm->RegisterFunction("DataStoreSizeWarningPending", kScriptName, DataStoreSizeWarningPending);
+        a_vm->RegisterFunction("DataStoreConsumeSizeWarning", kScriptName, DataStoreConsumeSizeWarning);
         a_vm->RegisterFunction("DataFlushIfDirty", kScriptName, DataFlushIfDirty);
     }
 }

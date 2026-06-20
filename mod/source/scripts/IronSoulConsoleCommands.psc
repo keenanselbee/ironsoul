@@ -33,6 +33,12 @@ Scriptname IronSoulConsoleCommands Hidden
 ;   Example: is sd 12
 ; - SetDragonSoulsState (alias: sds) -> SetDragonSoulsState(Int total)
 ;   Example: is sds 25
+; - SetAnima  (alias: sa)   -> SetAnima(Int value)
+;   Example: is sa 250
+; - AddAnima  (alias: aa)   -> AddAnima(Int amount)
+;   Example: is aa 50
+; - SetWorldAnima (alias: swa) -> SetWorldAnima(Int value)
+;   Example: is swa 1000
 ; - GetData    (alias: gdat) -> GetData(String section = "")
 ;   Example: is gdat
 ;   Example: is gdat soul
@@ -85,7 +91,6 @@ Scriptname IronSoulConsoleCommands Hidden
 ; ResolveControllerQuest()
 ; ResolveDraugnarokQuest()
 ; IsDebugEnabled()
-; IsCosaveRecoveryBackupEnabled()
 ; MakeScopedKey()
 ; ResolveGuid()
 ; IsCurrentCharacterTest()
@@ -101,8 +106,9 @@ Scriptname IronSoulConsoleCommands Hidden
 ; KnownDataValueType()
 ; IsAllowedRawDataBase()
 ; IsSunderheartUsedDataKey()
-; IsSharedDataKey()
-; SyncSharedDataMirror()
+; IsSoulLevelSlainDataKey()
+; IsWorldDataKey()
+; SyncWorldDataMirror()
 ; ResolveDataTargetKey()
 ; TierLabel()
 ; DifficultyLabel()
@@ -137,6 +143,9 @@ Scriptname IronSoulConsoleCommands Hidden
 ; SetLuck()
 ; SetDeaths()
 ; SetDragonSoulsState()
+; SetAnima()
+; AddAnima()
+; SetWorldAnima()
 ; ResetTier()
 ; ResetSunderhearts()
 ; ResetCharacterData()
@@ -292,14 +301,6 @@ Bool Function IsDebugEnabled() Global
     return IronSoulNative.GetConfigInt("EnableDebug", 0) == 1
 EndFunction
 
-Bool Function IsCosaveRecoveryBackupEnabled() Global
-    Int v = IronSoulNative.GetConfigInt("CosaveRecoveryBackup", -1)
-    if v == 0
-        return False
-    endif
-    return True
-EndFunction
-
 String Function MakeScopedKey(String baseKey, String guid) Global
     if baseKey == "" || guid == ""
         return ""
@@ -317,7 +318,7 @@ String Function ResolveGuid(Actor playerRef, IronSoulController controller = Non
     if controller && controller.Identity
         return controller.Identity.GetTickGuid(playerRef)
     endif
-    return StorageUtil.GetStringValue(playerRef, "IS_9975", "")
+    return IronSoulNative.IdentityGetCurrentGuid()
 EndFunction
 
 Bool Function IsCurrentCharacterTest(Actor playerRef, IronSoulController controller = None) Global
@@ -348,12 +349,6 @@ Int Function ReadScopedInt(Actor playerRef, String keyBase, Int fallback) Global
         return IronSoulNative.DataGetInt(scopedKey, fallback)
     endif
 
-    if IsCosaveRecoveryBackupEnabled() && StorageUtil.HasIntValue(playerRef, scopedKey)
-        Int v = StorageUtil.GetIntValue(playerRef, scopedKey, fallback)
-        IronSoulNative.DataSetIntIfChanged(scopedKey, v)
-        return v
-    endif
-
     return fallback
 EndFunction
 
@@ -369,17 +364,6 @@ Function WriteScopedInt(Actor playerRef, String keyBase, Int value) Global
     endif
 
     IronSoulNative.DataSetIntIfChanged(scopedKey, value)
-
-    if IsCosaveRecoveryBackupEnabled()
-        if !StorageUtil.HasIntValue(playerRef, scopedKey)
-            StorageUtil.SetIntValue(playerRef, scopedKey, value)
-        else
-            Int currentCosave = StorageUtil.GetIntValue(playerRef, scopedKey)
-            if currentCosave != value
-                StorageUtil.SetIntValue(playerRef, scopedKey, value)
-            endif
-        endif
-    endif
 EndFunction
 
 Bool Function WriteScopedIntChecked(Actor playerRef, String keyBase, Int value) Global
@@ -395,17 +379,6 @@ Bool Function WriteScopedIntChecked(Actor playerRef, String keyBase, Int value) 
 
     if !IronSoulNative.DataSetIntChecked(scopedKey, value)
         return False
-    endif
-
-    if IsCosaveRecoveryBackupEnabled()
-        if !StorageUtil.HasIntValue(playerRef, scopedKey)
-            StorageUtil.SetIntValue(playerRef, scopedKey, value)
-        else
-            Int currentCosave = StorageUtil.GetIntValue(playerRef, scopedKey)
-            if currentCosave != value
-                StorageUtil.SetIntValue(playerRef, scopedKey, value)
-            endif
-        endif
     endif
 
     return True
@@ -485,8 +458,13 @@ String Function NormalizeDataRawKey(String keyText, String guid) Global
         endif
         return keyText
     endif
-    if StartsWithText(keyText, "sh.u.")
-        return "SH.U." + StringUtil.Substring(keyText, 5)
+    if StartsWithText(keyText, "sh.c.")
+        String suffix = StringUtil.Substring(keyText, 5)
+        Int suffixLen = StringUtil.GetLength(suffix)
+        if suffixLen > 2 && StringUtil.Substring(suffix, suffixLen - 2) == ".w"
+            return "SH.C." + StringUtil.Substring(suffix, 0, suffixLen - 1) + "W"
+        endif
+        return "SH.C." + suffix
     endif
 
     if StartsWithText(keyText, "is_") && StringUtil.GetLength(keyText) == 7
@@ -504,7 +482,7 @@ String Function NormalizeDataRawKey(String keyText, String guid) Global
 EndFunction
 
 String Function ResolveKnownDataBase(String keyText, String guid) Global
-    if keyText == "CharacterGuid" || keyText == "characterguid" || keyText == "IS_9975"
+    if keyText == "CharacterGuid" || keyText == "characterguid"
         return "CharacterGuid"
     elseif keyText == "GuidClaimed" || keyText == "guidclaimed" || keyText == ("G.U." + guid)
         return "G.U.CURRENT"
@@ -548,18 +526,50 @@ String Function ResolveKnownDataBase(String keyText, String guid) Global
         return "IS_2204"
     elseif keyText == "ManualTierOverride" || keyText == "manualtieroverride" || keyText == "IS_2719"
         return "IS_2719"
-    elseif keyText == "EbonFeatVariant" || keyText == "ebonfeatvariant" || keyText == "IS_4520"
-        return "IS_4520"
-    elseif keyText == "PlatinumFeatVariant" || keyText == "platinumfeatvariant" || keyText == "IS_4779"
-        return "IS_4779"
     elseif keyText == "DragonSoulsStoredTotal" || keyText == "dragonsoulsstoredtotal" || keyText == "IS_9646"
         return "IS_9646"
+    elseif keyText == "DragonSoulsTotalWorld" || keyText == "dragonsoulstotalworld" || keyText == "DS.W" || keyText == "ds.w"
+        return "DS.W"
+    elseif keyText == "AnimaCharacter" || keyText == "animacharacter" || keyText == "AN.C"
+        return "AN.C"
+    elseif keyText == "WorldAnima" || keyText == "worldanima" || keyText == "AN.W"
+        return "AN.W"
+    elseif keyText == "SaveHighestUnlockedTier" || keyText == "savehighestunlockedtier" || keyText == "ST.W"
+        return "ST.W"
+    elseif keyText == "DailyAnima" || keyText == "dailyanima" || keyText == "AN.D"
+        return "AN.D"
+    elseif keyText == "DeathCountWorld" || keyText == "deathcountworld" || keyText == "DC.W"
+        return "DC.W"
+    elseif keyText == "SoulLevel1SlainWorld" || keyText == "soullevel1slainworld" || keyText == "SL.1.W"
+        return "SL.1.W"
+    elseif keyText == "SoulLevel1SlainCharacter" || keyText == "soullevel1slaincharacter" || keyText == "SL.1.C"
+        return "SL.1.C"
+    elseif keyText == "SoulLevel2SlainWorld" || keyText == "soullevel2slainworld" || keyText == "SL.2.W"
+        return "SL.2.W"
+    elseif keyText == "SoulLevel2SlainCharacter" || keyText == "soullevel2slaincharacter" || keyText == "SL.2.C"
+        return "SL.2.C"
+    elseif keyText == "SoulLevel3SlainWorld" || keyText == "soullevel3slainworld" || keyText == "SL.3.W"
+        return "SL.3.W"
+    elseif keyText == "SoulLevel3SlainCharacter" || keyText == "soullevel3slaincharacter" || keyText == "SL.3.C"
+        return "SL.3.C"
+    elseif keyText == "SoulLevel4SlainWorld" || keyText == "soullevel4slainworld" || keyText == "SL.4.W"
+        return "SL.4.W"
+    elseif keyText == "SoulLevel4SlainCharacter" || keyText == "soullevel4slaincharacter" || keyText == "SL.4.C"
+        return "SL.4.C"
+    elseif keyText == "SoulLevel5SlainWorld" || keyText == "soullevel5slainworld" || keyText == "SL.5.W"
+        return "SL.5.W"
+    elseif keyText == "SoulLevel5SlainCharacter" || keyText == "soullevel5slaincharacter" || keyText == "SL.5.C"
+        return "SL.5.C"
     elseif keyText == "DragonSoulsLastSeenLive" || keyText == "dragonsoulslastseenlive" || keyText == "IS_7440"
         return "IS_7440"
-    elseif keyText == "SunderheartsTotal" || keyText == "sunderheartstotal" || keyText == "SunderheartsAbsorbed" || keyText == "sunderheartsabsorbed" || keyText == "SH.T"
-        return "SH.T"
-    elseif keyText == "SunderheartsUnlocked" || keyText == "sunderheartsunlocked" || keyText == "SH.U"
-        return "SH.U"
+    elseif keyText == "SunderheartsAbsorbedWorld" || keyText == "sunderheartsabsorbedworld" || keyText == "SH.A.W" || keyText == "sh.a.w"
+        return "SH.A.W"
+    elseif keyText == "SunderheartsUnlockedWorld" || keyText == "sunderheartsunlockedworld" || keyText == "SH.U.W" || keyText == "sh.u.w"
+        return "SH.U.W"
+    elseif StartsWithText(keyText, "SunderheartUsedWorld:")
+        return "SH.C." + StringUtil.Substring(keyText, 21) + ".W"
+    elseif StartsWithText(keyText, "sunderheartusedworld:")
+        return "SH.C." + StringUtil.Substring(keyText, 21) + ".W"
     elseif IsSunderheartUsedDataKey(keyText)
         return keyText
     elseif keyText == "DragonSoulReviveLimitLastActiveSecond" || keyText == "dragonsoulrevivelimitlastactivesecond" || keyText == "DragonSoulReviveLimitLastRealSecond" || keyText == "dragonsoulrevivelimitlastrealsecond" || keyText == "IS_8201"
@@ -594,6 +604,16 @@ String Function ResolveKnownDataBase(String keyText, String guid) Global
         return "IS_2270"
     elseif keyText == "JournalCHIMLogged" || keyText == "journalchimlogged" || keyText == "IS_1927"
         return "IS_1927"
+    elseif keyText == "JournalAnimaDay" || keyText == "journalanimaday" || keyText == "J.AD" || keyText == "j.ad"
+        return "J.AD"
+    elseif keyText == "JournalAnimaPriority" || keyText == "journalanimapriority" || keyText == "J.AP" || keyText == "j.ap"
+        return "J.AP"
+    elseif keyText == "JournalAnimaDateDay" || keyText == "journalanimadateday" || keyText == "J.DD" || keyText == "j.dd"
+        return "J.DD"
+    elseif keyText == "JournalAnimaDateMonth" || keyText == "journalanimadatemonth" || keyText == "J.DM" || keyText == "j.dm"
+        return "J.DM"
+    elseif keyText == "JournalAnimaDateYear" || keyText == "journalanimadateyear" || keyText == "J.DY" || keyText == "j.dy"
+        return "J.DY"
     endif
 
     return ""
@@ -607,14 +627,17 @@ Int Function KnownDataValueType(String keyBase) Global
         || keyBase == "IS_7314" || keyBase == "IS_7315" || keyBase == "IS_7316" \
         || keyBase == "IS_8597" || keyBase == "IS_9921" || keyBase == "IS_4797" || keyBase == "IS_4513" \
         || keyBase == "IS_1155" || keyBase == "IS_1156" || keyBase == "IS_2204" || keyBase == "IS_2719" \
-        || keyBase == "IS_4520" || keyBase == "IS_4779" || keyBase == "IS_9646" || keyBase == "IS_7440" \
-        || keyBase == "SH.T" || keyBase == "SH.U" \
+        || keyBase == "IS_9646" || keyBase == "IS_7440" \
+        || keyBase == "AN.C" || keyBase == "AN.W" || keyBase == "AN.D" || keyBase == "ST.W" || keyBase == "DC.W" \
+        || keyBase == "DS.W" || keyBase == "SH.A.W" || keyBase == "SH.U.W" \
         || keyBase == "IS_8201" || keyBase == "IS_8202" || keyBase == "IS_8203" || keyBase == "IS_8204" \
         || keyBase == "IS_8205" || keyBase == "IS_4911" || keyBase == "IS_9897" || keyBase == "IS_9808" \
         || keyBase == "IS_1627" || keyBase == "IS_1989" || keyBase == "IS_9131" || keyBase == "IS_9136" \
-        || keyBase == "IS_9137" || keyBase == "IS_5341" || keyBase == "IS_2270" || keyBase == "IS_1927"
+        || keyBase == "IS_9137" || keyBase == "IS_5341" || keyBase == "IS_2270" || keyBase == "IS_1927" \
+        || keyBase == "J.AD" || keyBase == "J.AP" \
+        || keyBase == "J.DD" || keyBase == "J.DM" || keyBase == "J.DY"
         return 1
-    elseif IsSunderheartUsedDataKey(keyBase)
+    elseif IsSunderheartUsedDataKey(keyBase) || IsSoulLevelSlainDataKey(keyBase)
         return 1
     endif
 
@@ -632,7 +655,7 @@ Bool Function IsAllowedRawDataBase(String keyBase) Global
 EndFunction
 
 Bool Function IsSunderheartUsedDataKey(String keyBase) Global
-    if !StartsWithText(keyBase, "SH.U.")
+    if !StartsWithText(keyBase, "SH.C.")
         return False
     endif
 
@@ -643,7 +666,17 @@ Bool Function IsSunderheartUsedDataKey(String keyBase) Global
     endif
 
     String typeText = StringUtil.Substring(suffix, 0, dot)
-    String tierText = StringUtil.Substring(suffix, dot + 1)
+    String tierAndScopeText = StringUtil.Substring(suffix, dot + 1)
+    Int scopeDot = StringUtil.Find(tierAndScopeText, ".")
+    if scopeDot <= 0
+        return False
+    endif
+
+    String tierText = StringUtil.Substring(tierAndScopeText, 0, scopeDot)
+    String scopeText = StringUtil.Substring(tierAndScopeText, scopeDot + 1)
+    if scopeText != "W"
+        return False
+    endif
     if !IsStrictIntText(typeText) || !IsStrictIntText(tierText)
         return False
     endif
@@ -656,22 +689,54 @@ Bool Function IsSunderheartUsedDataKey(String keyBase) Global
     return True
 EndFunction
 
-Bool Function IsSharedDataKey(String keyBase) Global
-    return keyBase == "SH.T" || keyBase == "SH.U" || keyBase == "DS.T" || IsSunderheartUsedDataKey(keyBase)
+Bool Function IsSoulLevelSlainDataKey(String keyBase) Global
+    if !StartsWithText(keyBase, "SL.")
+        return False
+    endif
+
+    String suffix = StringUtil.Substring(keyBase, 3)
+    Int dot = StringUtil.Find(suffix, ".")
+    if dot != 1
+        return False
+    endif
+
+    String levelText = StringUtil.Substring(suffix, 0, dot)
+    String scopeText = StringUtil.Substring(suffix, dot + 1)
+    if !IsStrictIntText(levelText)
+        return False
+    endif
+
+    Int level = levelText as Int
+    return level >= 1 && level <= 5 && (scopeText == "W" || scopeText == "C")
 EndFunction
 
-Function SyncSharedDataMirror(Actor playerRef, String keyBase) Global
-    if keyBase != "SH.T" && keyBase != "DS.T"
+Bool Function IsWorldDataKey(String keyBase) Global
+    if keyBase == "SH.A.W" || keyBase == "SH.U.W" || keyBase == "DS.W" || keyBase == "AN.W" || keyBase == "ST.W" || keyBase == "DC.W" || IsSunderheartUsedDataKey(keyBase)
+        return True
+    endif
+    return StartsWithText(keyBase, "SL.") && StringUtil.Substring(keyBase, 5) == "W"
+EndFunction
+
+Function SyncWorldDataMirror(Actor playerRef, String keyBase) Global
+    if keyBase != "SH.A.W" && keyBase != "SH.U.W" && keyBase != "DS.W" && keyBase != "AN.W" && keyBase != "AN.D" && keyBase != "ST.W" && keyBase != "DC.W" && !IsSunderheartUsedDataKey(keyBase) && !IsSoulLevelSlainDataKey(keyBase)
         return
     endif
 
     IronSoulController controller = ResolveControllerQuest()
     if controller && controller.Globals
         String guid = ResolveGuid(playerRef, controller)
-        if keyBase == "SH.T"
+        if keyBase == "SH.A.W" || keyBase == "SH.U.W" || IsSunderheartUsedDataKey(keyBase)
             controller.Globals.SyncSunderhearts(playerRef, guid)
-        else
+        elseif keyBase == "DS.W"
             controller.Globals.SyncDragonSouls(playerRef, guid)
+        elseif keyBase == "AN.W" || keyBase == "AN.D"
+            controller.Globals.SyncAnima(playerRef, guid)
+        elseif keyBase == "ST.W"
+            controller.Globals.SyncTier(playerRef, guid)
+        elseif keyBase == "DC.W"
+            controller.Globals.SyncDeath(playerRef, guid)
+        else
+            controller.Globals.SyncSoulLevelSlain(playerRef, guid)
         endif
     endif
 EndFunction
@@ -683,7 +748,7 @@ String Function ResolveDataTargetKey(String keyBase, String guid) Global
         return "G.U.INDEX"
     elseif keyBase == "CharacterGuid"
         return ""
-    elseif IsSharedDataKey(keyBase)
+    elseif IsWorldDataKey(keyBase)
         return keyBase
     endif
 
@@ -1018,7 +1083,10 @@ String Function GetIronSoulState() Global
     Int deathValue = ClampDeaths(controller.Death.GetCurrentDeathCount(playerRef, guid))
     Int totalDeathValue = ClampDeaths(controller.Death.GetTotalDeaths(playerRef, guid))
     Int soulsTotal = ClampDeaths(controller.Tiers.GetDragonSoulsTotal(playerRef, guid))
-    Int sunderheartsAbsorbed = ClampDeaths(controller.Sunderhearts.GetSunderheartsTotal(playerRef))
+    Int characterAnima = ClampDeaths(controller.Tiers.GetCharacterAnima(playerRef, guid))
+    Int worldAnima = ClampDeaths(controller.Tiers.GetWorldAnima())
+    Int saveHighestUnlockedTier = controller.Tiers.GetSaveHighestUnlockedTier()
+    Int sunderheartsAbsorbed = ClampDeaths(controller.Sunderhearts.GetSunderheartsAbsorbedWorld(playerRef))
     Int sunderheartsUnlocked = ClampDeaths(controller.Sunderhearts.GetSunderheartsUnlocked(playerRef))
     Int nowSec = Utility.GetCurrentRealTime() as Int
     controller.Luck.EnsureLoaded(playerRef, guid, nowSec)
@@ -1035,6 +1103,7 @@ String Function GetIronSoulState() Global
     summaryLine1 = summaryLine1 + ConsoleFormat3("StateSummaryVitals", "deaths", "" + deathValue, "total_deaths", "" + totalDeathValue, "luck_pair", "" + luck + "/" + maxLuck)
     String summaryLine2 = ConsoleFormat4("StateSummaryProgress", "dragon_souls", "" + soulsTotal, "sunderhearts_absorbed", "" + sunderheartsAbsorbed, "sunderhearts_unlocked", "" + sunderheartsUnlocked, "soul_bonus", soulBonusState)
     summaryLine2 = summaryLine2 + ConsoleFormat1("StateSummaryFatigue", "soul_fatigue", soulFatigueState)
+    summaryLine2 = summaryLine2 + ConsoleFormat3("StateSummaryAnima", "character_anima", "" + characterAnima, "world_anima", "" + worldAnima, "save_highest_unlocked_tier", "" + saveHighestUnlockedTier)
     return summaryLine1 + "\n" + summaryLine2
 EndFunction
 
@@ -1178,6 +1247,81 @@ String Function SetDragonSoulsState(Int totalValue) Global
     return controller.Tiers.SetDragonSoulsTotalFromConsole(playerRef, guid, totalValue)
 EndFunction
 
+
+String Function SetAnima(Int value) Global
+    if !IsDebugEnabled()
+        return ConsoleText("DebugDisabled")
+    endif
+
+    Actor playerRef = Game.GetPlayer()
+    if !playerRef
+        return ConsoleText("ErrorPlayerUnavailable")
+    endif
+
+    IronSoulController controller = ResolveControllerQuest()
+    if !controller
+        return ConsoleText("ErrorControllerUnavailable")
+    endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return ConsoleText("ErrorGuidUnavailable")
+    endif
+    if !controller.Tiers
+        return ConsoleText("ErrorTiersNotWired")
+    endif
+
+    return controller.Tiers.SetCharacterAnimaFromConsole(playerRef, guid, value)
+EndFunction
+
+String Function AddAnima(Int amount) Global
+    if !IsDebugEnabled()
+        return ConsoleText("DebugDisabled")
+    endif
+
+    Actor playerRef = Game.GetPlayer()
+    if !playerRef
+        return ConsoleText("ErrorPlayerUnavailable")
+    endif
+
+    IronSoulController controller = ResolveControllerQuest()
+    if !controller
+        return ConsoleText("ErrorControllerUnavailable")
+    endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return ConsoleText("ErrorGuidUnavailable")
+    endif
+    if !controller.Tiers
+        return ConsoleText("ErrorTiersNotWired")
+    endif
+
+    return controller.Tiers.AddCharacterAnimaFromConsole(playerRef, guid, amount)
+EndFunction
+
+String Function SetWorldAnima(Int value) Global
+    if !IsDebugEnabled()
+        return ConsoleText("DebugDisabled")
+    endif
+
+    Actor playerRef = Game.GetPlayer()
+    if !playerRef
+        return ConsoleText("ErrorPlayerUnavailable")
+    endif
+
+    IronSoulController controller = ResolveControllerQuest()
+    if !controller
+        return ConsoleText("ErrorControllerUnavailable")
+    endif
+    String guid = ResolveGuid(playerRef, controller)
+    if guid == ""
+        return ConsoleText("ErrorGuidUnavailable")
+    endif
+    if !controller.Tiers
+        return ConsoleText("ErrorTiersNotWired")
+    endif
+
+    return controller.Tiers.SetWorldAnimaFromConsole(playerRef, value)
+EndFunction
 String Function ResetTier() Global
     if !IsDebugEnabled()
         return ConsoleText("DebugDisabled")
@@ -1236,7 +1380,7 @@ String Function ResetSunderhearts() Global
         return ConsoleText("ResetSunderheartsConfirm")
     endif
 
-    Int deletedCatalogKeys = controller.Sunderhearts.ResetSharedSunderheartData(playerRef)
+    Int deletedCatalogKeys = controller.Sunderhearts.ResetWorldSunderheartData(playerRef)
     if deletedCatalogKeys < 0
         return ConsoleText("ResetSunderheartsFailed")
     endif
@@ -1365,7 +1509,7 @@ String Function SetData(String k, String value) Global
         keyBase = requestedBase
     endif
 
-    if keyBase == "CharacterGuid" || keyBase == "IS_9975"
+    if keyBase == "CharacterGuid"
         return ConsoleText("ErrorCharacterGuidReadOnly")
     endif
 
@@ -1373,8 +1517,8 @@ String Function SetData(String k, String value) Global
     if valueType == 0 && !IsAllowedRawDataBase(keyBase)
         return ConsoleFormat1("ErrorDataUnknownGlobalKey", "key", k)
     endif
-    if IsSharedDataKey(keyBase) && IsCurrentCharacterTest(playerRef)
-        return ConsoleFormat1("DataSharedTestSkipped", "key", keyBase)
+    if IsWorldDataKey(keyBase) && IsCurrentCharacterTest(playerRef)
+        return ConsoleFormat1("DataWorldTestSkipped", "key", keyBase)
     endif
 
     String targetKey = ResolveDataTargetKey(keyBase, guid)
@@ -1389,7 +1533,7 @@ String Function SetData(String k, String value) Global
 
         Int intValue = value as Int
         Bool intWriteOk = False
-        if IsSharedDataKey(keyBase)
+        if IsWorldDataKey(keyBase)
             intWriteOk = IronSoulNative.DataSetIntChecked(targetKey, intValue)
         elseif StartsWithText(keyBase, "IS_")
             intWriteOk = WriteScopedIntChecked(playerRef, keyBase, intValue)
@@ -1399,7 +1543,7 @@ String Function SetData(String k, String value) Global
         if !intWriteOk
             return ConsoleFormat1("ErrorDataWriteRejected", "key", targetKey)
         endif
-        SyncSharedDataMirror(playerRef, keyBase)
+        SyncWorldDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
         return ConsoleFormat2("DataSetInt", "key", targetKey, "value", "" + intValue)
     elseif valueType == 2
@@ -1413,7 +1557,7 @@ String Function SetData(String k, String value) Global
     if IsStrictIntText(value)
         Int inferredIntValue = value as Int
         Bool inferredIntWriteOk = False
-        if IsSharedDataKey(keyBase)
+        if IsWorldDataKey(keyBase)
             inferredIntWriteOk = IronSoulNative.DataSetIntChecked(targetKey, inferredIntValue)
         elseif StartsWithText(keyBase, "IS_")
             inferredIntWriteOk = WriteScopedIntChecked(playerRef, keyBase, inferredIntValue)
@@ -1423,7 +1567,7 @@ String Function SetData(String k, String value) Global
         if !inferredIntWriteOk
             return ConsoleFormat1("ErrorDataWriteRejected", "key", targetKey)
         endif
-        SyncSharedDataMirror(playerRef, keyBase)
+        SyncWorldDataMirror(playerRef, keyBase)
         IronSoulNative.DataFlushIfDirty()
         return ConsoleFormat2("DataSetInt", "key", targetKey, "value", "" + inferredIntValue)
     endif

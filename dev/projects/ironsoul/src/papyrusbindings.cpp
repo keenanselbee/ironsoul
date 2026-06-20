@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "papyrusbindings.h"
+#include "papyrus_anima.h"
 #include "papyrus_audio.h"
 #include "papyrus_common.h"
 #include "papyrus_config.h"
@@ -8,6 +9,7 @@
 #include "papyrus_data.h"
 #include "papyrus_dynamicassets.h"
 #include "papyrus_healthmonitor.h"
+#include "papyrus_identity.h"
 #include "papyrus_sunderhearts.h"
 #include "papyrus_itemselect.h"
 #include "papyrus_journal.h"
@@ -16,6 +18,7 @@
 #include "papyrus_runtime.h"
 #include "papyrus_runtimepulse.h"
 #include "papyrus_slowmo.h"
+#include "papyrus_soul_level.h"
 #include "papyrus_sunderheart_focus.h"
 #include "papyrus_text.h"
 
@@ -41,12 +44,15 @@ namespace IronSoul::Papyrus
             DynamicAssets::Register(a_vm);
             Audio::Register(a_vm);
             MusicFade::Register(a_vm);
+            Identity::Register(a_vm);
             RuntimePulse::Register(a_vm);
             HealthMonitor::Register(a_vm);
             SlowMo::Register(a_vm);
             Cursor::Register(a_vm);
             MenuBlocker::Register(a_vm);
             Data::Register(a_vm);
+            Anima::Register(a_vm);
+            SoulLevel::Register(a_vm);
             Sunderhearts::Register(a_vm);
             SunderheartFocus::Register(a_vm);
             return true;

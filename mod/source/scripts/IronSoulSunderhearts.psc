@@ -96,10 +96,10 @@ FormList Property SunderheartTier2List Auto
 FormList Property SunderheartTier3List Auto
 FormList Property SunderheartTier4List Auto
 FormList Property SunderheartTier5List Auto
-String Property sunderheartsTotal = "SH.T" AutoReadOnly ; Shared successful Sunderheart use counter.
+String Property sunderheartsAbsorbedWorld = "SH.A.W" AutoReadOnly ; World successful Sunderheart use counter.
 String Property sunderheartsCharacterTotal = "SH.C" AutoReadOnly ; Current-character successful Sunderheart use counter.
-String Property sunderheartsUnlockedTotal = "SH.U" AutoReadOnly ; Shared distinct Sunderheart unlock counter.
-String Property sunderheartUsedPrefix = "SH.U." AutoReadOnly ; Shared boolean used catalog prefix.
+String Property sunderheartsUnlockedWorld = "SH.U.W" AutoReadOnly ; World distinct Sunderheart unlock counter.
+String Property sunderheartCatalogUsedWorldPrefix = "SH.C." AutoReadOnly ; World boolean used catalog prefix.
 
 Sound Property SFXSunderheartAbsorb Auto
 Sound Property SFXSunderheartFocusLoop Auto
@@ -288,29 +288,29 @@ Bool Function HasCoreRuntime()
     return True
 EndFunction
 
-Bool Function CanWriteSharedProgression(Actor player)
+Bool Function CanWriteWorldProgression(Actor player)
     if player && Controller && Controller.Identity
         return !Controller.Identity.IsCurrentCharacterTest(player)
     endif
     return True
 EndFunction
 
-Int Function GetSunderheartsTotal(Actor player = None)
+Int Function GetSunderheartsAbsorbedWorld(Actor player = None)
     if !Controller || !Controller.Persistence
         return 0
     endif
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         return 0
     endif
 
-    return Controller.Persistence.GetSharedInt(sunderheartsTotal, 0)
+    return Controller.Persistence.GetWorldInt(sunderheartsAbsorbedWorld, 0)
 EndFunction
 
-Bool Function SetSunderheartsTotal(Actor player, Int totalValue, Bool flushNow = False)
+Bool Function SetSunderheartsAbsorbedWorld(Actor player, Int totalValue, Bool flushNow = False)
     if !Controller || !Controller.Persistence
         return False
     endif
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         if Controller.Globals
             Controller.Globals.SyncSunderhearts(player)
         endif
@@ -322,7 +322,7 @@ Bool Function SetSunderheartsTotal(Actor player, Int totalValue, Bool flushNow =
         clampedTotal = 0
     endif
 
-    Controller.Persistence.SetSharedInt(sunderheartsTotal, clampedTotal, True)
+    Controller.Persistence.SetWorldInt(sunderheartsAbsorbedWorld, clampedTotal, True)
     if Controller.Globals
         Controller.Globals.SyncSunderhearts(player)
     endif
@@ -332,18 +332,18 @@ Bool Function SetSunderheartsTotal(Actor player, Int totalValue, Bool flushNow =
     return True
 EndFunction
 
-Int Function IncrementSunderheartsTotal(Actor player, Int sunderheartType = 0, Int sunderheartTier = 0)
-    if !CanWriteSharedProgression(player)
+Int Function IncrementSunderheartsAbsorbedWorld(Actor player, Int sunderheartType = 0, Int sunderheartTier = 0)
+    if !CanWriteWorldProgression(player)
         return 0
     endif
 
-    Int currentTotal = GetSunderheartsTotal(player)
+    Int currentTotal = GetSunderheartsAbsorbedWorld(player)
     Int nextTotal = currentTotal + 1
-    if !SetSunderheartsTotal(player, nextTotal, False)
+    if !SetSunderheartsAbsorbedWorld(player, nextTotal, False)
         return currentTotal
     endif
 
-    LogSunderhearts(IronSoulConfig.LOG_INFO(), "IncrementSunderheartsTotal: Shared SunderheartsTotal=" + nextTotal + " type=" + sunderheartType + " tier=" + sunderheartTier)
+    LogSunderhearts(IronSoulConfig.LOG_INFO(), "IncrementSunderheartsAbsorbedWorld: WorldSunderheartsAbsorbed=" + nextTotal + " type=" + sunderheartType + " tier=" + sunderheartTier)
     return nextTotal
 EndFunction
 
@@ -382,7 +382,7 @@ Int Function IncrementSunderheartsCharacterTotal(Actor player, String guid, Int 
         return currentTotal
     endif
 
-    LogSunderhearts(IronSoulConfig.LOG_INFO(), "IncrementSunderheartsCharacterTotal: Character SunderheartsTotal=" + nextTotal + " type=" + sunderheartType + " tier=" + sunderheartTier)
+    LogSunderhearts(IronSoulConfig.LOG_INFO(), "IncrementSunderheartsCharacterTotal: CharacterSunderheartsAbsorbed=" + nextTotal + " type=" + sunderheartType + " tier=" + sunderheartTier)
     return nextTotal
 EndFunction
 
@@ -390,18 +390,18 @@ Int Function GetSunderheartsUnlocked(Actor player = None)
     if !Controller || !Controller.Persistence
         return 0
     endif
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         return 0
     endif
 
-    return Controller.Persistence.GetSharedInt(sunderheartsUnlockedTotal, 0)
+    return Controller.Persistence.GetWorldInt(sunderheartsUnlockedWorld, 0)
 EndFunction
 
 Bool Function SetSunderheartsUnlocked(Actor player, Int unlockedValue, Bool flushNow = False)
     if !Controller || !Controller.Persistence
         return False
     endif
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         return True
     endif
 
@@ -410,7 +410,7 @@ Bool Function SetSunderheartsUnlocked(Actor player, Int unlockedValue, Bool flus
         clampedUnlocked = 0
     endif
 
-    Controller.Persistence.SetSharedInt(sunderheartsUnlockedTotal, clampedUnlocked, True)
+    Controller.Persistence.SetWorldInt(sunderheartsUnlockedWorld, clampedUnlocked, True)
     if flushNow
         IronSoulNative.DataFlushIfDirty()
     endif
@@ -418,7 +418,7 @@ Bool Function SetSunderheartsUnlocked(Actor player, Int unlockedValue, Bool flus
 EndFunction
 
 Int Function IncrementSunderheartsUnlocked(Actor player, Int sunderheartType = 0, Int sunderheartTier = 0)
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         return 0
     endif
 
@@ -428,7 +428,7 @@ Int Function IncrementSunderheartsUnlocked(Actor player, Int sunderheartType = 0
         return currentUnlocked
     endif
 
-    LogSunderhearts(IronSoulConfig.LOG_INFO(), "IncrementSunderheartsUnlocked: Shared SunderheartsUnlocked=" + nextUnlocked + " type=" + sunderheartType + " tier=" + sunderheartTier)
+    LogSunderhearts(IronSoulConfig.LOG_INFO(), "IncrementSunderheartsUnlocked: World SunderheartsUnlocked=" + nextUnlocked + " type=" + sunderheartType + " tier=" + sunderheartTier)
     return nextUnlocked
 EndFunction
 
@@ -437,14 +437,14 @@ String Function GetSunderheartUsedKey(Int sunderheartType, Int sunderheartTier)
         return ""
     endif
 
-    return sunderheartUsedPrefix + sunderheartType + "." + sunderheartTier
+    return sunderheartCatalogUsedWorldPrefix + sunderheartType + "." + sunderheartTier + ".W"
 EndFunction
 
 Bool Function HasUsedSunderheart(Int sunderheartType, Int sunderheartTier, Actor player = None)
     if !Controller || !Controller.Persistence
         return False
     endif
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         return False
     endif
 
@@ -453,14 +453,14 @@ Bool Function HasUsedSunderheart(Int sunderheartType, Int sunderheartTier, Actor
         return False
     endif
 
-    return Controller.Persistence.GetSharedInt(usedKey, 0) == 1
+    return Controller.Persistence.GetWorldInt(usedKey, 0) == 1
 EndFunction
 
 Bool Function MarkSunderheartUsed(Int sunderheartType, Int sunderheartTier, Actor player = None)
     if !Controller || !Controller.Persistence
         return False
     endif
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         return False
     endif
 
@@ -473,7 +473,7 @@ Bool Function MarkSunderheartUsed(Int sunderheartType, Int sunderheartTier, Acto
         return False
     endif
 
-    Controller.Persistence.SetSharedInt(usedKey, 1, True)
+    Controller.Persistence.SetWorldInt(usedKey, 1, True)
     return True
 EndFunction
 
@@ -482,7 +482,7 @@ Bool Function RegisterSunderheartUsed(Actor player, Int sunderheartType = 0, Int
         return False
     endif
 
-    Int nextTotal = IncrementSunderheartsTotal(player, sunderheartType, sunderheartTier)
+    Int nextTotal = IncrementSunderheartsAbsorbedWorld(player, sunderheartType, sunderheartTier)
     String guid = ""
     if Controller.Identity
         guid = Controller.Identity.GetTickGuid(player)
@@ -503,30 +503,30 @@ Bool Function RegisterSunderheartUsed(Actor player, Int sunderheartType = 0, Int
     endif
 
     IronSoulNative.DataFlushIfDirty()
-    LogSunderhearts(IronSoulConfig.LOG_INFO(), "RegisterSunderheartUsed: SunderheartsAbsorbed=" + nextTotal + " CharacterSunderheartsAbsorbed=" + nextCharacterTotal + " SunderheartsUnlocked=" + nextUnlocked + " usedKey=" + usedKey + " newUnlock=" + newUnlock)
+    LogSunderhearts(IronSoulConfig.LOG_INFO(), "RegisterSunderheartUsed: WorldSunderheartsAbsorbed=" + nextTotal + " CharacterSunderheartsAbsorbed=" + nextCharacterTotal + " WorldSunderheartsUnlocked=" + nextUnlocked + " usedKey=" + usedKey + " newUnlock=" + newUnlock)
     return True
 EndFunction
 
-Int Function ResetSharedSunderheartData(Actor player = None)
+Int Function ResetWorldSunderheartData(Actor player = None)
     if !Controller || !Controller.Persistence
         return -1
     endif
-    if !CanWriteSharedProgression(player)
+    if !CanWriteWorldProgression(player)
         if Controller.Globals
             Controller.Globals.SyncSunderhearts(player)
         endif
-        LogSunderhearts(IronSoulConfig.LOG_INFO(), "ResetSharedSunderheartData: skipped shared reset for test character")
+        LogSunderhearts(IronSoulConfig.LOG_INFO(), "ResetWorldSunderheartData: skipped World reset for test character")
         return 0
     endif
 
-    SetSunderheartsTotal(player, 0, False)
+    SetSunderheartsAbsorbedWorld(player, 0, False)
     SetSunderheartsUnlocked(player, 0, False)
-    Int deletedCatalogKeys = Controller.Persistence.DeleteSharedKeysWithPrefix(sunderheartUsedPrefix)
+    Int deletedCatalogKeys = Controller.Persistence.DeleteWorldKeysWithPrefix(sunderheartCatalogUsedWorldPrefix)
     if Controller.Globals
         Controller.Globals.SyncSunderhearts(player)
     endif
     IronSoulNative.DataFlushIfDirty()
-    LogSunderhearts(IronSoulConfig.LOG_INFO(), "ResetSharedSunderheartData: reset SunderheartsAbsorbed=0 SunderheartsUnlocked=0 deletedCatalogKeys=" + deletedCatalogKeys)
+    LogSunderhearts(IronSoulConfig.LOG_INFO(), "ResetWorldSunderheartData: reset World SunderheartsAbsorbed=0 SunderheartsUnlocked=0 deletedCatalogKeys=" + deletedCatalogKeys)
     return deletedCatalogKeys
 EndFunction
 
@@ -986,7 +986,7 @@ Function NotifySunderheartSuccess(String msg)
         return
     endif
 
-    Debug.Notification(IronSoulNative.TextFormat2("Sunderheart.SuccessNotification", "message", msg, "total", "" + GetSunderheartsTotal(Game.GetPlayer())))
+    Debug.Notification(IronSoulNative.TextFormat2("Sunderheart.SuccessNotification", "message", msg, "total", "" + GetSunderheartsAbsorbedWorld(Game.GetPlayer())))
 EndFunction
 
 Bool Function TryUseSunderheart(Actor player, Form sunderheartBaseItem, Int sunderheartType = 0, Int sunderheartTier = 0)

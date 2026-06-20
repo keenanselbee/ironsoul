@@ -50,7 +50,7 @@ subs:
   - name: ResetSunderhearts
     alias: rsh
     func: ResetSunderhearts
-    help: Resets shared Sunderhearts absorbed, unlocked, and unlock catalog for all characters. Requires EnableDebug=1 and a second identical command within 10 seconds.
+    help: Resets World Sunderhearts absorbed, unlocked, and unlock catalog for all characters. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: SetLuck
     alias: sl
     func: SetLuck
@@ -81,25 +81,55 @@ subs:
         type: int
         required: true
         help: Target stored soul total.
+  - name: SetAnima
+    alias: sa
+    func: SetAnima
+    help: Sets current-character Anima. Requires EnableDebug=1.
+    args:
+      - name: value
+        alias: -v
+        type: int
+        required: true
+        help: Target current-character Anima value.
+  - name: AddAnima
+    alias: aa
+    func: AddAnima
+    help: Adds current-character Anima and, for non-test characters, World Anima. Requires EnableDebug=1.
+    args:
+      - name: amount
+        alias: -a
+        type: int
+        required: true
+        help: Anima amount to add.
+  - name: SetWorldAnima
+    alias: swa
+    func: SetWorldAnima
+    help: Sets World Anima without changing current-character Anima. Requires EnableDebug=1.
+    args:
+      - name: value
+        alias: -v
+        type: int
+        required: true
+        help: Target World Anima value.
   - name: ResetCharacterData
     alias: rcd
     func: ResetCharacterData
-    help: Resets Iron Soul tracked data for the current character only. Shared Sunderhearts are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
+    help: Resets Iron Soul tracked data for the current character only. World Sunderhearts are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: PurgeData
     alias: pd
     func: PurgeData
-    help: Purges Iron Soul tracked data for all characters except the current character. Shared Sunderhearts are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
+    help: Purges Iron Soul tracked data for all characters except the current character. World Sunderhearts are preserved. Requires EnableDebug=1 and a second identical command within 10 seconds.
   - name: GetData
     alias: gdat
     func: GetData
-    help: "Gets current-character CharacterData values. Optional section: identity, shared, core, luck, ui, soul, dsr, bosses, defiant, or journal. Requires EnableDebug=1."
+    help: "Gets current-character CharacterData values. Optional section: identity, world, core, luck, ui, soul, dsr, bosses, defiant, or journal. Requires EnableDebug=1."
     args:
       - name: section
         alias: -s
         type: String
         default: ""
         required: false
-        help: "Optional section: identity, shared, core, luck, ui, soul, dsr, bosses, defiant, or journal."
+        help: "Optional section: identity, world, core, luck, ui, soul, dsr, bosses, defiant, or journal."
   - name: SetData
     alias: sdat
     func: SetData

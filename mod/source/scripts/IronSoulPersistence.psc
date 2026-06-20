@@ -15,12 +15,11 @@ Scriptname IronSoulPersistence extends Quest
 
 ; --- Raw Keyed Storage Helpers ---
 ; ---------------------------------
-; IsCosaveRecoveryBackupEnabled()
 ; GetInt()
 ; SetInt()
-; GetSharedInt()
-; SetSharedInt()
-; DeleteSharedKeysWithPrefix()
+; GetWorldInt()
+; SetWorldInt()
+; DeleteWorldKeysWithPrefix()
 
 ; --- GUID-Scoped Storage Helpers ---
 ; -----------------------------------
@@ -84,13 +83,6 @@ EndFunction
 ; --- Raw Keyed Storage Helpers ---
 ; =================================
 
-Bool Function IsCosaveRecoveryBackupEnabled()
-    if Controller && Controller.Config
-        return Controller.Config.IsCosaveRecoveryBackupEnabled()
-    endif
-    return False
-EndFunction
-
 Int Function GetInt(Actor player, String dataKey, Int fallback)
     if !player
         return fallback
@@ -105,11 +97,6 @@ Int Function GetInt(Actor player, String dataKey, Int fallback)
         return direct
     endif
 
-    if IsCosaveRecoveryBackupEnabled() && StorageUtil.HasIntValue(player, dataKey)
-        Int v = StorageUtil.GetIntValue(player, dataKey, fallback)
-        IronSoulNative.DataSetIntIfChanged(dataKey, v)
-        return v
-    endif
     return fallback
 EndFunction
 
@@ -122,19 +109,9 @@ Function SetInt(Actor player, String dataKey, Int value, Bool useIfChanged = Tru
     else
         IronSoulNative.DataSetInt(dataKey, value)
     endif
-    if player && IsCosaveRecoveryBackupEnabled()
-        if !StorageUtil.HasIntValue(player, dataKey)
-            StorageUtil.SetIntValue(player, dataKey, value)
-        else
-            Int cur = StorageUtil.GetIntValue(player, dataKey)
-            if cur != value
-                StorageUtil.SetIntValue(player, dataKey, value)
-            endif
-        endif
-    endif
 EndFunction
 
-Int Function GetSharedInt(String dataKey, Int fallback)
+Int Function GetWorldInt(String dataKey, Int fallback)
     if dataKey == ""
         return fallback
     endif
@@ -142,7 +119,7 @@ Int Function GetSharedInt(String dataKey, Int fallback)
     return IronSoulNative.DataGetInt(dataKey, fallback)
 EndFunction
 
-Function SetSharedInt(String dataKey, Int value, Bool useIfChanged = True)
+Function SetWorldInt(String dataKey, Int value, Bool useIfChanged = True)
     if dataKey == ""
         return
     endif
@@ -154,7 +131,7 @@ Function SetSharedInt(String dataKey, Int value, Bool useIfChanged = True)
     endif
 EndFunction
 
-Int Function DeleteSharedKeysWithPrefix(String prefix)
+Int Function DeleteWorldKeysWithPrefix(String prefix)
     if prefix == ""
         return 0
     endif
@@ -184,9 +161,6 @@ Function RemoveGuidTrackedIntKey(Actor player, String guid, String keyBase, Bool
         IronSoulNative.DataDeleteKey(dataKey)
     endif
 
-    if unsetCosave && player
-        StorageUtil.UnsetIntValue(player, dataKey)
-    endif
 EndFunction
 
 Function RemoveTrackedData(Actor player, String guid, Bool deleteMainData = True, Bool unsetCosave = False)

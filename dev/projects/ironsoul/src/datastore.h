@@ -50,6 +50,9 @@ namespace IronSoul
         // Force a disk write if dirty.
         static void FlushIfDirty();
 
+        static bool SizeWarningPending();
+        static bool ConsumeSizeWarning();
+
     private:
         using Value = DataStoreInternal::Value;
         using FileHeaderV2 = DataStoreInternal::FileHeaderV2;
@@ -67,6 +70,7 @@ namespace IronSoul
         // NOTE: Keep this atomic to avoid accidental data races if any call sites ever
         // cross threads (e.g. save callback vs VM call).
         static inline std::atomic_bool _initialized{ false };
+        static inline std::atomic_bool _sizeWarningPending{ false };
         static inline bool _dirty = false;
         static inline std::uint64_t _sequence = 0;
     };

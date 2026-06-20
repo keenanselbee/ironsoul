@@ -4,7 +4,7 @@ Scriptname IronSoulNative Hidden
 ; ==============================
 
 ; Exposes Iron Soul SKSE plugin services to Papyrus. Contains no gameplay logic.
-; Papyrus owns gameplay policy, schema, limits, and the authoritative GUID slot.
+; Papyrus owns gameplay policy, schema, and limits; native owns the current-save GUID slot.
 ;
 ; Native services:
 ; - DataStore persistence and journal file writes.
@@ -13,17 +13,18 @@ Scriptname IronSoulNative Hidden
 ; - GUID minting, dynamic asset swaps, cursor control, music fades, and slow motion.
 ;
 ; Storage contract:
-; - MainData: Data\SKSE\plugins\ironsoul\ironsoul-character-data.dat
-; - MirrorData: Data\SKSE\plugins\ironsoul\ironsoul-character-mirror-data.dat
+; - MainData: Data\SKSE\plugins\ironsoul\ironsoul-main-data.dat
+; - MirrorData: Data\SKSE\plugins\ironsoul\ironsoul-mirror-data.dat
 ; - MirrorData is used only when MirrorDataBackup=1.
 ; - Files are transactional, FNV-1a checked, size capped, and sequence numbered.
 ; - On load, the newest valid store wins; equal-sequence divergence prefers MainData.
 ; - Dirty data flushes on SKSE save callback, explicit DataFlushIfDirty(), or native runtime flush heartbeat.
+; - SKSE serialization stores the current-save GUID and a compact recovery snapshot for vital current-character and World progression values.
 ;
 ; Key contract:
 ; - DataStore keys are flat strings with Int or String values.
 ; - Normal DataStore calls do not enforce gameplay schema.
-; - MainData stores gameplay state; StorageUtil stores IS_9975 as the GUID authority.
+; - MainData stores gameplay state; native SKSE serialization stores the current-save GUID authority.
 ; - GUID-scoped MainData keys use <KEY>:<GUID>; G.U.* keys are global identity indexes.
 
 ; =========================
@@ -43,7 +44,9 @@ Scriptname IronSoulNative Hidden
 ; JournalLogTrueDeathOutcome()
 ; JournalLogDefiantFatigueOutcome()
 ; JournalLogLuckOutcome()
-; JournalLogDragonSoulAbsorbed()
+; JournalLogAnimaAward()
+; JournalFlushDailyAnima()
+; JournalNoteDailyAnimaAward()
 ; JournalLogSoulFeat()
 ; JournalLogDefiantSoulFeat()
 ; JournalLogDefiantRestore()
@@ -76,6 +79,26 @@ Scriptname IronSoulNative Hidden
 ; ---------------------------------
 ; GetPlayerName()
 ; GenerateGuidUnique()
+; IdentityGetCurrentGuid()
+; IdentitySetCurrentGuid()
+; IdentityApplyLoadedSnapshot()
+; IdentityGetLoadedSnapshot()
+
+; --- Anima Progression ---
+; -------------------------
+; AnimaGetCharacter()
+; AnimaGetWorld()
+; SoulTierGetWorld()
+; AnimaGetEligibleMilestone()
+; AnimaGetRequiredForMilestone()
+; AnimaAddCharacter()
+; AnimaSetCharacter()
+; AnimaSetWorld()
+; SoulTierSetWorld()
+; AnimaPollBossLatches()
+; DeathSinkDrainAnimaAwards()
+; SoulLevelGetSlainWorld()
+; SoulLevelGetSlainCharacter()
 
 ; --- Dynamic UI ---
 ; ------------------
@@ -204,6 +227,11 @@ Scriptname IronSoulNative Hidden
 ; DataDeleteKey()
 ; DataDeleteKeysWithPrefix()
 
+; --- DataStore Health ---
+; ------------------------
+; DataStoreSizeWarningPending()
+; DataStoreConsumeSizeWarning()
+
 ; --- DataStore Flush Control ---
 ; --------------------------------
 ; DataFlushIfDirty()
@@ -231,10 +259,12 @@ Bool Function JournalLogDefeatLuckOutcome(Int deathsNow, Int maxLives, Int roll,
 Bool Function JournalLogTrueDeathOutcome(Int deathsNow, Int maxLives, Int startDay, Int nowDay) Global Native
 Bool Function JournalLogDefiantFatigueOutcome(Int deathsNow, Int maxLives, Bool terminal, Int startDay, Int nowDay) Global Native
 Bool Function JournalLogLuckOutcome(Int luck, Int roll, Int maxLuck, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogDragonSoulAbsorbed(Int total, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogSoulFeat(Int soulTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogAnimaAward(String source, Int amount, Int startDay, Int nowDay) Global Native
+Bool Function JournalFlushDailyAnima(String guid) Global Native
+Bool Function JournalNoteDailyAnimaAward(String guid, String source, Int amount, Int priority) Global Native
+Bool Function JournalLogSoulFeat(Int soulTier, Int totalDeaths, Int startDay, Int nowDay) Global Native
 Bool Function JournalLogDefiantSoulFeat(Int totalDeaths, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogDefiantRestore(Int targetTier, Int totalDeaths, Bool molagKilled, Bool miraakKilled, Bool alduinKilled, Bool harkonKilled, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantRestore(Int targetTier, Int totalDeaths, Int startDay, Int nowDay) Global Native
 Bool Function JournalLogDefiantAwakened(Int startDay, Int nowDay) Global Native
 Bool Function JournalLogCHIMRealized(Int startDay, Int nowDay) Global Native
 
@@ -279,9 +309,42 @@ String Function GetPlayerName() Global Native
 
 ; Returns <LETTER><####>, claiming G.U.<GUID> in MainData atomically.
 ; Retries 64 four-digit values, then 64 six-digit values, then returns "".
-; Caller writes the GUID to co-save IS_9975 and maintains G.U.INDEX.
+; Caller writes the GUID to native current-save identity and maintains G.U.INDEX.
 ; Recovered/imported GUIDs must also ensure G.U.<GUID> exists.
 String Function GenerateGuidUnique(String playerName) Global Native
+
+; Current-save GUID authority owned by native SKSE serialization.
+String Function IdentityGetCurrentGuid() Global Native
+Bool Function IdentitySetCurrentGuid(String guid) Global Native
+
+; Snapshot payloads:
+; ok|guid|mask|currentDeaths|lifetimeDeaths|characterAnima|dragonSoulsTotal|worldAnima|saveHighestUnlockedTier|worldDragonSoulsTotal|soulTier
+; skip|reason, or error|reason.
+String Function IdentityApplyLoadedSnapshot(String guid) Global Native
+String Function IdentityGetLoadedSnapshot() Global Native
+
+
+; --- ANIMA PROGRESSION ---
+; =========================
+;
+; ST.W is the save highest unlocked tier, not the canonical live tier:
+; 0=Iron/baseline, 1=Defiant, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour.
+; CHIM is outside Anima progression and is never stored in ST.W.
+Int Function AnimaGetCharacter(String guid) Global Native
+Int Function AnimaGetWorld() Global Native
+Int Function SoulTierGetWorld() Global Native
+Int Function AnimaGetEligibleMilestone(String guid, Int characterDragonSouls, Int currentDeaths) Global Native
+Int Function AnimaGetRequiredForMilestone(Int milestone) Global Native
+String Function AnimaAddCharacter(String guid, Int amount, String source, Int characterDragonSouls, Int currentDeaths, Bool updateWorld = True) Global Native
+String Function AnimaSetCharacter(String guid, Int value, Int characterDragonSouls, Int currentDeaths) Global Native
+String Function AnimaSetWorld(Int value) Global Native
+String Function SoulTierSetWorld(Int tier) Global Native
+
+; Returns one or more Anima result payloads separated by newlines, skip|reason, or error|reason.
+String Function AnimaPollBossLatches(String guid, Int characterDragonSouls, Int currentDeaths, Bool updateWorld = True) Global Native
+String Function DeathSinkDrainAnimaAwards() Global Native
+Int Function SoulLevelGetSlainWorld(Int tier) Global Native
+Int Function SoulLevelGetSlainCharacter(String guid, Int tier) Global Native
 
 
 ; --- DYNAMIC UI ---
@@ -521,7 +584,7 @@ String Function DataGetString(String key, String fallback = "") Global Native
 Bool Function DataHasKey(String key) Global Native
 
 ; Friendly current-character dump for console/debug output.
-; section="" dumps all; known sections include identity, shared, core, luck,
+; section="" dumps all; known sections include identity, world, core, luck,
 ; ui, soul, dsr, bosses, defiant, and journal.
 String Function DataGetCharacterData(String guid, String section = "") Global Native
 
@@ -554,6 +617,16 @@ Function DataDeleteKey(String key) Global Native
 
 ; Deletes MainData keys whose names start with prefix. Returns deleted count.
 Int Function DataDeleteKeysWithPrefix(String prefix) Global Native
+
+
+; --- DATASTORE - HEALTH ---
+; ==========================
+
+; True once when native load detects a datastore approaching the hard cap.
+Bool Function DataStoreSizeWarningPending() Global Native
+
+; Consumes the pending datastore size warning so Papyrus can show it once.
+Bool Function DataStoreConsumeSizeWarning() Global Native
 
 
 ; --- DATASTORE - FLUSH CONTROL ---

@@ -113,8 +113,11 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 	{ "sunderheartinventorymode", "SunderheartInventoryMode", "Sunderhearts", 1, true, 1, true, 2, 0 },
 	{ "sunderhearttonalmaxtemper", "SunderheartTonalMaxTemper", "Sunderhearts", 10, true, 1, true, 100, 0 },
 
-	{ "cosaverecoverybackup", "CosaveRecoveryBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
-	{ "mirrordatabackup", "MirrorDataBackup", "SKSEPlugin", 1, true, 0, true, 1, 0 },
+	{ "mirrordatabackup", "MirrorDataBackup", "Storage", 1, true, 0, true, 1, 0 },
+	{ "datastoresizewarning", "DataStoreSizeWarning", "Storage", 1, true, 0, true, 1, 0 },
+	{ "datastoresizelogkb", "DataStoreSizeLogKB", "Storage", 512, true, 1, true, 1024, 0 },
+	{ "datastoresizewarnkb", "DataStoreSizeWarnKB", "Storage", 900, true, 1, true, 1024, 0 },
+
 	{ "cursorhide", "CursorHide", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "dynamicdraugreyes", "DynamicDraugrEyes", "SKSEPlugin", 1, true, 0, true, 1, 0 },
 	{ "dynamiclevelwidget", "DynamicLevelWidget", "SKSEPlugin", 1, true, 0, true, 1, 0 },
@@ -156,6 +159,8 @@ static constexpr ConfigKeySpec kConfigKeySpecs[] = {
 
 static constexpr StringConfigKeySpec kStringConfigKeySpecs[] = {
 	{ "language", "Language", "General", "Auto" },
+	{ "characterdatapath", "CharacterDataPath", "Storage", "Auto" },
+	{ "mirrordatapath", "MirrorDataPath", "Storage", "%USERPROFILE%\\Documents\\My Games\\Skyrim Special Edition\\SKSE" },
 };
 
 static constexpr std::string_view kAcceptedLanguageValues =
@@ -499,6 +504,12 @@ static constexpr std::string_view kAcceptedLanguageValues =
 		return std::nullopt;
 	}
 
+	static bool IsFreeformStringConfigKey(const std::string& keyLower)
+	{
+		return keyLower == "characterdatapath" ||
+			keyLower == "mirrordatapath";
+	}
+
 	static std::optional<ParsedStringConfigValue> ParseStringConfigValueForKey(
 		const std::string& keyLower,
 		std::string_view valueText)
@@ -510,6 +521,16 @@ static constexpr std::string_view kAcceptedLanguageValues =
 			}
 			return ParsedStringConfigValue{ *language, *language };
 		}
+
+		if (IsFreeformStringConfigKey(keyLower)) {
+			std::string value(valueText);
+			TrimInPlace(value);
+			if (value.empty()) {
+				return std::nullopt;
+			}
+			return ParsedStringConfigValue{ value, value };
+		}
+
 		return std::nullopt;
 	}
 
@@ -901,8 +922,11 @@ static constexpr std::string_view kAcceptedLanguageValues =
 		const StringConfigKeySpec* stringSpec = FindStringConfigKeySpec(keyText);
 		if (stringSpec) {
 			if (!ParseStringConfigValueForKey(stringSpec->canonicalKey, valueText).has_value()) {
-				return std::string("Error: ") + stringSpec->displayName + " must be " +
-					std::string(kAcceptedLanguageValues) + ".";
+				if (std::string_view(stringSpec->canonicalKey) == "language") {
+					return std::string("Error: ") + stringSpec->displayName + " must be " +
+						std::string(kAcceptedLanguageValues) + ".";
+				}
+				return std::string("Error: ") + stringSpec->displayName + " requires a non-empty value.";
 			}
 			return "";
 		}
@@ -991,6 +1015,16 @@ static constexpr std::string_view kAcceptedLanguageValues =
 		}
 
 		return static_cast<int>(GetConfigValueLocked(*canonicalKey, defaultValue));
+	}
+
+	std::string GetAllowedString(std::string_view key, std::string_view fallback)
+	{
+		std::lock_guard lock(g_mutex);
+
+		if (const StringConfigKeySpec* spec = FindStringConfigKeySpec(key)) {
+			return GetStringConfigValueLocked(spec->canonicalKey, fallback);
+		}
+		return std::string(fallback);
 	}
 
 	std::int32_t GetIronSoulPresetOrdinal()
@@ -1082,6 +1116,7 @@ static constexpr std::string_view kAcceptedLanguageValues =
 		AppendConfigSummarySection(result, "Sunderhearts");
 		AppendConfigSummarySection(result, "SKSEPlugin");
 		AppendConfigSummarySection(result, "Sound");
+		AppendConfigSummarySection(result, "Storage");
 		AppendConfigSummarySection(result, "Experimental");
 		AppendConfigSummarySection(result, "Compatibility");
 		AppendConfigSummarySection(result, "Debug");
@@ -1446,11 +1481,13 @@ static constexpr std::string_view kAcceptedLanguageValues =
 				auto parsedString = ParseStringConfigValueForKey(keyLower, val);
 				if (!parsedString.has_value()) {
 					logger::warn(
-						"Iron Soul: invalid config value for key '{}' in ironsoul.ini (raw='{}'); using English",
+						"Iron Soul: invalid config value for key '{}' in ironsoul.ini (raw='{}'); using default '{}'",
 						key,
-						EscapeForLog(val)
+						EscapeForLog(val),
+						EscapeForLog(stringSpec->defaultValue)
 					);
-					parsedString = ParsedStringConfigValue{ "English", "English" };
+					parsedString = ParseStringConfigValueForKey(stringSpec->canonicalKey, stringSpec->defaultValue)
+						.value_or(ParsedStringConfigValue{ stringSpec->defaultValue, stringSpec->defaultValue });
 				}
 
 				++stringSettingsParsed;

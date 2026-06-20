@@ -25,6 +25,7 @@ Scriptname IronSoulIdentity extends Quest
 ; GetCachedGuid()
 ; GetStoredGuid()
 ; GetKnownGuidNoMint()
+; ApplyLoadedSnapshotIfReady()
 ; GetTickGuid()
 
 ; --- Identity Persistence ---
@@ -55,8 +56,7 @@ Scriptname IronSoulIdentity extends Quest
 
 IronSoulController Property Controller Auto
 
-; Identity (player-scoped co-save slot)
-String Property characterGuid = "IS_9975" AutoReadOnly
+; Identity is stored in native SKSE serialization for the current save.
 String Property testCharacterMarker = "I.T" AutoReadOnly
 
 ; Pipe-delimited global GUID index used only for rare co-save recovery.
@@ -213,7 +213,7 @@ String Function GetStoredGuid(Actor player)
     if !player
         return ""
     endif
-    return StorageUtil.GetStringValue(player, characterGuid, "")
+    return IronSoulNative.IdentityGetCurrentGuid()
 EndFunction
 
 String Function GetKnownGuidNoMint(Actor player)
@@ -221,6 +221,29 @@ String Function GetKnownGuidNoMint(Actor player)
         return _tickGuid
     endif
     return GetStoredGuid(player)
+EndFunction
+
+Function ApplyLoadedSnapshotIfReady(Actor player, String guid)
+    if !player || guid == ""
+        return
+    endif
+
+    String payload = IronSoulNative.IdentityApplyLoadedSnapshot(guid)
+    if StringUtil.Substring(payload, 0, 3) != "ok|"
+        return
+    endif
+
+    LogIdentity(IronSoulConfig.LOG_INFO(), "ApplyLoadedSnapshotIfReady: applied native current-character snapshot " + payload, True)
+    if Controller && Controller.Globals
+        Controller.Globals.SyncAll(player, guid)
+    endif
+    if Controller && Controller.Tiers
+        Controller.Tiers.HandleProgressionRelevantChange(player, guid)
+    endif
+    if Controller && Controller.Effects
+        Controller.Effects.SyncSoulPresentationAndStats(player, guid)
+    endif
+    IronSoulNative.DataFlushIfDirty()
 EndFunction
 
 String Function GetTickGuid(Actor player)
@@ -236,6 +259,7 @@ String Function GetTickGuid(Actor player)
     if g != ""
         _tickGuid = g
         _tickGuidValid = True
+        ApplyLoadedSnapshotIfReady(player, g)
         if Controller && Controller.Presentation
             Controller.Presentation.MarkPendingIronIntroShown(player, g)
         endif
@@ -252,10 +276,11 @@ EndFunction
 
 ; Plugin provides:
 ;   - GenerateGuidUnique(playerName) -> collision-safe GUID minting + marker claim
+;   - Native current-save GUID serialization and vital-value recovery snapshot
 ;   - Binary DataStore (MainData + MirrorData) with self-heal + save-callback/explicit flush behavior
 ;
 ; Identity responsibilities:
-;   - Write GUID once to co-save when identity is ready
+;   - Write GUID once to native current-save identity when identity is ready
 ;   - Maintain Identity Snapshot in MainData for recovery:
 ;       I.N = Name
 ;       I.R = RaceFormID
@@ -264,7 +289,7 @@ EndFunction
 ;   - Ensure collision marker exists for recovered GUIDs
 
 String Function EnsureGuid(Actor player)
-    ; Authoritative identity: co-save slot IS_9975. MainData stores per-GUID data only.
+    ; Authoritative identity: native current-save GUID. MainData stores per-GUID data only.
     if !HasCoreRuntime() || !player
         return ""
     endif
@@ -379,7 +404,10 @@ Function CommitGuid(Actor player, String guid, String playerName)
         return
     endif
 
-    StorageUtil.SetStringValue(player, characterGuid, guid)
+    if !IronSoulNative.IdentitySetCurrentGuid(guid)
+        LogIdentity(IronSoulConfig.LOG_ERR(), "CommitGuid: native current-save GUID rejected '" + guid + "'")
+        return
+    endif
     EnsureGuidMarker(guid)
 
     if playerName != ""

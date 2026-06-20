@@ -32,6 +32,7 @@ Scriptname IronSoulDeath extends Quest
 ; -------------------
 ; GetCurrentDeathCount()
 ; GetTotalDeaths()
+; GetWorldDeathCount()
 ; SetCurrentDeathCount()
 ; ResetCurrentCharacterCounts()
 ; SyncCurrentDeathCountMirrors()
@@ -87,6 +88,7 @@ Quest Property brawlQuest Auto
 
 String Property deathCount = "IS_8155" AutoReadOnly
 String Property totalDeathCount = "IS_9132" AutoReadOnly ; Lifetime death counter; never resets.
+String Property worldDeathCount = "DC.W" AutoReadOnly
 
 ; Death lock ownership:
 ; - Local death routes clear it before returning.
@@ -939,6 +941,13 @@ Int Function GetTotalDeaths(Actor player, String guid)
     return Controller.Persistence.GetGuidInt(player, guid, totalDeathCount, 0)
 EndFunction
 
+Int Function GetWorldDeathCount()
+    if !HasCoreRuntime()
+        return 0
+    endif
+    return Controller.Persistence.GetWorldInt(worldDeathCount, 0)
+EndFunction
+
 ; Public/manual setter: intentionally syncs mirrors, globals, and presentation.
 Function SetCurrentDeathCount(Actor player, String guid, Int deaths)
     if !HasCoreRuntime() || !player || guid == "" || deaths < 0
@@ -1002,6 +1011,11 @@ Function IncrementDeathCount(Actor player, String guid, Bool flushNow = True)
 
     Int totalDeaths = GetTotalDeaths(player, guid) + 1
     Controller.Persistence.SetGuidInt(player, guid, totalDeathCount, totalDeaths, True)
+
+    if Controller.Identity && !Controller.Identity.IsCurrentCharacterTest(player)
+        Int worldDeaths = GetWorldDeathCount() + 1
+        Controller.Persistence.SetWorldInt(worldDeathCount, worldDeaths, True)
+    endif
 
     SyncDeathCountMirrors(player, deaths)
     if Controller.Globals

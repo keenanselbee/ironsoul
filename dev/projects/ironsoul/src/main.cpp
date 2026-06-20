@@ -5,6 +5,8 @@
 #include "config.h"
 #include "console_guard.h"
 #include "datastore.h"
+#include "death_sink.h"
+#include "identity.h"
 #include "menu_blocker.h"
 #include "papyrus_audio.h"
 #include "papyrus_musicfade.h"
@@ -93,18 +95,25 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::Papyrus::MusicFade::RegisterLifecycleHooks();
 	IronSoul::Papyrus::RuntimePulse::RegisterLifecycleHooks();
 	IronSoul::Papyrus::SunderheartFocus::RegisterLifecycleHooks();
+	IronSoul::DeathSink::RegisterLifecycleHooks();
 
 	// Flush DataStore on save and use VM revert as the most reliable fresh-game reset boundary.
 	if (auto* ser = SKSE::GetSerializationInterface(); ser) {
 		ser->SetUniqueID('ISDT');
-		ser->SetRevertCallback([](SKSE::SerializationInterface*) {
+		ser->SetRevertCallback([](SKSE::SerializationInterface* a_intfc) {
+			IronSoul::Identity::RevertCallback(a_intfc);
+			IronSoul::DeathSink::HandleSerializationRevert();
 			IronSoul::Papyrus::RuntimePulse::HandleSerializationRevert();
 		});
-		ser->SetSaveCallback([](SKSE::SerializationInterface*) {
+		ser->SetSaveCallback([](SKSE::SerializationInterface* a_intfc) {
 			if (IronSoul::Config::ShouldEmitInfoLog()) {
 				logger::info("Iron Soul: Save flush");
 			}
+			IronSoul::Identity::SaveCallback(a_intfc);
 			IronSoul::DataStore::FlushIfDirty();
+		});
+		ser->SetLoadCallback([](SKSE::SerializationInterface* a_intfc) {
+			IronSoul::Identity::LoadCallback(a_intfc);
 		});
 	} else {
 		logger::warn("Iron Soul: Serialization interface unavailable; save-flush and intro VM-reset detection disabled");

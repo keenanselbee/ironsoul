@@ -1196,7 +1196,7 @@ String Function ResolveRespawnMenu(Int soulTier) Global
     return TierMenuPrefix(soulTier) + "_respawn"
 EndFunction
 
-String Function ResolveSoulFeatUnlockMenuFromFacts(Int soulTier, Bool soulBonusEnabled, Bool dragonSoulReviveEnabled, Int platinumVariant, Int ebonVariant) Global
+String Function ResolveSoulFeatUnlockMenuFromFacts(Int soulTier, Bool soulBonusEnabled, Bool dragonSoulReviveEnabled) Global
     Int unlockTier = IronSoulTiers.NormalizeSoulFeatUnlockTier(soulTier)
 
     if unlockTier == 6
@@ -1209,17 +1209,9 @@ String Function ResolveSoulFeatUnlockMenuFromFacts(Int soulTier, Bool soulBonusE
         endif
         return "6_devour_feat_unlock"
     elseif unlockTier == 5
-        String menuP = "5_platinum_feat_unlock_miraak"
-        if platinumVariant == 1
-            menuP = "5_platinum_feat_unlock_molagbal"
-        endif
-        return SwfNoBonus(menuP, soulBonusEnabled)
+        return SwfNoBonus("5_platinum_feat_unlock", soulBonusEnabled)
     elseif unlockTier == 4
-        String menuE = "4_ebon_feat_unlock_harkon"
-        if ebonVariant == 1
-            menuE = "4_ebon_feat_unlock_alduin"
-        endif
-        return SwfNoBonus(menuE, soulBonusEnabled)
+        return SwfNoBonus("4_ebon_feat_unlock", soulBonusEnabled)
     elseif unlockTier == 3
         return SwfNoBonus("3_gold_feat_unlock", soulBonusEnabled)
     endif

@@ -93,6 +93,7 @@ Scriptname IronSoulController extends Quest
 ; RunMaintenanceTick()
 ; TickRequiemDeathHandlingReassertion()
 ; BootstrapTick()
+; HandleDataStoreSizeWarning()
 ; SyncBootstrapDynamicAssets()
 ; StartNativeGameplayWatchers()
 ; QueueUpdate()
@@ -568,6 +569,7 @@ Function OnPlayerLoadGame(Bool isLoadGame)
         tiersQ.RebaselineDragonSoulsLastSeen(player, guid, _curSoulsLS)
         tiersQ.SetPendingDragonSoulsRebaseline(False)
         StartNativeGameplayWatchers(player, guid, "player-load")
+        journalQ.RefreshDailyAnimaWatcherForGuid(player, guid)
 
         deathQ.SyncCurrentDeathCountMirrors(player, guid)
 
@@ -809,6 +811,10 @@ Function RunRuntimeUpdateTick(String source = "runtime-update")
         return
     endif
 
+    if HandleDataStoreSizeWarning()
+        return
+    endif
+
     ; Timed load-notification handler
     Presentation.HandleLoadNotification(player)
 
@@ -826,6 +832,23 @@ Function RunRuntimeUpdateTick(String source = "runtime-update")
     endif
 
     RescheduleIfJobsRemain()
+EndFunction
+
+Bool Function HandleDataStoreSizeWarning()
+    if !IronSoulNative.DataStoreSizeWarningPending()
+        return False
+    endif
+
+    if Utility.IsInMenuMode()
+        QueueUpdate(3.0)
+        return True
+    endif
+
+    if IronSoulNative.DataStoreConsumeSizeWarning()
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.DataStoreSizeWarning"))
+    endif
+
+    return False
 EndFunction
 
 Function RunDragonSoulWatcherTick(Int token, String source = "dragon-souls-changed")

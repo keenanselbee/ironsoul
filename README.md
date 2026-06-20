@@ -23,7 +23,6 @@ Hard Requirements
 - Skyrim Special Edition / Anniversary Edition.
 - SKSE64.
 - Address Library for SKSE Plugins, required by `ironsoul.dll` through CommonLibSSE NG relocation/versionlib support.
-- PapyrusUtil SE, required by core scripts for `StorageUtil`.
 - SkyUI.
 
 Soft Requirements
@@ -41,34 +40,60 @@ Current TODO
 Systems
 -------
 
+Persistence
+
+Iron Soul stores gameplay progression in native MainData with optional MirrorData redundancy. Native SKSE
+serialization stores the current-save GUID authority plus a compact recovery snapshot for current deaths,
+lifetime deaths, current Soul Tier, character Anima, World Anima, save highest unlocked tier, character
+lifetime dragon souls, and World dragon souls. The older PapyrusUtil co-save int mirror has been retired;
+`MirrorDataBackup` remains the DataStore redundancy layer.
+
 Anima
 
 Anima replaces dragon souls as the primary soul-tier progression currency. Iron Soul tracks both character Anima
-and total saga Anima. Soul Tiers are character-specific, but the highest Soul Tier ever reached is stored globally.
-When a new character climbs toward a tier that has already been reached by a previous character, that tier's Anima
-requirement is halved for character attunement.
+and World Anima. Soul Tiers are character-specific, while the save highest unlocked tier records the furthest
+normal Soul Tier reached anywhere in the save. When a new character climbs toward a tier already unlocked by a
+previous character, that tier's Anima requirement is halved for character attunement.
+
+Native progression persistence keys:
+
+```text
+AN.C:<guid> = character Anima
+AN.W        = World Anima
+ST.W        = save highest unlocked tier; 0=Iron/baseline, 1=Defiant, 2=Silver, 3=Gold, 4=Ebon, 5=Platinum, 6=Devour
+AN.D:<guid> = current character daily Anima
+DC.W         = World death count
+DS.W         = World Dragon Soul count
+SH.A.W       = World Sunderhearts absorbed
+SH.U.W       = World Sunderhearts unlocked
+SH.C.<id>.W  = World Sunderheart catalog-used flag
+SL.<1-5>.W   = World Soul Level slain count
+SL.<1-5>.C:<guid> = character Soul Level slain count
+```
+
+CHIM is outside Anima progression and is never stored in `ST.W`.
 
 Soul Tier character attunement targets:
 
 ```text
-| Soul Tier     | First Global Unlock           | Repeat Character Attunement         |
+| Soul Tier     | First Save Unlock             | Repeat Character Attunement         |
 | Defiant Soul  | 100 Anima                     | 50 Anima                            |
 | Silver Soul   | 250 Anima                     | 125 Anima                           |
 | Gold Soul     | 500 Anima                     | 250 Anima                           |
 | Ebon Soul     | 1,000 Anima                   | 500 Anima                           |
 | Platinum Soul | 2,000 Anima                   | 1,000 Anima                         |
-| Devour Soul   | 5,000 Anima + 50 dragon souls | 2,500 Anima + repeat dragon requirement TBD |
+| Devour Soul   | 5,000 Anima + 50 dragon souls | 2,500 Anima + 25 dragon souls       |
 ```
 
-- Add character Anima storage, total saga Anima storage, and global highest Soul Tier persistence.
-- Convert Soul Tier progression from dragon-soul thresholds to character Anima attunement thresholds, keeping dragon souls as an additional Devour Soul requirement.
-- When a character reaches a new highest Soul Tier, update the global highest tier so later characters can attune to that tier at half Anima cost.
+- Store character Anima, World Anima, and the save highest unlocked tier natively.
+- Drive Soul Tier eligibility from character Anima attunement thresholds, keeping lifetime dragon souls as an additional Devour Soul requirement.
+- When a character reaches a new save highest unlocked tier, update `ST.W` so later characters can attune to that tier at half Anima cost.
 - Add Anima death rewards from tiered sources: draugr and other undead, dragon priests, dragons, and major bosses.
-- Add major Anima payouts for saga bosses such as Alduin, Harkon, and Miraak.
+- Add major Anima payouts for saga bosses: Harkon and Alduin grant 500; Miraak and Molag Bal grant 1000.
 - Add Sunderheart use option `Absorb Anima`; when selected, the consumed Sunderheart grants Anima based on its Sunderheart tier.
-- Block Anima gain while the character is in Defiant Soul, preventing new character tier attunement and global highest-tier advancement during Defiant runs.
+- Defiant Soul does not block Anima gain. While the live tier is Defiant, Anima can improve the stored Defiant restoration tier without auto-promoting out of Defiant.
 - Assign Anima-bearing enemies a Soul Level that drives both their Anima reward and Soul Vigor behavior.
-- Draft Soul Levels: draugr/undead = 1, dragon priests = 2, dragons = 3, Alduin = 4, Miraak = 5; assign Harkon and other major bosses during tuning.
+- Draft Soul Levels: draugr/undead = 1, dragon priests = 2, dragons = 3, Alduin/Harkon = 4, Miraak/Molag Bal = 5; assign other major bosses during tuning.
 - Implement Soul Vigor regeneration from enemy Soul Level comparison: enemies below the player's Soul Level have no regeneration, enemies at the player's Soul Level have mild regeneration, and enemies above the player's Soul Level have significant regeneration.
 - Treat the player as Soul Level 1 for Soul Vigor comparisons while in Defiant Soul.
 
@@ -92,29 +117,33 @@ Recommended Anima rewards:
 | Soul Level | Enemy Type / Examples                         | Suggested Reward                   |
 | 1          | Skeletons, draugr, basic undead               | 1 Anima                            |
 | 1          | Restless/wight/scourge draugr, tougher undead | 2-3 Anima                          |
-| 1          | Draugr deathlords, dungeon undead bosses      | 5-10 Anima                         |
-| 2          | Dragon priests, named undead cult bosses      | 50 Anima                           |
-| 3          | Dragons                                       | 100-250 Anima by dragon difficulty |
-| 4          | Harkon, Alduin, other world-shaking bosses    | 1000 Anima                         |
-| 5          | Miraak, secret/capstone soul enemies          | 2000 Anima                         |
+| 1          | Draugr deathlords, dungeon undead bosses      | 5 Anima                            |
+| 2          | Dragon priests, named undead cult bosses      | 25 Anima                           |
+| 3          | Dragons                                       | 50-100 by dragon difficulty        |
+| 4          | Harkon, Alduin, other world-shaking bosses    | 500 Anima                          |
+| 5          | Miraak, Molag Bal, secret/capstone soul enemies | 1000 Anima                       |
 ```
 
 Dragon reward draft:
 
+Current v1 dragon kills award a flat 50 Anima through the native death sink. Dragon soul absorption is notification-only for Anima and continues to update lifetime dragon-soul totals for Devour eligibility and Dragon Soul Revive behavior. Difficulty-aware dragon rewards are deferred to later tuning.
+
+Tier unlock and Defiant restore journal entries stay generic by tier. Boss latch and death-sink Anima awards can write their own journal entries when slain actor context is available.
+
 ```text
 | Dragon Type      | Reward    |
-| Dragon           | 25 Anima  |
-| Blood Dragon     | 50 Anima  |
-| Frost Dragon     | 75 Anima  |
-| Elder Dragon     | 100 Anima |
-| Ancient Dragon   | 150 Anima |
-| Revered Dragon   | 200 Anima |
-| Legendary Dragon | 250 Anima |
+| Dragon           | 50 Anima  |
+| Blood Dragon     | 60 Anima  |
+| Frost Dragon     | 70 Anima  |
+| Elder Dragon     | 80 Anima  |
+| Ancient Dragon   | 90 Anima  |
+| Revered Dragon   | 95 Anima  |
+| Legendary Dragon | 100 Anima |
 ```
 
 - Keep common undead rewards low so Nordic ruins remain steady progress instead of tier skips.
 - Make dragon priests and named undead boss kills feel like real Anima milestones without replacing dragons.
-- Make major quest bosses large saga Anima progress spikes, especially Alduin, Harkon, and Miraak.
+- Make major quest bosses large World Anima progress spikes, especially Alduin, Harkon, and Miraak.
 - Use Soul Vigor sparingly on low-tier enemies so regeneration feels like supernatural pressure rather than a universal combat tax.
 - Add INI tuning later for reward multipliers, Soul Vigor strength, and whether non-draugr undead count as Anima sources.
 
@@ -172,7 +201,7 @@ Proposed Sunderhearts:
 ```
 
 - Create Sunderheart item records and assets as Sigil Stone-adjacent MiscObjects using the spherical soul gem mesh as the visual base.
-- Build Sunderhearts as tiered shared unlocks with varied effects; new characters can choose a small set of unlocked Sunderhearts, likely three.
+- Build Sunderhearts as tiered World unlocks with varied effects; new characters can choose a small set of unlocked Sunderhearts, likely three.
 - Make Sunderhearts visually scale with power so their red glow intensifies as the character levels or as the chosen Sunderheart tier improves.
 - Define Sunderheart Spawns as the target number of active Sunderhearts present in the world at one time, calculated from difficulty preset plus override setting; for example, A++ can keep 9 Sunderhearts active.
 - Add a curated Sunderheart spawn-location pool, weighted toward dungeons and hard-to-reach places rather than the general game world.
@@ -225,7 +254,7 @@ V4: Return of the Dead God
 - Add a full quest powered by the dream system, building on the historical Heart dreams introduced in V2.
 - As more Sunderhearts are absorbed, the dreams become more direct and begin instructing the player to gather the Tools of Kagrenac through a required mod.
 - Dreams reveal that only the Heart's power can make Alduin truly vulnerable.
-- Require 50 total shared Sunderhearts absorbed to complete the saga-long Heart collection and unlock the Heart's manifestation path.
+- Require 50 World Sunderhearts absorbed to complete the saga-long Heart collection and unlock the Heart's manifestation path.
 - Once all Sunderhearts have been absorbed, the Heart manifests inside a dream realm the player can access at any time. At first, the Heart is incomplete and unsafe to strike.
 - If the player uses the Tools on the Heart before the correct ritual is known, the game quits outright.
 - A final dream falsely instructs the player to strike the Heart with Sunder once, then Keening once. Following this instruction triggers Dagoth Ur's reveal and awakens Dagoth Soul.
