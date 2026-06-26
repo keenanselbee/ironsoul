@@ -27,8 +27,9 @@ Working Rules
 - Prefer simple, direct fixes. Do not overengineer or add abstractions unless they are clearly needed.
 - Prefer not to add functions whose body is only one line of code unless there is a good reason, such as matching an existing interface, naming a repeated concept, or improving readability at the call site.
 - Do not revert or overwrite unrelated user changes.
-- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented BACKUP command, xEdit staged inspection, and MO2 overwrite INI refresh below. External paths may otherwise be read or used as tool/import inputs only.
+- Do not create, edit, move, delete, or overwrite files outside `C:\Repositories\Iron Soul` except for the documented BACKUP command, xEdit staged inspection, MO2 overwrite INI refresh, and explicitly requested Desktop output below. External paths may otherwise be read or used as tool/import inputs only.
 - The BACKUP command may create and write only under `Z:\Backup\LoreRim\Iron Soul` outside the repo.
+- When the user explicitly asks for output on the Desktop, Codex may create, edit, move, delete, or overwrite only the specific generated/user-facing files needed for that request under `C:\Users\Keenan\Desktop`. Do not use the Desktop for temporary build output, staging, broad exports, or unrelated files.
 - Keep temporary compile output or staging inside this repo, preferably under `.codex-temp`.
 - Treat `reference/` as read-only reference material for the original Draugnarok and Respawn Soulslike Edition. Do not edit, stage, or commit anything inside it.
 - Follow `docs/style-guide.md` for naming and formatting conventions.

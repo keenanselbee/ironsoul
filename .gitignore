@@ -1,5 +1,6 @@
 meta.ini
 .vscode/
+.agents/
 skyrimse.ppj
 SkyrimSE.code-workspace
 .codex-temp/
