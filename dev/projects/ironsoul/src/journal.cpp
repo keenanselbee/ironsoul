@@ -1,9 +1,9 @@
 #include "pch.h"
 
 #include "journal.h"
+#include "journal_book.h"
 #include "config.h"
 #include "datastore.h"
-#include "pathutil.h"
 #include "text_catalog.h"
 
 #include "RE/C/Calendar.h"
@@ -13,22 +13,24 @@
 #include <cstdint>
 #include <limits>
 #include <random>
+#include <cctype>
 
-namespace fs = std::filesystem;
 
 namespace IronSoul::Journal
 {
-	static std::mutex g_mutex;
 	static std::mutex g_dailyMutex;
 	static constexpr std::int32_t kUncappedMaxLivesSentinel = 2000000000;
 	static constexpr const char* kJournalStartDayKey = "IS_5341";
 	static constexpr const char* kJournalOpenerLoggedKey = "IS_2270";
+	static constexpr const char* kIdentityNameKey = "I.N";
+	static constexpr const char* kIdentityTestCharacterKey = "I.T";
 	static constexpr const char* kDailyAnimaDayKey = "J.AD";
 	static constexpr const char* kDailyAnimaTotalKey = "AN.D";
 	static constexpr const char* kDailyAnimaPriorityKey = "J.AP";
 	static constexpr const char* kDailyAnimaDateDayKey = "J.DD";
 	static constexpr const char* kDailyAnimaDateMonthKey = "J.DM";
 	static constexpr const char* kDailyAnimaDateYearKey = "J.DY";
+	static constexpr std::size_t kJournalSummaryMaxLength = 80;
 
 	struct DailyAnimaDate
 	{
@@ -60,11 +62,6 @@ namespace IronSoul::Journal
 		"Evening Star"
 	};
 
-	static fs::path GetLogPath()
-	{
-		return IronSoul::PathUtil::GetSksePluginsDir() / L"ironsoul-character-journal.log";
-	}
-
 	static std::string TrimCopy(std::string_view a_value)
 	{
 		const auto first = a_value.find_first_not_of(" \t\n\r");
@@ -75,9 +72,83 @@ namespace IronSoul::Journal
 		return std::string(a_value.substr(first, last - first + 1));
 	}
 
+	static std::string SanitizeSummary(std::string_view a_value)
+	{
+		std::string text = TrimCopy(a_value);
+		for (char& c : text) {
+			if (c == '\r' || c == '\n' || c == '\t') {
+				c = ' ';
+			}
+		}
+		text = TrimCopy(text);
+		if (text.size() <= kJournalSummaryMaxLength) {
+			return text;
+		}
+		return text.substr(0, kJournalSummaryMaxLength - 3) + "...";
+	}
+
+	static JournalEventText MakeEventText(std::string a_detail, std::string a_summary)
+	{
+		return { TrimCopy(a_detail), SanitizeSummary(a_summary) };
+	}
+
 	static std::string MakeGuidKey(std::string_view a_key, std::string_view a_guid)
 	{
 		return std::string(a_key) + ":" + std::string(a_guid);
+	}
+
+	static bool EqualsIgnoreCase(std::string_view a_lhs, std::string_view a_rhs)
+	{
+		if (a_lhs.size() != a_rhs.size()) {
+			return false;
+		}
+		for (std::size_t i = 0; i < a_lhs.size(); ++i) {
+			const auto lhs = static_cast<unsigned char>(a_lhs[i]);
+			const auto rhs = static_cast<unsigned char>(a_rhs[i]);
+			if (std::tolower(lhs) != std::tolower(rhs)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static bool ContainsPrisoner(std::string_view a_name)
+	{
+		constexpr std::string_view needle = "prisoner";
+		if (a_name.size() < needle.size()) {
+			return false;
+		}
+		for (std::size_t i = 0; i <= a_name.size() - needle.size(); ++i) {
+			if (EqualsIgnoreCase(a_name.substr(i, needle.size()), needle)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	static std::string CurrentPlayerName()
+	{
+		if (auto* player = RE::PlayerCharacter::GetSingleton(); player) {
+			return TrimCopy(player->GetName());
+		}
+		return {};
+	}
+
+	static bool IsTestCharacter(std::string_view a_guid)
+	{
+		if (a_guid.empty()) {
+			return true;
+		}
+		if (IronSoul::DataStore::GetInt(MakeGuidKey(kIdentityTestCharacterKey, a_guid), 0) == 1) {
+			return true;
+		}
+		if (IronSoul::Config::GetAllowedInt("PrisonerTestCharacters", 1) != 1) {
+			return false;
+		}
+		if (ContainsPrisoner(CurrentPlayerName())) {
+			return true;
+		}
+		return ContainsPrisoner(IronSoul::DataStore::GetString(MakeGuidKey(kIdentityNameKey, a_guid), ""));
 	}
 
 	static std::uint32_t HashDailySeed(std::string_view a_guid, std::int32_t a_day, std::int32_t a_priority)
@@ -158,6 +229,16 @@ namespace IronSoul::Journal
 		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaDateDayKey, a_guid), std::clamp(a_state.date.day, 1, 31));
 		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaDateMonthKey, a_guid), std::clamp(a_state.date.month, 0, 11));
 		IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kDailyAnimaDateYearKey, a_guid), (std::max)(a_state.date.year, 1));
+	}
+
+	static void ClearDailyAnimaState(std::string_view a_guid)
+	{
+		IronSoul::DataStore::DeleteKey(MakeGuidKey(kDailyAnimaDayKey, a_guid));
+		IronSoul::DataStore::DeleteKey(MakeGuidKey(kDailyAnimaTotalKey, a_guid));
+		IronSoul::DataStore::DeleteKey(MakeGuidKey(kDailyAnimaPriorityKey, a_guid));
+		IronSoul::DataStore::DeleteKey(MakeGuidKey(kDailyAnimaDateDayKey, a_guid));
+		IronSoul::DataStore::DeleteKey(MakeGuidKey(kDailyAnimaDateMonthKey, a_guid));
+		IronSoul::DataStore::DeleteKey(MakeGuidKey(kDailyAnimaDateYearKey, a_guid));
 	}
 
 	static void ResetDailyAnimaState(std::string_view a_guid, std::int32_t a_nowDay)
@@ -314,47 +395,6 @@ namespace IronSoul::Journal
 		}
 	}
 
-	static std::string BuildJournalPrefix()
-	{
-		std::string name;
-		if (auto* player = RE::PlayerCharacter::GetSingleton(); player) {
-			name = TrimCopy(player->GetName());
-		}
-		if (name.empty()) {
-			name = "Prisoner";
-		}
-
-		const std::string difficultyLabel = IronSoul::Config::GetEffectiveDisplayDifficultyJournalPrefix();
-		if (!difficultyLabel.empty()) {
-			name += " " + difficultyLabel;
-		}
-		return name;
-	}
-
-	bool AppendLine(std::string_view line)
-	{
-		std::lock_guard lock(g_mutex);
-
-		const fs::path logPath = GetLogPath();
-		std::error_code ec;
-		fs::create_directories(logPath.parent_path(), ec);
-		if (ec) {
-			logger::warn("Iron Soul: could not create log directory: {}", logPath.parent_path().string());
-			return false;
-		}
-
-		std::ofstream out(logPath, std::ios::out | std::ios::app);
-		if (!out.is_open()) {
-			logger::warn("Iron Soul: could not open ironsoul-character-journal.log for append: {}", logPath.string());
-			return false;
-		}
-
-		out.write(line.data(), static_cast<std::streamsize>(line.size()));
-		out.put('\n');
-		out.flush();
-		return out.good();
-	}
-
 	std::string BuildDayLine(std::string_view a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
 	{
 		const std::string eventText = TrimCopy(a_eventText);
@@ -376,13 +416,14 @@ namespace IronSoul::Journal
 			{ { "day", day }, { "event", eventText } });
 	}
 
-	bool AppendEvent(std::string_view a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
+	bool AppendEvent(std::string_view a_guid, JournalEventText a_event, std::int32_t a_startDay, std::int32_t a_nowDay)
 	{
-		const std::string dayLine = BuildDayLine(a_eventText, a_startDay, a_nowDay);
-		if (dayLine.empty()) {
+		const std::string dayLine = BuildDayLine(a_event.detail, a_startDay, a_nowDay);
+		const std::string summary = SanitizeSummary(a_event.summary);
+		if (dayLine.empty() || summary.empty()) {
 			return false;
 		}
-		return AppendLine(BuildJournalPrefix() + " | " + dayLine);
+		return IronSoul::JournalBook::RecordEvent(a_guid, dayLine, summary);
 	}
 
 	static std::int32_t EnsureJournalStartDay(std::string_view a_guid, std::int32_t a_nowDay)
@@ -402,7 +443,11 @@ namespace IronSoul::Journal
 			return;
 		}
 
-		if (AppendEvent(IronSoul::Text::Get("Journal.Opener"), 0, 0)) {
+		if (AppendEvent(
+				a_guid,
+				MakeEventText(IronSoul::Text::Get("Journal.Opener"), IronSoul::Text::Get("Journal.OpenerShort")),
+				0,
+				0)) {
 			IronSoul::DataStore::SetIntIfChanged(MakeGuidKey(kJournalOpenerLoggedKey, a_guid), 1);
 		}
 	}
@@ -427,7 +472,7 @@ namespace IronSoul::Journal
 		return "Journal.DailyAnima." + bucket + std::to_string(std::clamp(a_index, 1, 2));
 	}
 
-	static std::string BuildDailyAnimaEvent(std::string_view a_guid, const DailyAnimaState& a_state)
+	static JournalEventText BuildDailyAnimaEvent(std::string_view a_guid, const DailyAnimaState& a_state)
 	{
 		std::int32_t priority = ClampDailyAnimaPriority(a_state.priority);
 		if (a_state.total <= 0) {
@@ -441,13 +486,19 @@ namespace IronSoul::Journal
 		const std::string text = IronSoul::Text::Format(
 			DailyAnimaTextKey(priority, index),
 			{ { "amount", amount } });
-		return BuildDailyDate(a_state.date) + ". " + text;
+		return MakeEventText(
+			BuildDailyDate(a_state.date) + ". " + text,
+			IronSoul::Text::Format("Journal.DailyAnimaShort", { { "amount", amount } }));
 	}
 
 	static bool FlushDailyAnimaUnlocked(std::string_view a_guid)
 	{
 		if (a_guid.empty() || !IronSoul::DataStore::IsInitialized()) {
 			return false;
+		}
+		if (IsTestCharacter(a_guid)) {
+			ClearDailyAnimaState(a_guid);
+			return true;
 		}
 
 		const std::int32_t nowDay = GetCurrentGameDay();
@@ -472,7 +523,7 @@ namespace IronSoul::Journal
 
 		EnsureJournalOpenerLogged(a_guid);
 		const std::int32_t startDay = EnsureJournalStartDay(a_guid, state.trackedDay);
-		const bool logged = AppendEvent(BuildDailyAnimaEvent(a_guid, state), startDay, state.trackedDay);
+		const bool logged = AppendEvent(a_guid, BuildDailyAnimaEvent(a_guid, state), startDay, state.trackedDay);
 		if (!logged) {
 			logger::warn("Iron Soul: failed to write daily Anima journal summary for guid={} day={}", a_guid, state.trackedDay);
 		}
@@ -500,6 +551,10 @@ namespace IronSoul::Journal
 		const std::string guid = TrimCopy(a_guid);
 		if (guid.empty() || !IronSoul::DataStore::IsInitialized()) {
 			return false;
+		}
+		if (IsTestCharacter(guid)) {
+			ClearDailyAnimaState(guid);
+			return true;
 		}
 
 		const bool flushed = FlushDailyAnimaUnlocked(guid);
@@ -529,7 +584,7 @@ namespace IronSoul::Journal
 		return flushed;
 	}
 
-	std::string BuildExternalEvent(std::string_view a_source, std::string_view a_eventText)
+	JournalEventText BuildExternalEvent(std::string_view a_source, std::string_view a_eventText)
 	{
 		const std::string eventText = TrimCopy(a_eventText);
 		if (eventText.empty()) {
@@ -540,9 +595,9 @@ namespace IronSoul::Journal
 		if (source.empty()) {
 			source = IronSoul::Text::Get("Journal.ExternalSourceDefault");
 		}
-		return IronSoul::Text::Format(
-			"Journal.ExternalEvent",
-			{ { "source", source }, { "event", eventText } });
+		return MakeEventText(
+			IronSoul::Text::Format("Journal.ExternalEvent", { { "source", source }, { "event", eventText } }),
+			eventText);
 	}
 
 	std::string AppendTotalDeaths(std::string_view a_baseText, std::int32_t a_totalDeaths)
@@ -558,16 +613,16 @@ namespace IronSoul::Journal
 			{ { "total", totalDeaths } });
 	}
 
-	std::string BuildDefeatOutcome(std::int32_t a_deathsNow, std::int32_t a_maxLives)
+	JournalEventText BuildDefeatOutcome(std::int32_t a_deathsNow, std::int32_t a_maxLives)
 	{
 		const std::string deathCount = BuildDeathCount(a_deathsNow, a_maxLives);
 		const std::string flavor = PickDefeatFlavor(a_deathsNow, a_maxLives);
-		return IronSoul::Text::Format(
-			"Journal.DefeatOutcome",
-			{ { "death_count", deathCount }, { "flavor", flavor } });
+		return MakeEventText(
+			IronSoul::Text::Format("Journal.DefeatOutcome", { { "death_count", deathCount }, { "flavor", flavor } }),
+			IronSoul::Text::Format("Journal.DefeatOutcomeShort", { { "death_count", deathCount } }));
 	}
 
-	std::string BuildDefeatLuckOutcome(
+	JournalEventText BuildDefeatLuckOutcome(
 		std::int32_t a_deathsPred,
 		std::int32_t a_maxLives,
 		std::int32_t a_roll,
@@ -578,92 +633,139 @@ namespace IronSoul::Journal
 		const std::string suffix = IronSoul::Text::Format(
 			"Journal.DefeatLuckSuffix",
 			{ { "roll", roll }, { "luck", luck } });
-		return BuildDefeatOutcome(a_deathsPred, a_maxLives) + " " + suffix;
+		const JournalEventText defeat = BuildDefeatOutcome(a_deathsPred, a_maxLives);
+		const std::string deathCount = BuildDeathCount(a_deathsPred, a_maxLives);
+		return MakeEventText(
+			defeat.detail + " " + suffix,
+			IronSoul::Text::Format("Journal.DefeatLuckOutcomeShort", { { "death_count", deathCount } }));
 	}
 
-	std::string BuildTrueDeathOutcome(std::int32_t a_deathsNow, std::int32_t a_maxLives)
+	JournalEventText BuildTrueDeathOutcome(std::int32_t a_deathsNow, std::int32_t a_maxLives)
 	{
 		const std::string deathCount = BuildDeathCount(a_deathsNow, a_maxLives);
-		return IronSoul::Text::Format(
-			"Journal.TrueDeathOutcome",
-			{ { "death_count", deathCount } });
+		return MakeEventText(
+			IronSoul::Text::Format("Journal.TrueDeathOutcome", { { "death_count", deathCount } }),
+			IronSoul::Text::Format("Journal.TrueDeathOutcomeShort", { { "death_count", deathCount } }));
 	}
 
-	std::string BuildDefiantFatigueOutcome(std::int32_t a_deathsNow, std::int32_t a_maxLives, bool a_terminal)
+	JournalEventText BuildDefiantFatigueOutcome(std::int32_t a_deathsNow, std::int32_t a_maxLives, bool a_terminal)
 	{
 		const std::string deathCount = BuildDeathCount(a_deathsNow, a_maxLives);
 		if (a_terminal) {
-			return IronSoul::Text::Format(
-				"Journal.DefiantFatigueTerminal",
-				{ { "death_count", deathCount } });
+			return MakeEventText(
+				IronSoul::Text::Format("Journal.DefiantFatigueTerminal", { { "death_count", deathCount } }),
+				IronSoul::Text::Format("Journal.DefiantFatigueTerminalShort", { { "death_count", deathCount } }));
 		}
-		return IronSoul::Text::Format(
-			"Journal.DefiantFatigue",
-			{ { "death_count", deathCount } });
+		return MakeEventText(
+			IronSoul::Text::Format("Journal.DefiantFatigue", { { "death_count", deathCount } }),
+			IronSoul::Text::Format("Journal.DefiantFatigueShort", { { "death_count", deathCount } }));
 	}
 
-	std::string BuildLuckOutcome(std::int32_t a_luck, std::int32_t a_roll, std::int32_t a_maxLuck)
+	JournalEventText BuildLuckOutcome(std::int32_t a_luck, std::int32_t a_roll, std::int32_t a_maxLuck)
 	{
 		const std::string roll = std::to_string(a_roll);
 		const std::string luck = std::to_string(a_luck);
 		const auto replacements = { IronSoul::Text::Replacement{ "roll", roll }, IronSoul::Text::Replacement{ "luck", luck } };
 
 		const auto tier = LuckTier(a_luck, a_maxLuck);
+		std::string detail;
 		if (tier >= 4) {
-			return IronSoul::Text::Format("Journal.LuckOutcomeMax", replacements);
+			detail = IronSoul::Text::Format("Journal.LuckOutcomeMax", replacements);
+		} else if (tier == 3) {
+			detail = IronSoul::Text::Format("Journal.LuckOutcomeHigh", replacements);
+		} else if (tier == 2) {
+			detail = IronSoul::Text::Format("Journal.LuckOutcomeMid", replacements);
+		} else if (tier == 1) {
+			detail = IronSoul::Text::Format("Journal.LuckOutcomeLow", replacements);
+		} else {
+			detail = IronSoul::Text::Format("Journal.LuckOutcomeBase", replacements);
 		}
-		if (tier == 3) {
-			return IronSoul::Text::Format("Journal.LuckOutcomeHigh", replacements);
-		}
-		if (tier == 2) {
-			return IronSoul::Text::Format("Journal.LuckOutcomeMid", replacements);
-		}
-		if (tier == 1) {
-			return IronSoul::Text::Format("Journal.LuckOutcomeLow", replacements);
-		}
-		return IronSoul::Text::Format("Journal.LuckOutcomeBase", replacements);
+		return MakeEventText(
+			std::move(detail),
+			IronSoul::Text::Format("Journal.LuckOutcomeShort", replacements));
 	}
 
-	std::string BuildAnimaAward(std::string_view a_source, std::int32_t a_amount)
+	JournalEventText BuildAnimaAward(std::string_view a_source, std::int32_t a_amount)
 	{
 		std::string source = TrimCopy(a_source);
 		if (source.empty()) {
 			source = IronSoul::Text::Get("Journal.ExternalSourceDefault");
 		}
 		const std::int32_t clampedAmount = a_amount < 0 ? 0 : a_amount;
-		return IronSoul::Text::Format(
-			"Journal.AnimaAward",
-			{ { "amount", std::to_string(clampedAmount) }, { "source", source } });
+		const std::string amount = std::to_string(clampedAmount);
+		return MakeEventText(
+			IronSoul::Text::Format("Journal.AnimaAward", { { "amount", amount }, { "source", source } }),
+			IronSoul::Text::Format("Journal.AnimaAwardShort", { { "amount", amount } }));
 	}
 
-	std::string BuildSoulFeat(std::int32_t a_soulTier, std::int32_t a_totalDeaths)
+	static std::string BuildSoulFeatShort(std::int32_t a_soulTier)
+	{
+		switch (a_soulTier) {
+		case 6:
+			return IronSoul::Text::Get("Journal.SoulFeatShort.Devour");
+		case 5:
+			return IronSoul::Text::Get("Journal.SoulFeatShort.Platinum");
+		case 4:
+			return IronSoul::Text::Get("Journal.SoulFeatShort.Ebon");
+		case 3:
+			return IronSoul::Text::Get("Journal.SoulFeatShort.Gold");
+		case 2:
+			return IronSoul::Text::Get("Journal.SoulFeatShort.Silver");
+		default:
+			return {};
+		}
+	}
+
+	JournalEventText BuildSoulFeat(std::int32_t a_soulTier, std::int32_t a_totalDeaths)
 	{
 		const std::string baseText = BuildSoulFeatBase(a_soulTier);
-		return AppendTotalDeaths(baseText, a_totalDeaths);
+		return MakeEventText(AppendTotalDeaths(baseText, a_totalDeaths), BuildSoulFeatShort(a_soulTier));
 	}
 
-	std::string BuildDefiantSoulFeat(std::int32_t a_totalDeaths)
+	JournalEventText BuildDefiantSoulFeat(std::int32_t a_totalDeaths)
 	{
-		return AppendTotalDeaths(
-			IronSoul::Text::Get("Journal.SoulFeat.Defiant"),
-			a_totalDeaths);
+		return MakeEventText(
+			AppendTotalDeaths(IronSoul::Text::Get("Journal.SoulFeat.Defiant"), a_totalDeaths),
+			IronSoul::Text::Get("Journal.SoulFeatShort.Defiant"));
 	}
 
-	std::string BuildDefiantRestore(std::int32_t a_targetTier, std::int32_t a_totalDeaths)
+	static std::string BuildDefiantRestoreShort(std::int32_t a_targetTier)
+	{
+		switch (a_targetTier) {
+		case 6:
+			return IronSoul::Text::Get("Journal.DefiantRestoreShort.Devour");
+		case 5:
+			return IronSoul::Text::Get("Journal.DefiantRestoreShort.Platinum");
+		case 4:
+			return IronSoul::Text::Get("Journal.DefiantRestoreShort.Ebon");
+		case 3:
+			return IronSoul::Text::Get("Journal.DefiantRestoreShort.Gold");
+		case 2:
+			return IronSoul::Text::Get("Journal.DefiantRestoreShort.Silver");
+		case 1:
+			return IronSoul::Text::Get("Journal.DefiantRestoreShort.Iron");
+		default:
+			return {};
+		}
+	}
+
+	JournalEventText BuildDefiantRestore(std::int32_t a_targetTier, std::int32_t a_totalDeaths)
 	{
 		const std::string baseText = BuildDefiantRestoreBase(a_targetTier);
-		return AppendTotalDeaths(baseText, a_totalDeaths);
+		return MakeEventText(AppendTotalDeaths(baseText, a_totalDeaths), BuildDefiantRestoreShort(a_targetTier));
 	}
 
-	std::string BuildDefiantAwakened()
+	JournalEventText BuildDefiantAwakened()
 	{
-		return IronSoul::Text::Get(
-			"Journal.DefiantAwakened");
+		return MakeEventText(
+			IronSoul::Text::Get("Journal.DefiantAwakened"),
+			IronSoul::Text::Get("Journal.DefiantAwakenedShort"));
 	}
 
-	std::string BuildCHIMRealized()
+	JournalEventText BuildCHIMRealized()
 	{
-		return IronSoul::Text::Get(
-			"Journal.CHIMRealized");
+		return MakeEventText(
+			IronSoul::Text::Get("Journal.CHIMRealized"),
+			IronSoul::Text::Get("Journal.CHIMRealizedShort"));
 	}
 }

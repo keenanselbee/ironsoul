@@ -192,6 +192,8 @@ Scriptname IronSoulNative Hidden
 ; GetWallClockSeconds()
 ; EnsureNewGameIntroClockStarted()
 ; GetNewGameIntroElapsedSeconds()
+; QueueNewGameIntroAlarm()
+; CancelNewGameIntroAlarm()
 ; QueueActiveGameplayAlarm()
 ; CancelActiveGameplayAlarm()
 ; BeginDragonSoulWatcher()
@@ -231,6 +233,8 @@ Scriptname IronSoulNative Hidden
 ; ------------------------
 ; DataStoreSizeWarningPending()
 ; DataStoreConsumeSizeWarning()
+; CharacterDataPathWarningPending()
+; CharacterDataPathConsumeWarning()
 
 ; --- DataStore Flush Control ---
 ; --------------------------------
@@ -250,23 +254,27 @@ Bool Function DataStoreReady() Global Native
 ; --- JOURNAL LOGGING ---
 ; =======================
 
-; Builds "Day X: <event>", prefixes character context, appends to the journal, and returns success.
-Bool Function JournalLogEvent(String eventText, Int startDay, Int nowDay) Global Native
+; Builds "Day X: <event>", writes to the per-character Oghma journal source, and returns success.
+Bool Function JournalLogEvent(String guid, String eventText, Int startDay, Int nowDay) Global Native
 
 ; Native one-shot journal event builders and appenders.
-Bool Function JournalLogDefeatOutcome(Int deathsNow, Int maxLives, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogDefeatLuckOutcome(Int deathsNow, Int maxLives, Int roll, Int luck, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogTrueDeathOutcome(Int deathsNow, Int maxLives, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogDefiantFatigueOutcome(Int deathsNow, Int maxLives, Bool terminal, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogLuckOutcome(Int luck, Int roll, Int maxLuck, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogAnimaAward(String source, Int amount, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefeatOutcome(String guid, Int deathsNow, Int maxLives, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefeatLuckOutcome(String guid, Int deathsNow, Int maxLives, Int roll, Int luck, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogTrueDeathOutcome(String guid, Int deathsNow, Int maxLives, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantFatigueOutcome(String guid, Int deathsNow, Int maxLives, Bool terminal, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogLuckOutcome(String guid, Int luck, Int roll, Int maxLuck, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogAnimaAward(String guid, String source, Int amount, Int startDay, Int nowDay) Global Native
 Bool Function JournalFlushDailyAnima(String guid) Global Native
 Bool Function JournalNoteDailyAnimaAward(String guid, String source, Int amount, Int priority) Global Native
-Bool Function JournalLogSoulFeat(Int soulTier, Int totalDeaths, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogDefiantSoulFeat(Int totalDeaths, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogDefiantRestore(Int targetTier, Int totalDeaths, Int startDay, Int nowDay) Global Native
-Bool Function JournalLogDefiantAwakened(Int startDay, Int nowDay) Global Native
-Bool Function JournalLogCHIMRealized(Int startDay, Int nowDay) Global Native
+Bool Function JournalLogSoulFeat(String guid, Int soulTier, Int totalDeaths, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantSoulFeat(String guid, Int totalDeaths, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantRestore(String guid, Int targetTier, Int totalDeaths, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogDefiantAwakened(String guid, Int startDay, Int nowDay) Global Native
+Bool Function JournalLogCHIMRealized(String guid, Int startDay, Int nowDay) Global Native
+Bool Function JournalRefreshBook(String currentGuid) Global Native
+Bool Function DynamicBookRefreshOghma(String currentGuid) Global Native
+Bool Function DynamicBookRefreshOpen(String bookId) Global Native
+Bool Function JournalDeleteCharacter(String guid) Global Native
 
 
 ; --- CONFIG ACCESS ---
@@ -533,6 +541,10 @@ Bool Function EnsureNewGameIntroClockStarted(String reason = "") Global Native
 ; Returns non-menu seconds since native fresh-game detection, or -1.0 when no intro clock is active.
 Float Function GetNewGameIntroElapsedSeconds() Global Native
 
+; Queues/cancels one-shot alarms tied to the native new-game intro active-gameplay clock.
+Int Function QueueNewGameIntroAlarm(Float targetSeconds, String reason = "") Global Native
+Function CancelNewGameIntroAlarm(Int token = 0, String reason = "") Global Native
+
 ; Queues/cancels one-shot active gameplay alarms that dispatch IronSoul_RuntimeUpdate.
 Int Function QueueActiveGameplayAlarm(Int targetSecond, String reason = "") Global Native
 Function CancelActiveGameplayAlarm(Int token = 0, String reason = "") Global Native
@@ -627,6 +639,12 @@ Bool Function DataStoreSizeWarningPending() Global Native
 
 ; Consumes the pending datastore size warning so Papyrus can show it once.
 Bool Function DataStoreConsumeSizeWarning() Global Native
+
+; True once when native Auto storage falls back after detecting Hardlink Builder metadata.
+Bool Function CharacterDataPathWarningPending() Global Native
+
+; Consumes the pending CharacterDataPath warning so Papyrus can show it once.
+Bool Function CharacterDataPathConsumeWarning() Global Native
 
 
 ; --- DATASTORE - FLUSH CONTROL ---

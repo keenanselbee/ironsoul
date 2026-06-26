@@ -171,6 +171,10 @@ Bool Function ResetCurrentCharacterData(Actor player, String guid)
     if Controller.Globals
         Controller.Globals.SyncAll(player, guid)
     endif
+    IronSoulNative.JournalDeleteCharacter(guid)
+    if Controller.Config.IsCharacterJournalEnabled()
+        IronSoulNative.JournalRefreshBook(guid)
+    endif
 
     IronSoulNative.DataFlushIfDirty()
     return True
@@ -211,12 +215,16 @@ Int Function PurgeHistoricalCharacterData(String currentGuid)
                 Controller.Identity.DeleteIdentitySnapshotKeys(cand)
                 Controller.Identity.DeleteTestCharacterMarker(cand)
                 Controller.Identity.DeleteGuidMarker(cand)
+                IronSoulNative.JournalDeleteCharacter(cand)
                 purgedCount += 1
             endif
         endif
     endwhile
 
     Controller.Identity.KeepOnlyGuidInIndex(currentGuid)
+    if Controller.Config && Controller.Config.IsCharacterJournalEnabled()
+        IronSoulNative.JournalRefreshBook(currentGuid)
+    endif
     IronSoulNative.DataFlushIfDirty()
     return purgedCount
 EndFunction
@@ -267,6 +275,7 @@ Int Function PurgeHistoricalTestCharacterData(String currentGuid)
                     Controller.Identity.DeleteIdentitySnapshotKeys(cand)
                     Controller.Identity.DeleteTestCharacterMarker(cand)
                     Controller.Identity.DeleteGuidMarker(cand)
+                    IronSoulNative.JournalDeleteCharacter(cand)
                     purgedCount += 1
                 else
                     if keepIndex == ""
@@ -290,6 +299,9 @@ Int Function PurgeHistoricalTestCharacterData(String currentGuid)
 
     IronSoulNative.DataSetStringIfChanged("G.U.INDEX", keepIndex)
     Controller.Identity.EnsureGuidMarker(currentGuid)
+    if Controller.Config && Controller.Config.IsCharacterJournalEnabled()
+        IronSoulNative.JournalRefreshBook(currentGuid)
+    endif
     IronSoulNative.DataFlushIfDirty()
     return purgedCount
 EndFunction

@@ -7,8 +7,10 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
 #include <cwctype>
+#include <fstream>
 #include <system_error>
 #include <vector>
 
@@ -27,6 +29,20 @@ namespace
         fs::path characterDataRoot;
         fs::path mirrorDataPath;
     };
+
+    struct HardlinkBuilderModsRootResult
+    {
+        std::optional<fs::path> modsRoot;
+        bool metadataObserved = false;
+    };
+
+    struct HardlinkBuilderCharacterDataRootResult
+    {
+        std::optional<fs::path> root;
+        bool metadataObserved = false;
+    };
+
+    static std::atomic_bool g_characterDataPathWarningPending{ false };
 
     static std::string TrimCopy(std::string value)
     {
@@ -157,6 +173,263 @@ namespace
             value = value.substr(longPrefix.size());
         }
         return fs::path(value);
+    }
+
+    static std::int32_t HexValue(char ch)
+    {
+        if (ch >= '0' && ch <= '9') {
+            return ch - '0';
+        }
+        if (ch >= 'a' && ch <= 'f') {
+            return 10 + (ch - 'a');
+        }
+        if (ch >= 'A' && ch <= 'F') {
+            return 10 + (ch - 'A');
+        }
+        return -1;
+    }
+
+    static std::optional<std::uint32_t> ParseJsonHex4(std::string_view text, std::size_t pos)
+    {
+        if (pos + 4 > text.size()) {
+            return std::nullopt;
+        }
+
+        std::uint32_t value = 0;
+        for (std::size_t i = 0; i < 4; ++i) {
+            const std::int32_t hex = HexValue(text[pos + i]);
+            if (hex < 0) {
+                return std::nullopt;
+            }
+            value = (value << 4) | static_cast<std::uint32_t>(hex);
+        }
+        return value;
+    }
+
+    static void AppendUtf8(std::string& out, std::uint32_t codePoint)
+    {
+        if (codePoint <= 0x7Fu) {
+            out.push_back(static_cast<char>(codePoint));
+        } else if (codePoint <= 0x7FFu) {
+            out.push_back(static_cast<char>(0xC0u | (codePoint >> 6)));
+            out.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
+        } else if (codePoint <= 0xFFFFu) {
+            out.push_back(static_cast<char>(0xE0u | (codePoint >> 12)));
+            out.push_back(static_cast<char>(0x80u | ((codePoint >> 6) & 0x3Fu)));
+            out.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
+        } else {
+            out.push_back(static_cast<char>(0xF0u | (codePoint >> 18)));
+            out.push_back(static_cast<char>(0x80u | ((codePoint >> 12) & 0x3Fu)));
+            out.push_back(static_cast<char>(0x80u | ((codePoint >> 6) & 0x3Fu)));
+            out.push_back(static_cast<char>(0x80u | (codePoint & 0x3Fu)));
+        }
+    }
+
+    static bool IsJsonSpace(char ch)
+    {
+        return ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n';
+    }
+
+    static std::size_t SkipJsonSpace(std::string_view text, std::size_t pos)
+    {
+        while (pos < text.size() && IsJsonSpace(text[pos])) {
+            ++pos;
+        }
+        return pos;
+    }
+
+    static std::optional<std::string> DecodeJsonStringAt(std::string_view text, std::size_t quotePos, std::size_t& endPos)
+    {
+        if (quotePos >= text.size() || text[quotePos] != '"') {
+            return std::nullopt;
+        }
+
+        std::string out;
+        for (std::size_t i = quotePos + 1; i < text.size(); ++i) {
+            const char ch = text[i];
+            if (ch == '"') {
+                endPos = i + 1;
+                return out;
+            }
+            if (static_cast<unsigned char>(ch) < 0x20u) {
+                return std::nullopt;
+            }
+            if (ch != '\\') {
+                out.push_back(ch);
+                continue;
+            }
+
+            if (++i >= text.size()) {
+                return std::nullopt;
+            }
+
+            const char esc = text[i];
+            switch (esc) {
+            case '"':
+            case '\\':
+            case '/':
+                out.push_back(esc);
+                break;
+            case 'b':
+                out.push_back('\b');
+                break;
+            case 'f':
+                out.push_back('\f');
+                break;
+            case 'n':
+                out.push_back('\n');
+                break;
+            case 'r':
+                out.push_back('\r');
+                break;
+            case 't':
+                out.push_back('\t');
+                break;
+            case 'u':
+            {
+                auto codePoint = ParseJsonHex4(text, i + 1);
+                if (!codePoint) {
+                    return std::nullopt;
+                }
+                i += 4;
+
+                if (*codePoint >= 0xD800u && *codePoint <= 0xDBFFu) {
+                    if (i + 6 >= text.size() || text[i + 1] != '\\' || text[i + 2] != 'u') {
+                        return std::nullopt;
+                    }
+                    auto low = ParseJsonHex4(text, i + 3);
+                    if (!low || *low < 0xDC00u || *low > 0xDFFFu) {
+                        return std::nullopt;
+                    }
+                    codePoint = 0x10000u + (((*codePoint - 0xD800u) << 10) | (*low - 0xDC00u));
+                    i += 6;
+                } else if (*codePoint >= 0xDC00u && *codePoint <= 0xDFFFu) {
+                    return std::nullopt;
+                }
+
+                AppendUtf8(out, *codePoint);
+                break;
+            }
+            default:
+                return std::nullopt;
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    static std::optional<std::size_t> FindJsonPropertyValue(std::string_view objectText, std::string_view property)
+    {
+        std::size_t pos = 0;
+        while (pos < objectText.size()) {
+            pos = objectText.find('"', pos);
+            if (pos == std::string_view::npos) {
+                return std::nullopt;
+            }
+
+            std::size_t endPos = 0;
+            auto name = DecodeJsonStringAt(objectText, pos, endPos);
+            if (!name) {
+                ++pos;
+                continue;
+            }
+
+            std::size_t colonPos = SkipJsonSpace(objectText, endPos);
+            if (colonPos < objectText.size() && objectText[colonPos] == ':' && *name == property) {
+                return SkipJsonSpace(objectText, colonPos + 1);
+            }
+
+            pos = endPos;
+        }
+
+        return std::nullopt;
+    }
+
+    static std::optional<std::string_view> ExtractJsonObjectProperty(std::string_view objectText, std::string_view property)
+    {
+        const auto valuePos = FindJsonPropertyValue(objectText, property);
+        if (!valuePos || *valuePos >= objectText.size() || objectText[*valuePos] != '{') {
+            return std::nullopt;
+        }
+
+        std::uint32_t depth = 0;
+        for (std::size_t i = *valuePos; i < objectText.size(); ++i) {
+            if (objectText[i] == '"') {
+                std::size_t endPos = 0;
+                if (!DecodeJsonStringAt(objectText, i, endPos)) {
+                    return std::nullopt;
+                }
+                i = endPos - 1;
+                continue;
+            }
+
+            if (objectText[i] == '{') {
+                ++depth;
+            } else if (objectText[i] == '}') {
+                if (depth == 0) {
+                    return std::nullopt;
+                }
+                --depth;
+                if (depth == 0) {
+                    return objectText.substr(*valuePos, i - *valuePos + 1);
+                }
+            }
+        }
+
+        return std::nullopt;
+    }
+
+    static std::optional<std::string> ExtractJsonStringProperty(std::string_view objectText, std::string_view property)
+    {
+        const auto valuePos = FindJsonPropertyValue(objectText, property);
+        if (!valuePos || *valuePos >= objectText.size() || objectText[*valuePos] != '"') {
+            return std::nullopt;
+        }
+
+        std::size_t endPos = 0;
+        return DecodeJsonStringAt(objectText, *valuePos, endPos);
+    }
+
+    static std::optional<std::string> ReadTextFileCapped(const fs::path& path, std::uintmax_t maxBytes)
+    {
+        std::error_code ec;
+        const auto bytes = fs::file_size(path, ec);
+        if (ec || bytes > maxBytes) {
+            return std::nullopt;
+        }
+
+        std::ifstream in(path, std::ios::in | std::ios::binary);
+        if (!in.is_open()) {
+            return std::nullopt;
+        }
+
+        std::string text(static_cast<std::size_t>(bytes), '\0');
+        if (!text.empty()) {
+            in.read(text.data(), static_cast<std::streamsize>(text.size()));
+            if (!in.good()) {
+                return std::nullopt;
+            }
+        }
+        return text;
+    }
+
+    static fs::path PathFromJsonString(std::string_view value)
+    {
+        return NormalizeFinalPathPrefix(TrimCopy(WidenUtf8(value))).lexically_normal();
+    }
+
+    static std::wstring NormalizePathForCompare(const fs::path& path)
+    {
+        std::wstring value = NormalizeFinalPathPrefix(path.wstring()).lexically_normal().wstring();
+        while (value.size() > 3 && (value.back() == L'\\' || value.back() == L'/')) {
+            value.pop_back();
+        }
+        return ToLowerWide(std::move(value));
+    }
+
+    static bool PathsEqualCaseInsensitive(const fs::path& lhs, const fs::path& rhs)
+    {
+        return NormalizePathForCompare(lhs) == NormalizePathForCompare(rhs);
     }
 
     static std::optional<fs::path> GetModulePath(HMODULE module)
@@ -314,6 +587,95 @@ namespace
         return std::nullopt;
     }
 
+    static void QueueCharacterDataPathWarning(std::string_view reason)
+    {
+        const bool alreadyPending = g_characterDataPathWarningPending.exchange(true, std::memory_order_acq_rel);
+        if (!alreadyPending) {
+            logger::warn("Iron Soul Storage: queued CharacterDataPath warning: {}", reason);
+        }
+    }
+
+    static HardlinkBuilderModsRootResult TryResolveHardlinkBuilderModsRoot()
+    {
+        const fs::path gameRoot = PathUtil::GetGameRoot();
+        const fs::path metadataDir = gameRoot / L"standalone_metadata";
+        const fs::path metadataPath = metadataDir / L"standalone_metadata.json";
+        HardlinkBuilderModsRootResult result;
+
+        std::error_code ec;
+        if (!fs::is_regular_file(metadataPath, ec) || ec) {
+            std::error_code dirEc;
+            if (fs::is_directory(metadataDir, dirEc) && !dirEc) {
+                logger::warn(
+                    "Iron Soul Storage: Hardlink Builder metadata directory exists but standalone_metadata.json is missing; using normal Auto fallback");
+                result.metadataObserved = true;
+            }
+            return result;
+        }
+
+        result.metadataObserved = true;
+        logger::info("Iron Soul Storage: Hardlink Builder metadata found={}", metadataPath.string());
+
+        constexpr std::uintmax_t kMaxMetadataBytes = 1024u * 1024u;
+        const auto metadata = ReadTextFileCapped(metadataPath, kMaxMetadataBytes);
+        if (!metadata) {
+            logger::warn("Iron Soul Storage: could not read Hardlink Builder metadata; ignoring {}", metadataPath.string());
+            return result;
+        }
+
+        if (const auto standaloneInfo = ExtractJsonObjectProperty(*metadata, "standalone_info")) {
+            if (const auto standalonePathValue = ExtractJsonStringProperty(*standaloneInfo, "standalone_path")) {
+                const fs::path standalonePath = PathFromJsonString(*standalonePathValue);
+                if (!PathsEqualCaseInsensitive(standalonePath, gameRoot)) {
+                    logger::warn(
+                        "Iron Soul Storage: Hardlink Builder metadata standalone_path={} does not match game root={}; ignoring metadata",
+                        standalonePath.string(),
+                        gameRoot.string());
+                    return result;
+                }
+            }
+        }
+
+        const auto mo2Info = ExtractJsonObjectProperty(*metadata, "mo2_info");
+        if (!mo2Info) {
+            logger::warn("Iron Soul Storage: Hardlink Builder metadata missing mo2_info; using normal Auto fallback");
+            return result;
+        }
+
+        std::optional<fs::path> modsRoot;
+        const auto modsPathValue = ExtractJsonStringProperty(*mo2Info, "mo2_mods_path");
+        if (modsPathValue && !TrimCopy(*modsPathValue).empty()) {
+            modsRoot = PathFromJsonString(*modsPathValue);
+        } else if (const auto basePathValue = ExtractJsonStringProperty(*mo2Info, "mo2_base_path");
+                   basePathValue && !TrimCopy(*basePathValue).empty()) {
+            modsRoot = PathFromJsonString(*basePathValue) / L"mods";
+            logger::warn("Iron Soul Storage: Hardlink Builder metadata missing mo2_mods_path; trying mo2_base_path\\mods");
+        }
+
+        if (!modsRoot) {
+            logger::warn("Iron Soul Storage: Hardlink Builder metadata missing MO2 mods path; using normal Auto fallback");
+            return result;
+        }
+
+        if (!modsRoot->is_absolute()) {
+            logger::warn(
+                "Iron Soul Storage: Hardlink Builder MO2 mods path is not absolute after decoding: {}; using normal Auto fallback",
+                modsRoot->string());
+            return result;
+        }
+
+        if (!fs::is_directory(*modsRoot, ec) || ec) {
+            logger::warn(
+                "Iron Soul Storage: Hardlink Builder MO2 mods path does not exist or is not a directory: {}; using normal Auto fallback",
+                modsRoot->string());
+            return result;
+        }
+
+        logger::info("Iron Soul Storage: inferred MO2 mods root from Hardlink Builder metadata={}", modsRoot->string());
+        result.modsRoot = *modsRoot;
+        return result;
+    }
+
     static std::wstring CompactNoDeleteToken(std::wstring value)
     {
         value = ToLowerWide(std::move(value));
@@ -433,6 +795,38 @@ namespace
         return folderRoot / L"SKSE" / L"Plugins" / L"ironsoul";
     }
 
+    static std::optional<fs::path> TryResolveCharacterDataRootFromModsRoot(const fs::path& modsRoot, std::string_view sourceLabel)
+    {
+        std::error_code ec;
+        if (!fs::is_directory(modsRoot, ec) || ec) {
+            logger::warn(
+                "Iron Soul Storage: {} mods root is not a directory: {}; using Data-relative storage",
+                sourceLabel,
+                modsRoot.string());
+            return std::nullopt;
+        }
+
+        std::optional<fs::path> dataMod = TryFindAutoCharacterDataMod(modsRoot);
+        if (!dataMod) {
+            logger::warn(
+                "Iron Soul Storage: no Iron Soul Character Data mod found under {} mods root {}; using Data-relative storage",
+                sourceLabel,
+                modsRoot.string());
+            return std::nullopt;
+        }
+
+        const fs::path candidateRoot = CharacterDataRuntimeRootFromFolder(*dataMod);
+        if (!ProbeWritableDirectory(candidateRoot)) {
+            logger::warn(
+                "Iron Soul Storage: Character Data mod root from {} is not writable; using Data-relative storage",
+                sourceLabel);
+            return std::nullopt;
+        }
+
+        logger::info("Iron Soul Storage: using Character Data mod root={} (source={})", candidateRoot.string(), sourceLabel);
+        return candidateRoot;
+    }
+
     static bool PathFilenameEquals(const fs::path& path, const wchar_t* expected)
     {
         return ToLowerWide(path.filename().wstring()) == expected;
@@ -477,29 +871,34 @@ namespace
         }
 
         logger::info("Iron Soul Storage: inferred MO2 mods root={}", modsRoot->string());
+        return TryResolveCharacterDataRootFromModsRoot(*modsRoot, "MO2/USVFS");
+    }
 
-        std::optional<fs::path> dataMod = TryFindAutoCharacterDataMod(*modsRoot);
-        if (!dataMod) {
-            logger::warn("Iron Soul Storage: no Iron Soul Character Data mod found; using Data-relative storage");
-            return std::nullopt;
+    static HardlinkBuilderCharacterDataRootResult TryResolveHardlinkBuilderCharacterDataRoot()
+    {
+        HardlinkBuilderCharacterDataRootResult result;
+        const HardlinkBuilderModsRootResult modsRootResult = TryResolveHardlinkBuilderModsRoot();
+        result.metadataObserved = modsRootResult.metadataObserved;
+        if (!modsRootResult.modsRoot) {
+            return result;
         }
-
-        const fs::path candidateRoot = CharacterDataRuntimeRootFromFolder(*dataMod);
-        if (!ProbeWritableDirectory(candidateRoot)) {
-            logger::warn("Iron Soul Storage: Character Data mod root is not writable; using Data-relative storage");
-            return std::nullopt;
-        }
-
-        logger::info("Iron Soul Storage: using Character Data mod root={}", candidateRoot.string());
-        return candidateRoot;
+        result.root = TryResolveCharacterDataRootFromModsRoot(*modsRootResult.modsRoot, "Hardlink Builder metadata");
+        return result;
     }
 
     static fs::path ResolveCharacterDataRoot()
     {
         const std::string configuredPath = Config::GetAllowedString("CharacterDataPath", "Auto");
         if (EqualsToken(configuredPath, "auto")) {
+            const HardlinkBuilderCharacterDataRootResult hardlinkResult = TryResolveHardlinkBuilderCharacterDataRoot();
+            if (hardlinkResult.root) {
+                return *hardlinkResult.root;
+            }
             if (auto mo2Root = TryResolveMo2CharacterDataRoot()) {
                 return *mo2Root;
+            }
+            if (hardlinkResult.metadataObserved) {
+                QueueCharacterDataPathWarning("Hardlink Builder metadata was detected, but Auto could not use an Iron Soul Character Data mod");
             }
             return PathUtil::GetIronSoulPluginDir();
         }
@@ -570,5 +969,15 @@ namespace
     fs::path MirrorDataPath()
     {
         return ResolveStorageRoots().mirrorDataPath;
+    }
+
+    bool CharacterDataPathWarningPending()
+    {
+        return g_characterDataPathWarningPending.load(std::memory_order_acquire);
+    }
+
+    bool ConsumeCharacterDataPathWarning()
+    {
+        return g_characterDataPathWarningPending.exchange(false, std::memory_order_acq_rel);
     }
 }

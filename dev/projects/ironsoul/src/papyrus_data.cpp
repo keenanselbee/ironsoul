@@ -2,6 +2,7 @@
 #include "papyrus_data.h"
 #include "papyrus_common.h"
 #include "datastore.h"
+#include "storage_paths.h"
 
 namespace IronSoul::Papyrus::Data
 {
@@ -85,6 +86,16 @@ namespace
         return IronSoul::DataStore::ConsumeSizeWarning();
     }
 
+    static bool CharacterDataPathWarningPending(RE::StaticFunctionTag*)
+    {
+        return IronSoul::StoragePaths::CharacterDataPathWarningPending();
+    }
+
+    static bool CharacterDataPathConsumeWarning(RE::StaticFunctionTag*)
+    {
+        return IronSoul::StoragePaths::ConsumeCharacterDataPathWarning();
+    }
+
     static void DataFlushIfDirty(RE::StaticFunctionTag*)
     {
         IronSoul::DataStore::FlushIfDirty();
@@ -107,6 +118,8 @@ namespace
         a_vm->RegisterFunction("DataDeleteKeysWithPrefix", kScriptName, DataDeleteKeysWithPrefix);
         a_vm->RegisterFunction("DataStoreSizeWarningPending", kScriptName, DataStoreSizeWarningPending);
         a_vm->RegisterFunction("DataStoreConsumeSizeWarning", kScriptName, DataStoreConsumeSizeWarning);
+        a_vm->RegisterFunction("CharacterDataPathWarningPending", kScriptName, CharacterDataPathWarningPending);
+        a_vm->RegisterFunction("CharacterDataPathConsumeWarning", kScriptName, CharacterDataPathConsumeWarning);
         a_vm->RegisterFunction("DataFlushIfDirty", kScriptName, DataFlushIfDirty);
     }
 }

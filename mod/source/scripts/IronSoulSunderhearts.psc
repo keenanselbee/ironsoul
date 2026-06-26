@@ -1869,6 +1869,9 @@ Int Function TryPurgeDeathResult(Actor player, String guid, Form sunderheartBase
         LogSunderhearts(IronSoulConfig.LOG_INFO(), "TryPurgeDeath: Defiant restore handoff started after Sunderheart menu")
     endif
     Bool restoredFromDefiant = Controller.Tiers.TryRestoreFromDefiant(player, guid)
+    if Controller.Config && Controller.Config.IsCharacterJournalEnabled()
+        IronSoulNative.JournalRefreshBook(guid)
+    endif
     if defiantRestoreHandoffCursorToken > 0
         IronSoulNative.EndCursorSuppress(defiantRestoreHandoffCursorToken)
     endif

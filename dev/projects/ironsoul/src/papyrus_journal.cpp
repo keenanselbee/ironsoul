@@ -3,33 +3,41 @@
 #include "papyrus_common.h"
 #include "config.h"
 #include "journal.h"
+#include "journal_book.h"
+#include "dynamic_book.h"
 
 namespace IronSoul::Papyrus::Journal
 {
 namespace
 {
-    static bool AppendBuiltJournalEvent(std::string a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
+    static bool AppendBuiltJournalEvent(
+        std::string a_guid,
+        IronSoul::Journal::JournalEventText a_event,
+        std::int32_t a_startDay,
+        std::int32_t a_nowDay)
     {
-        return IronSoul::Journal::AppendEvent(a_eventText, a_startDay, a_nowDay);
+        return IronSoul::Journal::AppendEvent(a_guid, std::move(a_event), a_startDay, a_nowDay);
     }
 
-    static bool JournalLogEvent(RE::StaticFunctionTag*, std::string a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
+    static bool JournalLogEvent(RE::StaticFunctionTag*, std::string a_guid, std::string a_eventText, std::int32_t a_startDay, std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(a_eventText, a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, { a_eventText, a_eventText }, a_startDay, a_nowDay);
     }
 
     static bool JournalLogDefeatOutcome(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_deathsNow,
         std::int32_t a_maxLives,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildDefeatOutcome(a_deathsNow, a_maxLives), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildDefeatOutcome(a_deathsNow, a_maxLives), a_startDay, a_nowDay);
     }
 
     static bool JournalLogDefeatLuckOutcome(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_deathsNow,
         std::int32_t a_maxLives,
         std::int32_t a_roll,
@@ -37,49 +45,53 @@ namespace
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildDefeatLuckOutcome(a_deathsNow, a_maxLives, a_roll, a_luck), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildDefeatLuckOutcome(a_deathsNow, a_maxLives, a_roll, a_luck), a_startDay, a_nowDay);
     }
 
     static bool JournalLogTrueDeathOutcome(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_deathsNow,
         std::int32_t a_maxLives,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildTrueDeathOutcome(a_deathsNow, a_maxLives), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildTrueDeathOutcome(a_deathsNow, a_maxLives), a_startDay, a_nowDay);
     }
 
     static bool JournalLogDefiantFatigueOutcome(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_deathsNow,
         std::int32_t a_maxLives,
         bool a_terminal,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildDefiantFatigueOutcome(a_deathsNow, a_maxLives, a_terminal), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildDefiantFatigueOutcome(a_deathsNow, a_maxLives, a_terminal), a_startDay, a_nowDay);
     }
 
     static bool JournalLogLuckOutcome(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_luck,
         std::int32_t a_roll,
         std::int32_t a_maxLuck,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildLuckOutcome(a_luck, a_roll, a_maxLuck), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildLuckOutcome(a_luck, a_roll, a_maxLuck), a_startDay, a_nowDay);
     }
 
     static bool JournalLogAnimaAward(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::string a_source,
         std::int32_t a_amount,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildAnimaAward(a_source, a_amount), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildAnimaAward(a_source, a_amount), a_startDay, a_nowDay);
     }
 
     static bool JournalFlushDailyAnima(RE::StaticFunctionTag*, std::string a_guid)
@@ -99,12 +111,14 @@ namespace
 
     static bool JournalLogSoulFeat(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_soulTier,
         std::int32_t a_totalDeaths,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
         return AppendBuiltJournalEvent(
+            a_guid,
             IronSoul::Journal::BuildSoulFeat(a_soulTier, a_totalDeaths),
             a_startDay,
             a_nowDay);
@@ -112,34 +126,57 @@ namespace
 
     static bool JournalLogDefiantSoulFeat(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_totalDeaths,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildDefiantSoulFeat(a_totalDeaths), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildDefiantSoulFeat(a_totalDeaths), a_startDay, a_nowDay);
     }
 
     static bool JournalLogDefiantRestore(
         RE::StaticFunctionTag*,
+        std::string a_guid,
         std::int32_t a_targetTier,
         std::int32_t a_totalDeaths,
         std::int32_t a_startDay,
         std::int32_t a_nowDay)
     {
         return AppendBuiltJournalEvent(
+            a_guid,
             IronSoul::Journal::BuildDefiantRestore(a_targetTier, a_totalDeaths),
             a_startDay,
             a_nowDay);
     }
 
-    static bool JournalLogDefiantAwakened(RE::StaticFunctionTag*, std::int32_t a_startDay, std::int32_t a_nowDay)
+    static bool JournalLogDefiantAwakened(RE::StaticFunctionTag*, std::string a_guid, std::int32_t a_startDay, std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildDefiantAwakened(), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildDefiantAwakened(), a_startDay, a_nowDay);
     }
 
-    static bool JournalLogCHIMRealized(RE::StaticFunctionTag*, std::int32_t a_startDay, std::int32_t a_nowDay)
+    static bool JournalLogCHIMRealized(RE::StaticFunctionTag*, std::string a_guid, std::int32_t a_startDay, std::int32_t a_nowDay)
     {
-        return AppendBuiltJournalEvent(IronSoul::Journal::BuildCHIMRealized(), a_startDay, a_nowDay);
+        return AppendBuiltJournalEvent(a_guid, IronSoul::Journal::BuildCHIMRealized(), a_startDay, a_nowDay);
+    }
+
+    static bool JournalRefreshBook(RE::StaticFunctionTag*, std::string a_currentGuid)
+    {
+        return IronSoul::JournalBook::RefreshBook(a_currentGuid);
+    }
+
+    static bool DynamicBookRefreshOghma(RE::StaticFunctionTag*, std::string a_currentGuid)
+    {
+        return IronSoul::JournalBook::DynamicBookRefreshOghma(a_currentGuid);
+    }
+
+    static bool DynamicBookRefreshOpen(RE::StaticFunctionTag*, std::string a_bookId)
+    {
+        return IronSoul::DynamicBook::RefreshOpen(a_bookId);
+    }
+
+    static bool JournalDeleteCharacter(RE::StaticFunctionTag*, std::string a_guid)
+    {
+        return IronSoul::JournalBook::DeleteCharacter(a_guid);
     }
 }
 
@@ -159,5 +196,9 @@ namespace
         a_vm->RegisterFunction("JournalLogDefiantRestore", kScriptName, JournalLogDefiantRestore);
         a_vm->RegisterFunction("JournalLogDefiantAwakened", kScriptName, JournalLogDefiantAwakened);
         a_vm->RegisterFunction("JournalLogCHIMRealized", kScriptName, JournalLogCHIMRealized);
+        a_vm->RegisterFunction("JournalRefreshBook", kScriptName, JournalRefreshBook);
+        a_vm->RegisterFunction("DynamicBookRefreshOghma", kScriptName, DynamicBookRefreshOghma);
+        a_vm->RegisterFunction("DynamicBookRefreshOpen", kScriptName, DynamicBookRefreshOpen);
+        a_vm->RegisterFunction("JournalDeleteCharacter", kScriptName, JournalDeleteCharacter);
     }
 }

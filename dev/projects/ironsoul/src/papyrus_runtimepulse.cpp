@@ -31,6 +31,12 @@ namespace
         std::string reason;
     };
 
+    struct NewGameIntroAlarm
+    {
+        double targetSeconds{ 0.0 };
+        std::string reason;
+    };
+
     struct RuntimePulseState
     {
         std::atomic<std::uint32_t> updateToken{ 0 };
@@ -38,6 +44,7 @@ namespace
         std::atomic<std::uint32_t> dataFlushToken{ 0 };
         std::atomic<std::uint32_t> activeClockToken{ 0 };
         std::atomic<std::uint32_t> activeAlarmToken{ 0 };
+        std::atomic<std::uint32_t> newGameIntroAlarmToken{ 0 };
         std::atomic<std::uint32_t> featUnlockMenuAlarmToken{ 0 };
         std::atomic<std::uint32_t> dragonSoulWatcherToken{ 0 };
         std::atomic<int> dragonSoulWatcherBaseline{ -1 };
@@ -54,6 +61,7 @@ namespace
         double newGameIntroSeconds{ 0.0 };
         std::chrono::steady_clock::time_point newGameIntroLastSample{};
         std::unordered_map<std::uint32_t, ActiveGameplayAlarm> activeAlarms;
+        std::unordered_map<std::uint32_t, NewGameIntroAlarm> newGameIntroAlarms;
     };
 
     RuntimePulseState g_runtimePulse;
@@ -202,6 +210,15 @@ namespace
                         g_runtimePulse.newGameIntroSeconds += elapsed;
                     }
                 }
+
+                for (auto it = g_runtimePulse.newGameIntroAlarms.begin(); it != g_runtimePulse.newGameIntroAlarms.end();) {
+                    if (g_runtimePulse.newGameIntroSeconds >= it->second.targetSeconds) {
+                        dueAlarms.emplace_back(it->second.reason, it->first);
+                        it = g_runtimePulse.newGameIntroAlarms.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
             }
 
             const int activeSecond = g_runtimePulse.activeGameplaySeconds > 0.0 ?
@@ -267,6 +284,7 @@ namespace
             g_runtimePulse.newGameIntroSawLoadBoundary = false;
             g_runtimePulse.newGameIntroSeconds = 0.0;
             g_runtimePulse.newGameIntroLastSample = std::chrono::steady_clock::now();
+            g_runtimePulse.newGameIntroAlarms.clear();
         }
 
         if (InfoLoggingEnabled()) {
@@ -287,6 +305,7 @@ namespace
                 g_runtimePulse.newGameIntroClockActive = true;
                 g_runtimePulse.newGameIntroSeconds = 0.0;
                 g_runtimePulse.newGameIntroLastSample = std::chrono::steady_clock::now();
+                g_runtimePulse.newGameIntroAlarms.clear();
                 started = true;
             }
         }
@@ -307,6 +326,7 @@ namespace
             }
             g_runtimePulse.newGameIntroSeconds = 0.0;
             g_runtimePulse.newGameIntroLastSample = {};
+            g_runtimePulse.newGameIntroAlarms.clear();
         }
 
         if (InfoLoggingEnabled()) {
@@ -589,6 +609,48 @@ namespace
         g_runtimePulse.activeAlarms.erase(a_token);
     }
 
+    std::uint32_t QueueNewGameIntroAlarmInternal(float a_targetSeconds, std::string a_reason)
+    {
+        if (!RuntimeEventDispatchAvailable("new-game-intro-alarm")) {
+            return 0;
+        }
+
+        StartActiveGameplayClockInternal();
+
+        if (a_targetSeconds < 0.0F) {
+            a_targetSeconds = 0.0F;
+        }
+        if (a_reason.empty()) {
+            a_reason = "intro-target-alarm";
+        }
+
+        const auto token = ClaimNextToken(g_runtimePulse.newGameIntroAlarmToken);
+        {
+            std::scoped_lock lock(g_runtimePulse.activeClockLock);
+            if (!g_runtimePulse.newGameIntroClockActive) {
+                return 0;
+            }
+
+            g_runtimePulse.newGameIntroAlarms[token] = NewGameIntroAlarm{
+                static_cast<double>(a_targetSeconds),
+                a_reason
+            };
+        }
+
+        return token;
+    }
+
+    void CancelNewGameIntroAlarmInternal(std::uint32_t a_token)
+    {
+        std::scoped_lock lock(g_runtimePulse.activeClockLock);
+        if (a_token == 0) {
+            g_runtimePulse.newGameIntroAlarms.clear();
+            return;
+        }
+
+        g_runtimePulse.newGameIntroAlarms.erase(a_token);
+    }
+
     std::uint32_t BeginDragonSoulWatcherInternal(int a_baselineDragonSouls, float a_pollSeconds, std::string a_reason)
     {
         if (!RuntimeEventDispatchAvailable("dragon-soul-watcher")) {
@@ -718,6 +780,16 @@ namespace
         CancelActiveGameplayAlarmInternal(a_token > 0 ? static_cast<std::uint32_t>(a_token) : 0U);
     }
 
+    static std::int32_t QueueNewGameIntroAlarm(RE::StaticFunctionTag*, float a_targetSeconds, std::string a_reason)
+    {
+        return static_cast<std::int32_t>(QueueNewGameIntroAlarmInternal(a_targetSeconds, std::move(a_reason)));
+    }
+
+    static void CancelNewGameIntroAlarm(RE::StaticFunctionTag*, std::int32_t a_token, std::string)
+    {
+        CancelNewGameIntroAlarmInternal(a_token > 0 ? static_cast<std::uint32_t>(a_token) : 0U);
+    }
+
     static std::int32_t BeginDragonSoulWatcher(RE::StaticFunctionTag*, std::int32_t a_baselineDragonSouls, float a_pollSeconds, std::string a_reason)
     {
         return static_cast<std::int32_t>(BeginDragonSoulWatcherInternal(a_baselineDragonSouls, a_pollSeconds, std::move(a_reason)));
@@ -770,6 +842,8 @@ namespace
         a_vm->RegisterFunction("GetWallClockSeconds", kScriptName, GetWallClockSeconds);
         a_vm->RegisterFunction("EnsureNewGameIntroClockStarted", kScriptName, EnsureNewGameIntroClockStarted);
         a_vm->RegisterFunction("GetNewGameIntroElapsedSeconds", kScriptName, GetNewGameIntroElapsedSeconds);
+        a_vm->RegisterFunction("QueueNewGameIntroAlarm", kScriptName, QueueNewGameIntroAlarm);
+        a_vm->RegisterFunction("CancelNewGameIntroAlarm", kScriptName, CancelNewGameIntroAlarm);
         a_vm->RegisterFunction("QueueActiveGameplayAlarm", kScriptName, QueueActiveGameplayAlarm);
         a_vm->RegisterFunction("CancelActiveGameplayAlarm", kScriptName, CancelActiveGameplayAlarm);
         a_vm->RegisterFunction("BeginDragonSoulWatcher", kScriptName, BeginDragonSoulWatcher);

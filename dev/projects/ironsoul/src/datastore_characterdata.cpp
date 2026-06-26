@@ -75,6 +75,7 @@ namespace IronSoul
         { "soul", "IS_9646", "DragonSoulsStoredTotal", CharacterDataValueFormat::Plain },
         { "soul", "IS_7440", "DragonSoulsLastSeenLive", CharacterDataValueFormat::Plain },
         { "soul", IronSoul::Anima::kCharacterAnimaKey, "AnimaCharacter", CharacterDataValueFormat::Plain },
+        { "soul", "SH.C", "SunderheartsUnlockedCharacter", CharacterDataValueFormat::Plain },
 
         { "dsr", "IS_8201", "DragonSoulReviveLimitLastActiveSecond", CharacterDataValueFormat::Plain },
         { "dsr", "IS_8202", "DragonSoulReviveLimitPlayedSeconds", CharacterDataValueFormat::Plain },

@@ -6,6 +6,7 @@
 #include "console_guard.h"
 #include "datastore.h"
 #include "death_sink.h"
+#include "dynamic_book.h"
 #include "identity.h"
 #include "menu_blocker.h"
 #include "papyrus_audio.h"
@@ -89,6 +90,8 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 	IronSoul::ConsoleGuard::Install();
 	IronSoul::DataStore::Initialize();
 	IronSoul::Papyrus::RuntimePulse::StartDataFlushHeartbeat();
+	IronSoul::DynamicBook::RegisterSinks();
+	IronSoul::DynamicBook::RegisterLifecycleHooks();
 	IronSoul::MenuBlocker::RegisterSinks();
 	IronSoul::MenuBlocker::RegisterLifecycleHooks();
 	IronSoul::Papyrus::Audio::RegisterLifecycleHooks();

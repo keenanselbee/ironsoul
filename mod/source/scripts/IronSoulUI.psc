@@ -30,9 +30,13 @@ Scriptname IronSoulUI extends Quest
 ; RegisterMusicVolumeCacheMenus()
 ; ScheduleLoadMessage()
 ; ClearDelayedIronIntro()
+; CancelIronIntroTargetAlarm()
+; ArmIronIntroTargetAlarm()
 ; ScheduleIronIntroFromNewGameClock()
 ; RequiresFastPolling()
 ; HandleLoadNotification()
+; IsIronIntroTargetAlarmToken()
+; HandleIronIntroTargetAlarm()
 ; HandleDelayedIronIntro()
 ; OpenTimedMessageSWF()
 ; OpenTimedMessageSWF_SFX()
@@ -43,6 +47,8 @@ Scriptname IronSoulUI extends Quest
 ; OpenKeyDismissMenu()
 ; WaitKeyDismissMenu()
 ; PlayPresentationSFX()
+; ResolveOghmaInfinium()
+; EnsureOghmaInfiniumGranted()
 ; MarkPendingIronIntroShown()
 ; ShouldShowIronIntro()
 ; ShowIronIntro()
@@ -82,6 +88,7 @@ Scriptname IronSoulUI extends Quest
 ; ==========================================
 
 IronSoulController Property Controller Auto
+Book Property OghmaInfinium Auto
 
 ; Music fade
 SoundCategory Property AudioCategoryMUS Auto
@@ -96,11 +103,14 @@ Float _pendingLoadMessageStartedAt = 0.0
 
 Bool _pendingIronIntro = False
 String _pendingIronIntroGuid = ""
-Float _ironIntroAt = 0.0
 Float _ironIntroTargetSeconds = 0.0
+Int _ironIntroAlarmToken = 0
+Float _ironIntroAlarmTargetSeconds = -1.0
 Bool _ironIntroShownThisSession = False
 Bool _ironIntroShownPendingGuid = False
+Bool _oghmaInfiniumMissingLogged = False
 
+Float IRON_INTRO_BLOCKED_RETRY_SECONDS = 1.0
 Float IRON_INTRO_MAX_SECONDS = 30.0
 Float IRON_INTRO_MIN_DISMISS_SECONDS = 2.0
 Float IRON_INTRO_CLOSE_SFX_MAX_SECONDS = 13.5
@@ -371,10 +381,39 @@ Function ScheduleLoadMessage(Bool isLoadGame)
 EndFunction
 
 Function ClearDelayedIronIntro()
+    CancelIronIntroTargetAlarm("clear-delayed-intro")
     _pendingIronIntro = False
     _pendingIronIntroGuid = ""
-    _ironIntroAt = 0.0
     _ironIntroTargetSeconds = 0.0
+EndFunction
+
+Function CancelIronIntroTargetAlarm(String reason = "intro-target-cancel")
+    if _ironIntroAlarmToken > 0
+        IronSoulNative.CancelNewGameIntroAlarm(_ironIntroAlarmToken, reason)
+        _ironIntroAlarmToken = 0
+    endif
+    _ironIntroAlarmTargetSeconds = -1.0
+EndFunction
+
+Bool Function ArmIronIntroTargetAlarm(Float targetIntroSeconds, String reason = "intro-target-arm")
+    if targetIntroSeconds < 0.0
+        targetIntroSeconds = 0.0
+    endif
+
+    if _ironIntroAlarmToken > 0 && _ironIntroAlarmTargetSeconds == targetIntroSeconds
+        return True
+    endif
+
+    CancelIronIntroTargetAlarm("intro-target-rearm")
+    Int token = IronSoulNative.QueueNewGameIntroAlarm(targetIntroSeconds, "intro-target-alarm")
+    if token <= 0
+        LogUI(IronSoulConfig.LOG_DBG(), "ArmIronIntroTargetAlarm: native alarm unavailable reason=" + reason, True)
+        return False
+    endif
+
+    _ironIntroAlarmToken = token
+    _ironIntroAlarmTargetSeconds = targetIntroSeconds
+    return True
 EndFunction
 
 Function ScheduleIronIntroFromNewGameClock(Actor player)
@@ -402,6 +441,9 @@ Function ScheduleIronIntroFromNewGameClock(Actor player)
     endif
 
     _ironIntroTargetSeconds = Controller.Config.GetIronSoulIntroTargetSeconds() as Float
+    if _ironIntroTargetSeconds < 0.0
+        _ironIntroTargetSeconds = 0.0
+    endif
     Float delaySeconds = _ironIntroTargetSeconds - introElapsed
     if delaySeconds < 0.0
         delaySeconds = 0.0
@@ -409,7 +451,6 @@ Function ScheduleIronIntroFromNewGameClock(Actor player)
 
     _pendingIronIntro = True
     _pendingIronIntroGuid = guid
-    _ironIntroAt = Utility.GetCurrentRealTime() + delaySeconds
 
     String displayGuid = guid
     if displayGuid == ""
@@ -420,20 +461,24 @@ Function ScheduleIronIntroFromNewGameClock(Actor player)
         + " target=" + _ironIntroTargetSeconds \
         + " delay=" + delaySeconds + "s")
 
-    if Controller
-        Controller.QueueUpdate(delaySeconds)
+    if delaySeconds <= 0.0
+        HandleDelayedIronIntro(player)
+        return
+    endif
+
+    if !ArmIronIntroTargetAlarm(_ironIntroTargetSeconds, "schedule-intro")
+        if Controller
+            Controller.QueueUpdate(delaySeconds)
+        endif
     endif
 EndFunction
 
 Bool Function RequiresFastPolling(Float watchdogSeconds)
     Float nowRT = Utility.GetCurrentRealTime()
-    Float introRemainingSeconds = _ironIntroAt - nowRT
-    Bool ironIntroDue = _pendingIronIntro && introRemainingSeconds <= 0.0
-    Bool ironIntroSoon = _pendingIronIntro && Controller && introRemainingSeconds <= Controller.StandardPollSeconds
 
     if !_pendingLoadMessage
         _pendingLoadMessageStartedAt = 0.0
-        return ironIntroDue || ironIntroSoon
+        return False
     endif
 
     Float elapsed = nowRT - _pendingLoadMessageStartedAt
@@ -441,7 +486,7 @@ Bool Function RequiresFastPolling(Float watchdogSeconds)
         _pendingLoadMessage = False
         _pendingLoadMessageStartedAt = 0.0
         LogUI(IronSoulConfig.LOG_INFO(), "RequiresFastPolling: cleared pending load message after " + elapsed + "s")
-        return ironIntroDue || ironIntroSoon
+        return False
     endif
 
     return True
@@ -483,6 +528,28 @@ Function HandleLoadNotification(Actor player)
     Debug.Notification(BuildLoadStatsNotification(daysPassed, deaths, maxDeaths, animaVal, luckVal))
 EndFunction
 
+Bool Function IsIronIntroTargetAlarmToken(Int token)
+    return token > 0 && token == _ironIntroAlarmToken
+EndFunction
+
+Function HandleIronIntroTargetAlarm(Actor player, Int token)
+    if !IsIronIntroTargetAlarmToken(token)
+        LogUI(IronSoulConfig.LOG_DBG(), "HandleIronIntroTargetAlarm: ignored stale token=" + token + " current=" + _ironIntroAlarmToken, True)
+        return
+    endif
+
+    _ironIntroAlarmToken = 0
+    _ironIntroAlarmTargetSeconds = -1.0
+    if !player
+        if Controller
+            Controller.QueueUpdate(IRON_INTRO_BLOCKED_RETRY_SECONDS)
+        endif
+        return
+    endif
+
+    HandleDelayedIronIntro(player)
+EndFunction
+
 Function HandleDelayedIronIntro(Actor player)
     if !_pendingIronIntro
         return
@@ -492,17 +559,15 @@ Function HandleDelayedIronIntro(Actor player)
     Float introElapsed = IronSoulNative.GetNewGameIntroElapsedSeconds()
     if introElapsed >= 0.0 && _ironIntroTargetSeconds > 0.0 && introElapsed < _ironIntroTargetSeconds
         Float remainingIntroSeconds = _ironIntroTargetSeconds - introElapsed
-        _ironIntroAt = nowRT + remainingIntroSeconds
-        if Controller
+        if !ArmIronIntroTargetAlarm(_ironIntroTargetSeconds, "delayed-intro-wait") && Controller
             Controller.QueueUpdate(remainingIntroSeconds)
         endif
         return
     endif
 
-    if introElapsed < 0.0 && nowRT < _ironIntroAt
-        if Controller
-            Controller.QueueUpdate(_ironIntroAt - nowRT)
-        endif
+    if introElapsed < 0.0
+        LogUI(IronSoulConfig.LOG_INFO(), "HandleDelayedIronIntro: cleared pending intro because the native intro clock is inactive")
+        ClearDelayedIronIntro()
         return
     endif
 
@@ -511,18 +576,30 @@ Function HandleDelayedIronIntro(Actor player)
     endif
 
     if Utility.IsInMenuMode() || player.IsDead() || player.IsBleedingOut()
+        if Controller
+            Controller.QueueUpdate(IRON_INTRO_BLOCKED_RETRY_SECONDS)
+        endif
         return
     endif
 
     if _keyDismissActive
+        if Controller
+            Controller.QueueUpdate(IRON_INTRO_BLOCKED_RETRY_SECONDS)
+        endif
         return
     endif
 
     if Controller.Death && Controller.Death.IsDeathEventLocked()
+        if Controller
+            Controller.QueueUpdate(IRON_INTRO_BLOCKED_RETRY_SECONDS)
+        endif
         return
     endif
 
     if Controller.Respawn && Controller.Respawn.HasPendingRespawnState()
+        if Controller
+            Controller.QueueUpdate(IRON_INTRO_BLOCKED_RETRY_SECONDS)
+        endif
         return
     endif
 
@@ -539,18 +616,15 @@ Function HandleDelayedIronIntro(Actor player)
         return
     endif
 
-    Float dueAt = _ironIntroAt
     nowRT = Utility.GetCurrentRealTime()
     String displayGuid = guid
     if displayGuid == ""
         displayGuid = "<pending>"
     endif
     LogUI(IronSoulConfig.LOG_INFO(), "HandleDelayedIronIntro: opening intro for GUID=" + displayGuid \
-        + " due=" + dueAt \
         + " now=" + nowRT \
         + " elapsed=" + introElapsed \
-        + " target=" + _ironIntroTargetSeconds \
-        + " late=" + (nowRT - dueAt) + "s")
+        + " target=" + _ironIntroTargetSeconds)
 
     ClearDelayedIronIntro()
     ShowIronIntro(player, guid)
@@ -736,6 +810,40 @@ Function PlayPresentationSFX(Sound sfx, Actor player)
     endif
 EndFunction
 
+Book Function ResolveOghmaInfinium()
+    if OghmaInfinium
+        return OghmaInfinium
+    endif
+    return Game.GetFormFromFile(0x0001A332, "Skyrim.esm") as Book
+EndFunction
+
+Function EnsureOghmaInfiniumGranted(Actor player, String guid, String reason = "")
+    if !HasCoreRuntime() || !player
+        return
+    endif
+
+    if IronSoulNative.DataGetInt("OG.R.W", 0) != 1
+        return
+    endif
+
+    Book oghmaBook = ResolveOghmaInfinium()
+    if !oghmaBook
+        if !_oghmaInfiniumMissingLogged
+            LogUI(IronSoulConfig.LOG_ERR(), "EnsureOghmaInfiniumGranted: Oghma Infinium book form unavailable")
+            _oghmaInfiniumMissingLogged = True
+        endif
+        return
+    endif
+
+    if player.GetItemCount(oghmaBook) > 0
+        return
+    endif
+
+    player.AddItem(oghmaBook, 1, True)
+    IronSoulNative.JournalRefreshBook(guid)
+    LogUI(IronSoulConfig.LOG_INFO(), "EnsureOghmaInfiniumGranted: granted Oghma Infinium reason=" + reason + " guid=" + guid)
+EndFunction
+
 Function MarkPendingIronIntroShown(Actor player, String guid)
     if !_ironIntroShownPendingGuid || !player || guid == ""
         return
@@ -746,6 +854,7 @@ Function MarkPendingIronIntroShown(Actor player, String guid)
 
     Controller.Persistence.MarkIronIntroShown(player, guid)
     _ironIntroShownPendingGuid = False
+    EnsureOghmaInfiniumGranted(player, guid, "pending-intro-shown")
     LogUI(IronSoulConfig.LOG_INFO(), "MarkPendingIronIntroShown: marked deferred Iron Intro shown for GUID=" + guid)
 EndFunction
 
@@ -787,7 +896,8 @@ Bool Function ShowIronIntro(Actor player, String guid)
     Sound introSFX = Controller.SFX.SFXIronIntro
     Sound earlyCloseSFX = Controller.SFX.SFXIronIntroClose
     Float minDismissSeconds = IRON_INTRO_MIN_DISMISS_SECONDS
-    if Controller.Identity.IsCurrentCharacterTest(player)
+    Bool prisonerIntro = Controller.Identity.IsCurrentCharacterTest(player)
+    if prisonerIntro
         introMenu = "1_iron_intro_prisoner"
         earlyCloseSFX = Controller.SFX.SFXIronIntroPrisoner
     endif
@@ -797,6 +907,7 @@ Bool Function ShowIronIntro(Actor player, String guid)
     _ironIntroShownThisSession = True
     if guid != ""
         Controller.Persistence.MarkIronIntroShown(player, guid)
+        EnsureOghmaInfiniumGranted(player, guid, "iron-intro")
     else
         _ironIntroShownPendingGuid = True
         LogUI(IronSoulConfig.LOG_INFO(), "ShowIronIntro: deferred shown mark until GUID finalizes")

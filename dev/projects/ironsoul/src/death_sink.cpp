@@ -477,7 +477,8 @@ namespace
         const std::string source = classification.sourcePrefix + ": " + victimName;
         const std::int32_t characterDragonSouls = DataStore::GetInt(MakeGuidKey(Identity::kDragonSoulsTotalKey, guid), 0);
         const std::int32_t currentDeaths = DataStore::GetInt(MakeGuidKey(Identity::kCurrentDeathsKey, guid), 0);
-        const bool updateWorld = !IsTestCharacter(guid);
+        const bool testCharacter = IsTestCharacter(guid);
+        const bool updateWorld = !testCharacter;
         std::string payload = Anima::AddCharacter(guid, classification.amount, source, characterDragonSouls, currentDeaths, updateWorld);
         if (!StartsWith(payload, "ok|")) {
             ReleaseSessionAwardClaim(sessionClaimKey);
@@ -487,7 +488,9 @@ namespace
 
         SoulLevel::NoteSlain(guid, classification.soulLevel, updateWorld);
 
-        NoteDeathSinkDailyAnimaAward(guid, source, classification.amount, classification);
+        if (!testCharacter) {
+            NoteDeathSinkDailyAnimaAward(guid, source, classification.amount, classification);
+        }
 
         payload = AppendDeathSinkFields(std::move(payload), classification, victimName, victimFormID, baseFormID);
         QueueAwardPayload(std::move(payload));

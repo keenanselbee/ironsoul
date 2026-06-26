@@ -90,9 +90,11 @@ Scriptname IronSoulController extends Quest
 ; RunFeatUnlockMenuAlarmTick()
 ; RunLuckActiveAlarmTick()
 ; RunDragonSoulReviveActiveAlarmTick()
+; RunIronIntroTargetAlarmTick()
 ; RunMaintenanceTick()
 ; TickRequiemDeathHandlingReassertion()
 ; BootstrapTick()
+; HandleCharacterDataPathWarning()
 ; HandleDataStoreSizeWarning()
 ; SyncBootstrapDynamicAssets()
 ; StartNativeGameplayWatchers()
@@ -475,7 +477,7 @@ Function StartBootstrap()
     ;  - EnsureGuid() can succeed (identity ready; player name available).
 
     Identity.StartBootstrap(10)
-    _updateQueued = False
+    StopRuntimeUpdates()
     if Presentation
         Presentation.ScheduleIronIntroFromNewGameClock(Game.GetPlayer())
     endif
@@ -743,6 +745,7 @@ Event OnIronSoul_RuntimeUpdate(String eventName, String strArg, Float numArg, Fo
     Bool featUnlockMenuAlarmEvent = (StringUtil.Find(strArg, "feat-unlock-menu") == 0)
     Bool luckActiveAlarmEvent = (StringUtil.Find(strArg, "luck-active") == 0)
     Bool dsrActiveAlarmEvent = (StringUtil.Find(strArg, "dsr-active") == 0)
+    Bool introTargetAlarmEvent = (StringUtil.Find(strArg, "intro-target") == 0)
 
     if respawnMonitorEvent
         if !Respawn || !Respawn.IsRespawnStateMonitorToken(token)
@@ -776,6 +779,13 @@ Event OnIronSoul_RuntimeUpdate(String eventName, String strArg, Float numArg, Fo
             return
         endif
         RunDragonSoulReviveActiveAlarmTick(token, strArg)
+        return
+    elseif introTargetAlarmEvent
+        if !Presentation || !Presentation.IsIronIntroTargetAlarmToken(token)
+            LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale Iron Intro alarm event reason=" + strArg + " token=" + token, True)
+            return
+        endif
+        RunIronIntroTargetAlarmTick(token, strArg)
         return
     elseif token <= 0 || token != _updateQueuedNativeToken
         LogController(IronSoulConfig.LOG_DBG(), "OnIronSoul_RuntimeUpdate: ignored stale update event reason=" + strArg + " token=" + token + " current=" + _updateQueuedNativeToken, True)
@@ -811,6 +821,10 @@ Function RunRuntimeUpdateTick(String source = "runtime-update")
         return
     endif
 
+    if HandleCharacterDataPathWarning()
+        return
+    endif
+
     if HandleDataStoreSizeWarning()
         return
     endif
@@ -832,6 +846,23 @@ Function RunRuntimeUpdateTick(String source = "runtime-update")
     endif
 
     RescheduleIfJobsRemain()
+EndFunction
+
+Bool Function HandleCharacterDataPathWarning()
+    if !IronSoulNative.CharacterDataPathWarningPending()
+        return False
+    endif
+
+    if Utility.IsInMenuMode()
+        QueueUpdate(3.0)
+        return True
+    endif
+
+    if IronSoulNative.CharacterDataPathConsumeWarning()
+        Debug.MessageBox(IronSoulNative.TextGet("MessageBox.CharacterDataPathWarning"))
+    endif
+
+    return False
 EndFunction
 
 Bool Function HandleDataStoreSizeWarning()
@@ -915,6 +946,15 @@ Function RunDragonSoulReviveActiveAlarmTick(Int token, String source = "dsr-acti
     DragonSoulRevive.HandleActiveGameplayAlarm(player, guid, token)
 EndFunction
 
+Function RunIronIntroTargetAlarmTick(Int token, String source = "intro-target-alarm")
+    if _isQuitting || Config.IsUninstallMode() || _modDisabled
+        return
+    endif
+
+    Actor player = Game.GetPlayer()
+    Presentation.HandleIronIntroTargetAlarm(player, token)
+EndFunction
+
 Function RunMaintenanceTick(Actor player)
 
     if !player || player.IsDead() || player.IsBleedingOut()
@@ -945,6 +985,10 @@ Function RunMaintenanceTick(Actor player)
 
     ; Refresh last-seen identity snapshot (I.L/I.D) on this low-frequency cadence.
     Identity.WriteIdentitySnapshotLastSeen(guid, player)
+
+    if Presentation
+        Presentation.EnsureOghmaInfiniumGranted(player, guid, "maintenance")
+    endif
 
     Death.SyncCurrentDeathCountMirrors(player, guid)
 
@@ -995,7 +1039,6 @@ Bool Function BootstrapTick()
     if !p
         ; PAUSE retry consumption while player ref isn't available.
         LogController(IronSoulConfig.LOG_INFO(), "BootstrapTick: Player is None; waiting for player ref")
-        _updateQueued = False
         QueueUpdate(1.0)
         return True
     endif
@@ -1003,7 +1046,6 @@ Bool Function BootstrapTick()
     ; Do NOT consume retries while in UI/menu mode (e.g., long RaceMenu sessions).
     if Utility.IsInMenuMode()
         LogController(IronSoulConfig.LOG_DBG(), "BootstrapTick: In menu mode; waiting")
-        _updateQueued = False
         QueueUpdate(1.5)
         return True
     endif
@@ -1034,7 +1076,6 @@ Bool Function BootstrapTick()
         endif
 
         LogController(IronSoulConfig.LOG_INFO(), "BootstrapTick: Identity not ready; retrying (" + bootstrapTriesLeft + "s left)")
-        _updateQueued = False
         QueueUpdate(1.0)
         return True
     endif
@@ -1058,6 +1099,9 @@ Function SyncBootstrapDynamicAssets(Actor player, String guid)
 
     Int tier = Tiers.GetCurrentTier(player, guid)
     Tiers.SyncTierDynamicAssets(tier)
+    if Presentation
+        Presentation.EnsureOghmaInfiniumGranted(player, guid, "bootstrap")
+    endif
     LogController(IronSoulConfig.LOG_DBG(), "SyncBootstrapDynamicAssets: tier=" + tier, True)
 EndFunction
 

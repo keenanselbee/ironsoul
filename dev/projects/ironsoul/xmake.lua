@@ -2,7 +2,7 @@ set_xmakever('3.0.1')
 includes('lib/commonlibsse-ng')
 
 set_project('ironsoul')
-set_version('3.2.3')
+set_version('3.6.6')
 set_license('GPL-3.0')
 
 set_languages('c++23')
